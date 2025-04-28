@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>員工薪資計算系統</title>
+  <!-- PapaParse -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <!-- Flatpickr CSS & JS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <!-- Supabase JS Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* Styles remain unchanged - Omitted for brevity */
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+
+    .input-section {
+      margin-bottom: 20px;
+      padding: 20px;
+      background-color: #f8f9fa;
+      border-radius: 4px;
+    }
+
+    .input-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      text-align: left;
+    }
+
+    .input-row label {
+      margin-right: 10px;
+      width: 120px;
+      text-align: left;
+      font-size: 16px;
+    }
+
+    .input-row input {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      width: 180px;
+      font-size: 18px;
+      font-family: monospace;
+      text-align: left;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f8f9fa;
+    }
+
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    .total-row {
+      font-weight: bold;
+      background-color: #f0f0f0;
+    }
+
+    .deduction-row {
+      color: #dc3545;
+    }
+
+    .calculation-notes {
+      margin-top: 20px;
+      background-color: #f8f9fa;
+      padding: 20px;
+      border-radius: 4px;
+      position: relative;
+    }
+
+    .calculation-title {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .calculation-list {
+      list-style-type: disc;
+      padding-left: 20px;
+    }
+
+    .calculation-item {
+      margin-bottom: 5px;
+    }
+
+    /* 共同的按鈕樣式 */
+    .edit-button,
+    .delete-button {
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px; /* Adjusted back for potential better fit */
+    }
+
+    .edit-button {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .edit-button:hover {
+      background-color: #0056b3;
+    }
+
+    .delete-button {
+      background-color: red;
+      color: white;
+      margin-left: 5px;
+    }
+
+    .delete-button:hover {
+      background-color: darkred;
+    }
+
+    .print-button {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background-color: #28a745;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .print-button:hover {
+      background-color: #218838;
+    }
+
+    @media print {
+       /* Print styles remain unchanged */
+      body {
+        font-size: 8pt;
+        line-height: 1.2;
+      }
+
+      .container {
+        padding: 10px;
+        box-shadow: none;
+      }
+
+      h1 {
+        font-size: 10pt;
+        margin-bottom: 5px;
+      }
+
+      table {
+        border-collapse: collapse;
+        margin-top: 5px;
+      }
+
+      th,
+      td {
+        border: 1px solid black;
+        padding: 3px;
+        text-align: left;
+        font-size: 8pt;
+      }
+
+      .total-row {
+        font-size: 8pt;
+      }
+
+      .deduction-row {
+        color: #dc3545; /* Use actual color value */
+        font-size: 8pt;
+      }
+
+      .input-section,
+      #dataTable, /* Hide input table */
+      .month-title-section,
+      .calculation-notes,
+      .print-button,
+      .edit-button, /* Hide edit/delete in print */
+      .delete-button, /* Hide edit/delete in print */
+      .clear-data-section {
+        display: none;
+      }
+
+       /* Ensure #resultTable is visible for printing */
+      #resultTable {
+          display: block !important; /* Make sure result table prints */
+      }
+       #resultTable table { /* Ensure result table itself is displayed */
+          display: table !important;
+      }
+
+
+      @page {
+        size: A4;
+        margin: 10mm;
+      }
+    }
+
+    .edit-input {
+      width: 80px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-right: 5px;
+    }
+
+    .upload-button {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .upload-button:hover {
+      background-color: #0056b3;
+    }
+
+    .month-title-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    #dataTable th:nth-child(1),
+    #dataTable td:nth-child(1),
+    #dataTable th:nth-child(2),
+    #dataTable td:nth-child(2),
+    #dataTable th:nth-child(3),
+    #dataTable td:nth-child(3) {
+      text-align: left;
+    }
+
+     #dataTable th:nth-child(4), /* Align Actions Center */
+     #dataTable td:nth-child(4) {
+       text-align: center;
+     }
+
+
+    #monthTitle {
+      font-size: 26px;
+      font-weight: bold;
+      text-align: center;
+      margin: 0;
+    }
+
+    .calculation-notes .edit-button { /* Specific style for calc notes edit button */
+        position: absolute;
+        top: 15px; /* Adjust position slightly */
+        right: 15px;
+        background-color: #ffc107; /* Use a different color like warning */
+        color: black;
+        font-size: 14px; /* Match other buttons */
+        padding: 5px 10px;
+     }
+
+     .calculation-notes .edit-button:hover {
+        background-color: #e0a800;
+     }
+
+    /* One-key clear button style */
+    .clear-data-section {
+      text-align: center;
+      margin-top: 30px;
+      margin-bottom: 20px;
+    }
+
+    .clear-button {
+      background-color: #dc3545;
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .clear-button:hover {
+      background-color: #c82333;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>員工薪資計算系統</h1>
+
+    <button class="print-button" onclick="printSalaryTable()">列印薪資表</button>
+
+    <div class="input-section">
+      <div class="input-row">
+        <label for="date">日期:</label>
+        <input type="text" id="date" class="flatpickr" name="date" placeholder="選擇日期...">
+      </div>
+      <div class="input-row">
+        <label for="clockIn">上班時間:</label>
+        <input type="text" id="clockIn" class="flatpickr-time" name="clockIn" placeholder="選擇時間...">
+      </div>
+      <div class="input-row">
+        <label for="clockOut">下班時間:</label>
+        <input type="text" id="clockOut" class="flatpickr-time" name="clockOut" placeholder="選擇時間...">
+      </div>
+      <div class="button-container">
+        <button class="upload-button" onclick="addRow()">新增</button>
+      </div>
+    </div>
+
+    <div class="month-title-section">
+      <div id="monthTitle">__月考勤打卡</div>
+      <button class="upload-button" onclick="calculateSalaryAndFinalize()">計算薪資</button>
+    </div>
+
+    <table id="dataTable">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>上班時間</th>
+          <th>下班時間</th>
+          <th>操作</th> <!-- Changed header -->
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Data will be loaded here -->
+      </tbody>
+    </table>
+
+    <div id="resultTable">
+        <!-- Calculation results will appear here -->
+    </div>
+
+    <div class="calculation-notes">
+      <h3 class="calculation-title">計算說明：</h3>
+      <ul class="calculation-list">
+        <!-- Content generated by JS -->
+      </ul>
+       <!-- Edit button for calc notes is added/removed by JS (toggleEditMode/displayOriginalValues) -->
+    </div>
+
+    <!-- One-key clear button area -->
+    <div class="clear-data-section">
+      <button id="clearDataBtn" class="clear-button" onclick="confirmClearData()">清除所有紀錄</button>
+    </div>
+  </div>
+
+  <!-- JS -->
+  <script>
+    // --- Supabase Configuration ---
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL'; // <-- VERY IMPORTANT: Replace with your Supabase URL
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'; // <-- VERY IMPORTANT: Replace with your Supabase Anon Key
+    let supabase; // Declare supabase variable
+
+    // --- Attempt to initialize Supabase ---
+    try {
+        // Check if placeholder values are still present
+        if (SUPABASE_URL.startsWith('YOUR_') || SUPABASE_ANON_KEY.startsWith('YOUR_')) {
+             console.warn("Supabase URL or Key is still set to placeholder values. Supabase features will be disabled.");
+             // Keep supabase as undefined or null
+        } else {
+            supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log("Supabase client initialized.");
+        }
+    } catch (error) {
+        console.error("Error initializing Supabase client:", error);
+        // Keep supabase as undefined or null
+        alert("Supabase 初始化失敗，請檢查控制台錯誤訊息。部分功能將無法使用。");
+    }
+
+    const TEMP_TABLE_NAME = 'temporary_attendance'; // Name of your Supabase table
+
+    // --- Global Variables ---
+    let baseHourlyRate = 119;
+    let ot1Multiplier = 1.34;
+    let ot2Multiplier = 1.67;
+    let baseMonthSalary = 28590;
+    let isEditMode = false;
+    let removedHolidays = [];
+    let localData = [];
+
+    // --- DOM Elements ---
+    // Reference DOM elements (safer to get them once DOM is loaded)
+    let dateInput, clockInInput, clockOutInput, dataTableBody, monthTitle, resultTableDiv, calculationList;
+    let datePickerInstance; // To store flatpickr instance for date
+
+    // --- Core Functions ---
+
+    async function loadTemporaryData() {
+        console.log("Attempting to load temporary data...");
+        // Check if Supabase client is available
+        if (!supabase) {
+            console.warn("Supabase client not available. Cannot load data.");
+            localData = []; // Ensure local data is empty
+            renderTable(); // Render empty table
+            updateMonthTitleFromDate(null); // Clear title
+            return;
+        }
+
+        console.log("Loading temporary data from Supabase...");
+        const { data: supabaseData, error } = await supabase
+            .from(TEMP_TABLE_NAME)
+            .select('id, entry_date, clock_in, clock_out')
+            .order('entry_date', { ascending: true });
+
+        if (error) {
+            console.error('Error loading temporary data:', error);
+            alert(`無法載入暫存資料： ${error.message}`);
+            localData = [];
+        } else {
+            localData = supabaseData.map(item => ({
+                id: item.id,
+                日期: item.entry_date.replace(/-/g, '/'),
+                上班: item.clock_in || '',
+                下班: item.clock_out || ''
+            }));
+            console.log("Data loaded:", localData);
+            if (localData.length > 0) {
+                updateMonthTitleFromDate(new Date(localData[0].日期));
+            } else {
+                 updateMonthTitleFromDate(null);
+            }
+        }
+        renderTable();
+    }
+
+    function renderTable() {
+        if (!dataTableBody) return; // Ensure element exists
+
+        dataTableBody.innerHTML = '';
+        if (!Array.isArray(localData)) {
+            console.error("localData is not an array!", localData);
+            localData = [];
+        }
+
+        localData.forEach(item => {
+            const newRow = dataTableBody.insertRow();
+            const isMarkedHoliday = item.isHoliday && !removedHolidays.includes(item.日期);
+            if (isMarkedHoliday) {
+                newRow.style.color = "red";
+            }
+
+            const dateCell = newRow.insertCell();
+            const clockInCell = newRow.insertCell();
+            const clockOutCell = newRow.insertCell();
+            const actionCell = newRow.insertCell();
+            actionCell.style.textAlign = "center"; // Center align actions
+
+            newRow.dataset.id = item.id || ''; // Add Supabase ID or empty string
+
+            dateCell.textContent = isMarkedHoliday ? `${item.日期} (${item.holidayName || '假日'})` : item.日期;
+
+             if (item.isHoliday && !item.id) {
+                clockInCell.textContent = "";
+                clockOutCell.textContent = "";
+            } else {
+                 clockInCell.textContent = item.上班 || '';
+                 clockOutCell.textContent = item.下班 || '';
+            }
+
+            // Allow delete for all, disable edit for generated/marked holidays
+            const isEditable = !item.isHoliday; // Can only edit non-holiday entries
+            actionCell.innerHTML =
+                `<button class="edit-button" onclick="editRow(this)" ${!isEditable || !item.id ? 'disabled title="僅能編輯已儲存的非假日記錄"' : ''}>編輯</button>` +
+                `<button class="delete-button" onclick="deleteRow(this)">刪除</button>`;
+
+        });
+        console.log("Table rendered with " + localData.length + " rows.");
+    }
+
+    async function addRow() {
+        if (!dateInput || !clockInInput || !clockOutInput) return; // Ensure inputs exist
+
+        const dateValue = dateInput.value;
+        const clockInValue = clockInInput.value || null;
+        const clockOutValue = clockOutInput.value || null;
+
+        if (!dateValue) {
+            alert('請輸入日期');
+            return;
+        }
+
+        // Check if Supabase client is available
+        if (!supabase) {
+             console.warn("Supabase client not available. Adding data locally only for this session.");
+             // Add to local data only
+             const temporaryLocalId = `local_${Date.now()}`; // Create a temporary local ID
+             localData.push({
+                 id: temporaryLocalId, // Use temp ID
+                 日期: dateValue,
+                 上班: clockInValue || '',
+                 下班: clockOutValue || ''
+             });
+             localData.sort((a, b) => new Date(a.日期) - new Date(b.日期));
+             renderTable();
+             // Clear inputs
+             if(datePickerInstance) datePickerInstance.clear();
+             clockInInput.value = '';
+             clockOutInput.value = '';
+             if (localData.length > 0) {
+                 updateMonthTitleFromDate(new Date(localData[0].日期));
+             }
+             alert('注意：Supabase 未連接，資料僅暫存於本次瀏覽，關閉後將遺失。');
+             return; // Stop here if no Supabase
+        }
+
+        // --- Proceed with Supabase ---
+        const dateForSupabase = dateValue.replace(/\//g, '-');
+        console.log("Adding row to Supabase:", { entry_date: dateForSupabase, clock_in: clockInValue, clock_out: clockOutValue });
+
+        const { data: newRecord, error } = await supabase
+            .from(TEMP_TABLE_NAME)
+            .insert([{
+                entry_date: dateForSupabase,
+                clock_in: clockInValue,
+                clock_out: clockOutValue
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error adding row:', error);
+            alert(`新增資料失敗： ${error.message}`);
+        } else if (newRecord) {
+            console.log("Row added successfully:", newRecord);
+            localData.push({
+                id: newRecord.id,
+                日期: newRecord.entry_date.replace(/-/g, '/'),
+                上班: newRecord.clock_in || '',
+                下班: newRecord.clock_out || ''
+            });
+            localData.sort((a, b) => new Date(a.日期) - new Date(b.日期));
+            renderTable();
+             // Clear inputs using Flatpickr instance if available
+            if(datePickerInstance) datePickerInstance.clear();
+             clockInInput.value = ''; // Direct clear might be needed too
+             clockOutInput.value = ''; // Direct clear might be needed too
+             // Update title based on the first item's date
+             if (localData.length > 0) {
+                  updateMonthTitleFromDate(new Date(localData[0].日期));
+             } else {
+                 updateMonthTitleFromDate(null);
+             }
+        }
+    }
+
+
+    async function deleteRow(button) {
+        const row = button.closest('tr');
+        const idToDelete = row.dataset.id;
+        const dateText = row.cells[0].textContent.split(" ")[0];
+        const isGeneratedHoliday = !idToDelete && localData.some(item => item.日期 === dateText && item.isHoliday);
+
+        // Handle deletion of a generated holiday (not in DB)
+        if (isGeneratedHoliday) {
+             const index = localData.findIndex(item => item.日期 === dateText && item.isHoliday && !item.id);
+             if (index !== -1) {
+                 const deletedItem = localData.splice(index, 1)[0];
+                  if (!removedHolidays.includes(deletedItem.日期)) {
+                     removedHolidays.push(deletedItem.日期);
+                     console.log("Marked holiday for removal:", deletedItem.日期);
+                     alert("已標記移除此國定假日，計算薪資時將忽略。");
+                  }
+                 renderTable();
+             }
+             return; // Stop processing
+        }
+
+        // Handle deletion of records potentially stored locally only (if Supabase failed)
+        if (idToDelete && idToDelete.startsWith('local_')) {
+             if (!confirm(`確定要從本次瀏覽中刪除 ${dateText} 的記錄嗎？`)) return;
+             localData = localData.filter(item => item.id !== idToDelete);
+             renderTable();
+              if (localData.length === 0) updateMonthTitleFromDate(null);
+              alert('已從本次瀏覽暫存中移除記錄。');
+             return;
+        }
+
+
+        // Handle deletion from Supabase
+        if (!idToDelete || !supabase) {
+             console.error('Cannot delete row: Supabase ID not found, or Supabase client not available.', row);
+             alert('刪除失敗：找不到記錄ID或無法連接資料庫。');
+             return;
+        }
+
+        if (!confirm(`確定要從資料庫刪除 ${dateText} 的記錄嗎？`)) {
+            return;
+        }
+
+        console.log("Deleting row from Supabase, ID:", idToDelete);
+
+        // Check if it's a persisted holiday being deleted to update removedHolidays
+        const localItemIndex = localData.findIndex(item => item.id === idToDelete);
+        let isDeletingPersistedHoliday = false;
+        if (localItemIndex > -1 && localData[localItemIndex].isHoliday) { // Assuming holidays might be persisted incorrectly
+            isDeletingPersistedHoliday = true;
+            const holidayDate = localData[localItemIndex].日期;
+             if (!removedHolidays.includes(holidayDate)) {
+                 removedHolidays.push(holidayDate);
+                 console.log("Marked persisted holiday for removal:", holidayDate);
+             }
+        }
+
+
+        const { error } = await supabase
+            .from(TEMP_TABLE_NAME)
+            .delete()
+            .eq('id', idToDelete);
+
+        if (error) {
+            console.error('Error deleting row:', error);
+            alert(`刪除失敗： ${error.message}`);
+        } else {
+            console.log("Row deleted successfully, ID:", idToDelete);
+            localData = localData.filter(item => item.id !== idToDelete);
+            renderTable();
+             if (isDeletingPersistedHoliday) {
+                 alert("已刪除假日記錄，請按「計算薪資」更新薪資。");
+             }
+             if (localData.length === 0) {
+                updateMonthTitleFromDate(null);
+            }
+        }
+    }
+
+
+    async function editRow(button) {
+        const row = button.closest('tr');
+        const idToEdit = row.dataset.id;
+        const dateValue = row.cells[0].textContent.split(" ")[0];
+        const clockInValue = row.cells[1].textContent;
+        const clockOutValue = row.cells[2].textContent;
+
+        if (!idToEdit || idToEdit.startsWith('local_') || !supabase) {
+            console.warn('Cannot edit row: Supabase ID missing, row is local only, or Supabase unavailable.', row);
+            alert('編輯失敗：此記錄無法編輯（可能尚未儲存至資料庫或無法連接）。');
+            return;
+        }
+
+         // Double check it's not a holiday marked row in localData
+         if (localData.find(item => item.id === idToEdit && item.isHoliday)) {
+             alert("假日記錄無法編輯時間。");
+             return;
+         }
+
+        console.log("Preparing to edit row, ID:", idToEdit);
+
+        // Delete from Supabase first
+        const { error: deleteError } = await supabase
+            .from(TEMP_TABLE_NAME)
+            .delete()
+            .eq('id', idToEdit);
+
+        if (deleteError) {
+            console.error('Error deleting row for edit:', deleteError);
+            alert(`編輯準備失敗（無法刪除舊記錄）： ${deleteError.message}`);
+            return;
+        }
+
+        console.log("Old row deleted for editing, ID:", idToEdit);
+
+        // Remove from local data
+        localData = localData.filter(item => item.id !== idToEdit);
+
+        // Populate input fields
+        if(datePickerInstance) datePickerInstance.setDate(dateValue, true); // Trigger onChange for title update
+        if(clockInInput) clockInInput.value = clockInValue;
+        if(clockOutInput) clockOutInput.value = clockOutValue;
+
+        renderTable(); // Re-render table without the row
+
+        if(dateInput) dateInput.focus(); // Focus the first input
+
+        alert('請修改資料後按「新增」按鈕儲存變更。\n（原記錄已刪除）');
+    }
+
+
+    async function calculateSalaryAndFinalize() {
+        console.log("Starting salary calculation and finalization...");
+
+        let finalDataForCalc = [];
+        let idsToDelete = [];
+
+        // Check if Supabase client is available
+        if (!supabase) {
+            console.warn("Supabase client not available. Calculating based on local data only.");
+            // Use localData directly for calculation, but cannot clear from DB
+            finalDataForCalc = [...localData]; // Use a copy
+            idsToDelete = []; // Cannot delete from DB
+             if (finalDataForCalc.length === 0) {
+                 alert('沒有本地暫存的打卡記錄可供計算薪資。');
+                 if(resultTableDiv) resultTableDiv.innerHTML = '';
+                 return;
+            }
+             alert('警告：正在基於本次瀏覽的暫存資料計算薪資，記錄未從資料庫讀取或清除。');
+        } else {
+            // --- Proceed with Supabase ---
+            console.log("Fetching final data from Supabase for calculation...");
+            const { data: finalDbData, error: fetchError } = await supabase
+                .from(TEMP_TABLE_NAME)
+                .select('id, entry_date, clock_in, clock_out')
+                .order('entry_date', { ascending: true });
+
+            if (fetchError) {
+                console.error('Error fetching final data for calculation:', fetchError);
+                alert(`計算失敗，無法獲取最新打卡記錄： ${fetchError.message}`);
+                return;
+            }
+
+            if (!finalDbData || finalDbData.length === 0) {
+                alert('資料庫中沒有打卡記錄可供計算薪資。');
+                 if(resultTableDiv) resultTableDiv.innerHTML = '';
+                return;
+            }
+
+            console.log("Final data fetched from Supabase:", finalDbData);
+             finalDataForCalc = finalDbData.map(item => ({ // Map to calculation format
+                 id: item.id,
+                 日期: item.entry_date.replace(/-/g, '/'),
+                 上班: item.clock_in || '',
+                 下班: item.clock_out || ''
+             }));
+            idsToDelete = finalDbData.map(item => item.id); // Get IDs to delete later
+        }
+
+
+        // 3. Insert Holidays into the calculation data array
+        insertHolidayRows(finalDataForCalc); // Modifies finalDataForCalc
+
+        // 4. Perform Calculation and Display Results
+        displayResults(finalDataForCalc); // Uses the array with holidays
+
+        // 5. Clear the temporary table in Supabase (only if Supabase is available and IDs were fetched)
+        if (supabase && idsToDelete.length > 0) {
+            console.log("Clearing temporary attendance data from Supabase...");
+            const { error: deleteError } = await supabase
+                .from(TEMP_TABLE_NAME)
+                .delete()
+                .in('id', idsToDelete);
+
+            if (deleteError) {
+                console.error('Error clearing temporary data:', deleteError);
+                alert(`警告：薪資已計算，但清除資料庫暫存記錄時發生錯誤： ${deleteError.message}`);
+            } else {
+                console.log("Temporary data cleared successfully from Supabase.");
+            }
+        } else if (supabase && idsToDelete.length === 0 && finalDataForCalc.length > 0) {
+             console.log("Calculation done, but no Supabase records were fetched to clear.");
+        }
+
+
+        // 6. Clear the local data array and the input table display
+        localData = [];
+        removedHolidays = []; // Reset removed holidays
+        renderTable(); // Show empty input table
+
+        // 7. Clear month title
+        updateMonthTitleFromDate(null);
+
+        alert('薪資計算完成！相關暫存記錄已處理。');
+
+        // Optional: Save final results permanently (pseudo-code)
+        // const summary = extractSummaryFromResults();
+        // if (supabase) {
+        //     const { error: saveError } = await supabase.from('salary_history').insert([summary]);
+        //     if (saveError) console.error("Error saving final salary record:", saveError);
+        // }
+    }
+
+
+    // --- Holiday Logic (Accepts and modifies data array) ---
+    // (Function definition for insertHolidayRows remains the same as previous version)
+    function insertHolidayRows(dataArray) {
+        if (!dataArray || dataArray.length === 0) return;
+        const firstDate = new Date(dataArray[0].日期);
+        let selectedYear = firstDate.getFullYear();
+        const month = firstDate.getMonth() + 1;
+        const holidays = getTaiwanHolidays(selectedYear);
+
+        holidays.forEach(holiday => {
+            const processDate = (holidayDateStr, holidayName) => {
+                 const holidayDate = new Date(holidayDateStr);
+                 if ((holidayDate.getMonth() + 1) === month) {
+                     if (removedHolidays.includes(holidayDateStr)) {
+                        console.log(`Skipping insertion of manually removed holiday: ${holidayDateStr}`);
+                        return;
+                     }
+                     const exists = dataArray.some(item => item.日期 === holidayDateStr);
+                     if (!exists) {
+                        console.log(`Inserting holiday: ${holidayDateStr} (${holidayName})`);
+                         dataArray.push({
+                            日期: holidayDateStr,
+                            上班: "",
+                            下班: "",
+                            isHoliday: true,
+                            holidayName: holidayName
+                         });
+                     }
+                 }
+            };
+
+            if (holiday.date) {
+                processDate(holiday.date, holiday.name);
+            } else if (holiday.start && holiday.end) {
+                const startDate = new Date(holiday.start);
+                const endDate = new Date(holiday.end);
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const dStr = `${d.getFullYear()}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getDate().toString().padStart(2, '0')}`;
+                    processDate(dStr, holiday.name);
+                }
+            }
+        });
+        dataArray.sort((a, b) => new Date(a.日期) - new Date(b.日期));
+    }
+
+    // --- Utility Functions ---
+    // (Function definitions for updateMonthTitleFromDate, getTaiwanHolidays,
+    // calculateOvertime, calculateOvertimePay remain the same)
+     function updateMonthTitleFromDate(dateObject) {
+         if (!monthTitle) return;
+         if (dateObject instanceof Date && !isNaN(dateObject)) {
+             const month = dateObject.getMonth() + 1;
+             monthTitle.textContent = `${month}月考勤打卡`;
+         } else {
+             monthTitle.textContent = "__月考勤打卡";
+         }
+    }
+     function getTaiwanHolidays(year) {
+      const currentYear = new Date().getFullYear();
+      if (year !== 2025) { // Only have 2025 data in this example
+        console.warn(`Holiday data requested for year ${year}, but only 2025 data is available.`);
+         // Optionally return [] or fall back to 2025
+         // return [];
+         year = 2025; // Force to 2025 for this example
+      }
+      if (year === 2025) {
+        return [
+            { name: "元旦", date: "2025/01/01" },
+            { name: "農曆春節", start: "2025/01/25", end: "2025/02/02" },
+            { name: "228和平紀念日", start: "2025/02/28", end: "2025/03/02" },
+            { name: "清明節", start: "2025/04/03", end: "2025/04/06" },
+            { name: "勞動節", date: "2025/05/01" },
+            { name: "端午節", start: "2025/05/30", end: "2025/06/01" },
+            { name: "中秋節", start: "2025/10/04", end: "2025/10/06" },
+            { name: "國慶日", start: "2025/10/10", end: "2025/10/12" }
+        ];
+      } else {
+          console.warn(`No holiday data available for year ${year}.`);
+          return [];
+      }
+    }
+    function calculateOvertime(clockIn, clockOut) {
+      // Use the corrected logic from previous response
+       if (!clockIn || !clockOut) return { ot1: 0, ot2: 0 };
+       function timeToMinutes(timeStr) {
+          if (!timeStr || !timeStr.includes(':')) return 0;
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          return hours * 60 + minutes;
+       }
+       const outTime = timeToMinutes(clockOut);
+       const STANDARD_END = timeToMinutes('16:00'); // 960
+       const OT1_END = timeToMinutes('18:00'); // 1080
+       const OT2_END = timeToMinutes('20:00'); // 1200
+
+       let ot1 = 0;
+       let ot2 = 0;
+       const bufferMinutes = 7; // 7 minute buffer
+
+       // --- OT1 Calculation (16:00 - 18:00) ---
+       if (outTime > STANDARD_END + bufferMinutes) {
+           const ot1Duration = Math.min(outTime, OT1_END) - STANDARD_END;
+           if (ot1Duration > (1*60 + 30 + bufferMinutes)) ot1 = 2.0;    // > 1:37 -> 2.0h
+           else if (ot1Duration > (1*60 + bufferMinutes)) ot1 = 1.5;  // > 1:07 -> 1.5h
+           else if (ot1Duration > (0*60 + 30 + bufferMinutes)) ot1 = 1.0; // > 0:37 -> 1.0h
+           else if (ot1Duration > (0*60 + bufferMinutes)) ot1 = 0.5; // > 0:07 -> 0.5h
+       }
+
+       // --- OT2 Calculation (18:00 - 20:00 and beyond) ---
+       if (outTime > OT1_END + bufferMinutes) {
+           // Duration within 18:00 - 20:00 range
+           const ot2Range1Duration = Math.max(0, Math.min(outTime, OT2_END) - OT1_END);
+           if (ot2Range1Duration > (1*60 + 30 + bufferMinutes)) ot2 += 2.0;
+           else if (ot2Range1Duration > (1*60 + bufferMinutes)) ot2 += 1.5;
+           else if (ot2Range1Duration > (0*60 + 30 + bufferMinutes)) ot2 += 1.0;
+           else if (ot2Range1Duration > (0*60 + bufferMinutes)) ot2 += 0.5;
+
+           // Duration beyond 20:00 (add to ot2)
+           if (outTime > OT2_END + bufferMinutes) {
+               const ot2Range2Duration = outTime - OT2_END;
+                // Simplified: Add 0.5h for every 30 min block past the buffer
+               let additionalOt2 = 0;
+               if (ot2Range2Duration > bufferMinutes) {
+                   // Calculate full 30-min blocks past the buffer
+                   additionalOt2 = Math.floor((ot2Range2Duration - bufferMinutes) / 30) * 0.5;
+                   // Check if there's *any* time past buffer in the last partial block
+                   if (((ot2Range2Duration - bufferMinutes) % 30) > 0) {
+                       additionalOt2 += 0.5;
+                   }
+               }
+               ot2 += additionalOt2;
+
+               // Original logic for beyond 20:00 (if preferred)
+               /*
+               if (ot2Range2Duration > (1*60 + 30 + bufferMinutes)) ot2 += 2.0; // Example increments
+               else if (ot2Range2Duration > (1*60 + bufferMinutes)) ot2 += 1.5;
+               else if (ot2Range2Duration > (0*60 + 30 + bufferMinutes)) ot2 += 1.0;
+               else if (ot2Range2Duration > (0*60 + bufferMinutes)) ot2 += 0.5;
+               */
+           }
+       }
+       // Ensure ot1 doesn't exceed 2 hours if capped there
+       ot1 = Math.min(ot1, 2.0);
+
+       return { ot1, ot2 };
+    }
+    function calculateOvertimePay(ot1, ot2) {
+      const ot1Pay = Math.ceil(ot1 * (baseHourlyRate * ot1Multiplier));
+      const ot2Pay = Math.ceil(ot2 * (baseHourlyRate * ot2Multiplier));
+      return ot1Pay + ot2Pay;
+    }
+
+    // --- Display Calculation Results ---
+    // (Function definition for displayResults remains the same as previous version,
+    // ensure resultTableDiv is checked for existence)
+    function displayResults(salaryData) {
+        if (!resultTableDiv) return; // Ensure element exists
+
+        const housingAllowance = 2500;
+        const normalData = salaryData.filter(row => !row.isHoliday);
+        const holidayData = salaryData.filter(row => row.isHoliday);
+        const totalOT1Hours = normalData.reduce((sum, row) => sum + calculateOvertime(row.上班, row.下班).ot1, 0);
+        const totalOT2Hours = normalData.reduce((sum, row) => sum + calculateOvertime(row.上班, row.下班).ot2, 0);
+        const totalOvertimePay = normalData.reduce((sum, row) => sum + calculateOvertimePay(calculateOvertime(row.上班, row.下班).ot1, calculateOvertime(row.上班, row.下班).ot2), 0);
+        const holidayDailySalary = Math.round(baseMonthSalary / 30);
+        const holidayTotalPay = holidayData.length * holidayDailySalary;
+        const grossSalary = baseMonthSalary + housingAllowance + totalOvertimePay + holidayTotalPay;
+        const deductions = [
+            { name: '勞保費', amount: 658 },
+            { name: '健保費', amount: 443 },
+            { name: '服務費', amount: 1800 },
+            { name: '住宿費', amount: 2500 }
+        ];
+        const totalDeductions = deductions.reduce((sum, item) => sum + item.amount, 0);
+        const netSalary = grossSalary - totalDeductions;
+
+        let html = `
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th><th>上班時間</th><th>下班時間</th><th>第一階段加班</th><th>第二階段加班</th><th>加班/假日薪資</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        salaryData.forEach(row => {
+            if (row.isHoliday) {
+              html += `<tr style="color:red;"><td>${row.日期} (${row.holidayName || '國定假日'})</td><td></td><td></td><td></td><td></td><td>${holidayDailySalary}</td></tr>`;
+            } else {
+              const overtime = calculateOvertime(row.上班, row.下班);
+              let pay = calculateOvertimePay(overtime.ot1, overtime.ot2);
+              html += `<tr><td>${row.日期}</td><td>${row.上班 || '-'}</td><td>${row.下班 || '-'}</td><td>${overtime.ot1.toFixed(1)}</td><td>${overtime.ot2.toFixed(1)}</td><td>${pay}</td></tr>`;
+            }
+        });
+        html += `
+              <tr class="total-row"><td colspan="3">一般加班時數總計：</td><td>${totalOT1Hours.toFixed(1)}</td><td>${totalOT2Hours.toFixed(1)}</td><td>${totalOvertimePay}</td></tr>
+              <tr class="total-row"><td colspan="5">假日給薪總計：(${holidayData.length}天 * ${holidayDailySalary})</td><td>${holidayTotalPay}</td></tr>
+              <tr class="total-row"><td colspan="5">基本底薪：</td><td>${baseMonthSalary}</td></tr>
+              <tr class="total-row"><td colspan="5">住宿津貼：</td><td>${housingAllowance}</td></tr>
+        `;
+        deductions.forEach(item => { html += `<tr class="deduction-row"><td colspan="5">${item.name}：</td><td>-${item.amount}</td></tr>`; });
+        html += `
+              <tr class="total-row"><td colspan="5">應發薪資 (Gross Salary)：</td><td>${grossSalary}</td></tr>
+               <tr class="total-row"><td colspan="5">扣款總計 (Total Deductions)：</td><td>-${totalDeductions}</td></tr>
+               <tr class="total-row" style="background-color: #e0ffe0; font-size: 1.1em;"><td colspan="5">實領金額 (Net Salary)：</td><td>${netSalary}</td></tr>
+              </tbody>
+            </table>
+        `;
+        resultTableDiv.innerHTML = html;
+        console.log("Results displayed.");
+    }
+
+    // --- Edit Calculation Parameters ---
+    // (Function definitions for toggleEditMode, saveChanges, cancelEdit, displayOriginalValues
+    // remain mostly the same, ensure calculationList element is checked)
+    function toggleEditMode() {
+        if (!calculationList) return;
+        isEditMode = !isEditMode;
+        const parentNode = calculationList.parentNode;
+        const existingEditButton = parentNode.querySelector('.edit-button-calc');
+
+        if (isEditMode) {
+            // Remove existing static button if present
+             if(existingEditButton) existingEditButton.style.display = 'none';
+
+            calculationList.innerHTML = `
+              <li class="calculation-item">基本時薪：<span id="baseHourlyRate">${baseHourlyRate}</span> 元/時 (自動計算)</li>
+              <li class="calculation-item">第一階段加班（16:00-18:00）：<input type="number" step="0.01" class="edit-input" id="editOt1Multiplier" value="${ot1Multiplier}"> 倍時薪</li>
+              <li class="calculation-item">第二階段加班（18:00-20:00）：<input type="number" step="0.01" class="edit-input" id="editOt2Multiplier" value="${ot2Multiplier}"> 倍時薪</li>
+              <li class="calculation-item">基本底薪：<input type="number" class="edit-input" id="editBaseMonthSalary" value="${baseMonthSalary}"> 元</li>
+              <button class="edit-button" style="background-color: #28a745; margin-top: 10px;" onclick="saveChanges()">儲存</button>
+              <button class="delete-button" style="margin-top: 10px;" onclick="cancelEdit()">取消</button>
+            `;
+        } else {
+             if(existingEditButton) existingEditButton.style.display = 'block'; // Show static button again
+            displayOriginalValues(); // Restore static display
+        }
+    }
+     function saveChanges() {
+          if (!calculationList) return;
+          const newOt1 = parseFloat(document.getElementById('editOt1Multiplier')?.value);
+          const newOt2 = parseFloat(document.getElementById('editOt2Multiplier')?.value);
+          const newBaseSalary = parseFloat(document.getElementById('editBaseMonthSalary')?.value);
+
+           if (isNaN(newOt1) || isNaN(newOt2) || isNaN(newBaseSalary) || newOt1 <= 0 || newOt2 <= 0 || newBaseSalary <= 0) {
+              alert("請輸入有效的正數值。");
+              return;
+          }
+
+          ot1Multiplier = newOt1;
+          ot2Multiplier = newOt2;
+          baseMonthSalary = newBaseSalary;
+          baseHourlyRate = Math.round(baseMonthSalary / 30 / 8);
+
+          isEditMode = false; // Exit edit mode
+          displayOriginalValues(); // Update display immediately
+
+          // Show the static edit button again
+           const parentNode = calculationList.parentNode;
+           const existingEditButton = parentNode.querySelector('.edit-button-calc');
+           if (existingEditButton) existingEditButton.style.display = 'block';
+
+
+           if (resultTableDiv && resultTableDiv.innerHTML.trim() !== '') {
+               alert("薪資參數已更新，建議重新按「計算薪資」以套用新設定。");
+           }
+    }
+     function cancelEdit() {
+         if (!calculationList) return;
+          isEditMode = false;
+          displayOriginalValues();
+          // Show the static edit button again
+          const parentNode = calculationList.parentNode;
+          const existingEditButton = parentNode.querySelector('.edit-button-calc');
+          if(existingEditButton) existingEditButton.style.display = 'block';
+    }
+    function displayOriginalValues() {
+         if (!calculationList) return;
+          calculationList.innerHTML = `
+            <li class="calculation-item">基本時薪：<span id="baseHourlyRate">${baseHourlyRate}</span> 元/時</li>
+            <li class="calculation-item">第一階段加班（16:00-18:00）：<span id="ot1Multiplier">${ot1Multiplier}</span> 倍時薪</li>
+            <li class="calculation-item">第二階段加班（18:00-20:00）：<span id="ot2Multiplier">${ot2Multiplier}</span> 倍時薪</li>
+            <li class="calculation-item">基本底薪：<span id="baseMonthSalary">${baseMonthSalary}</span> 元</li>
+          `;
+         // Ensure the static edit button exists and is visible
+          const parentNode = calculationList.parentNode;
+          let editButton = parentNode.querySelector('.edit-button-calc');
+          if (!editButton) {
+               editButton = document.createElement('button');
+               editButton.className = 'edit-button edit-button-calc'; // Use specific class
+               editButton.textContent = '編輯參數'; // Clearer text
+               editButton.onclick = toggleEditMode;
+               parentNode.appendChild(editButton); // Append it to the parent div
+               // Apply positioning styles via CSS or here if needed
+               editButton.style.position = 'absolute';
+               editButton.style.top = '15px';
+               editButton.style.right = '15px';
+               editButton.style.backgroundColor = '#ffc107';
+               editButton.style.color = 'black';
+               editButton.style.padding = '5px 10px';
+               editButton.style.fontSize = '14px';
+          }
+          editButton.style.display = 'block'; // Ensure it's visible
+    }
+
+
+    // --- Print Function ---
+    // (Function definition for printSalaryTable remains the same)
+    function printSalaryTable() {
+      if (!resultTableDiv || resultTableDiv.innerHTML.trim() === '') {
+        alert('請先計算薪資後再進行列印');
+        return;
+      }
+      window.print();
+    }
+
+    // --- Clear All Data Function ---
+    // (confirmClearData and clearAllTemporaryData remain mostly the same,
+    // check for supabase client availability)
+    function confirmClearData() {
+      if (localData.length === 0) {
+        alert('目前沒有任何暫存的打卡紀錄可清除。');
+        return;
+      }
+      const confirmationMessage = supabase
+          ? '確定要清除所有暫存的打卡紀錄嗎？此操作會從資料庫中移除，無法恢復！'
+          : '確定要清除本次瀏覽的所有暫存打卡紀錄嗎？（資料庫未連接）';
+
+      const confirmed = confirm(confirmationMessage);
+      if (confirmed) {
+        clearAllTemporaryData();
+      }
+    }
+
+     async function clearAllTemporaryData() {
+        console.log("Clearing all temporary data...");
+         let clearedFromDB = false;
+
+        // Try clearing from Supabase if available and records exist there
+        if (supabase) {
+             const idsToDelete = localData.filter(item => item.id && !item.id.startsWith('local_')).map(item => item.id);
+             if (idsToDelete.length > 0) {
+                 console.log("Attempting to clear records from Supabase:", idsToDelete);
+                 const { error } = await supabase
+                    .from(TEMP_TABLE_NAME)
+                    .delete()
+                    .in('id', idsToDelete);
+
+                 if (error) {
+                    console.error('Error clearing temporary data from Supabase:', error);
+                    alert(`從資料庫清除暫存記錄時發生錯誤： ${error.message}`);
+                    // Optionally stop here, or proceed to clear locally anyway?
+                    // Let's proceed to clear locally for UI consistency.
+                 } else {
+                     console.log("Successfully cleared records from Supabase.");
+                     clearedFromDB = true;
+                 }
+             } else {
+                 console.log("No Supabase records found in local data to clear.");
+             }
+        } else {
+             console.log("Supabase not available, only clearing local data.");
+        }
+
+        // Clear local data and UI elements regardless of DB outcome
+        localData = [];
+        removedHolidays = [];
+        renderTable();
+        if(resultTableDiv) resultTableDiv.innerHTML = '';
+        updateMonthTitleFromDate(null);
+
+        const successMessage = clearedFromDB
+            ? '已成功清除資料庫及本地的所有暫存打卡紀錄'
+            : '已清除本次瀏覽的暫存打卡紀錄';
+        alert(successMessage);
+    }
+
+
+    // --- Initial Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log("DOM fully loaded and parsed");
+
+      // --- Get DOM Element References ---
+      dateInput = document.getElementById('date');
+      clockInInput = document.getElementById('clockIn');
+      clockOutInput = document.getElementById('clockOut');
+      dataTableBody = document.getElementById('dataTable')?.getElementsByTagName('tbody')[0]; // Add safe navigation
+      monthTitle = document.getElementById('monthTitle');
+      resultTableDiv = document.getElementById('resultTable');
+      calculationList = document.querySelector('.calculation-notes .calculation-list'); // More specific selector
+
+
+      // --- Initialize Flatpickr ---
+       // Ensure elements exist before initializing Flatpickr
+       if (dateInput && clockInInput && clockOutInput) {
+           console.log("Initializing Flatpickr...");
+           datePickerInstance = flatpickr(dateInput, { // Store instance
+               dateFormat: "Y/m/d",
+               onChange: function(selectedDates, dateStr) {
+                   if (selectedDates.length > 0) {
+                       updateMonthTitleFromDate(selectedDates[0]);
+                   } else {
+                       // Optional: Clear title if date is cleared
+                       // updateMonthTitleFromDate(null);
+                   }
+               }
+           });
+           flatpickr(clockInInput, {
+               enableTime: true,
+               noCalendar: true,
+               dateFormat: "H:i",
+               time_24hr: true
+           });
+           flatpickr(clockOutInput, {
+               enableTime: true,
+               noCalendar: true,
+               dateFormat: "H:i",
+               time_24hr: true
+           });
+           console.log("Flatpickr Initialized.");
+       } else {
+            console.error("Could not find one or more Flatpickr input elements!");
+       }
+
+
+      // --- Post-Initialization Setup ---
+      if (!supabase) {
+           console.warn("Supabase not initialized. Skipping initial data load from DB.");
+           // Optionally display a persistent warning to the user on the page
+       } else {
+           loadTemporaryData(); // Load data only if Supabase is okay
+       }
+       displayOriginalValues(); // Setup calculation parameters display
+
+    }); // End DOMContentLoaded
+
+  </script>
+</body>
+
+</html>

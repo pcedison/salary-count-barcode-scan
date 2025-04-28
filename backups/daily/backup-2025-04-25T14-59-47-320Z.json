@@ -1,0 +1,415 @@
+{
+  "metadata": {
+    "timestamp": "2025-04-25T14:59:47.320Z",
+    "type": "daily",
+    "description": "初始每日備份 4/25/2025, 2:59:47 PM",
+    "version": "1.0.0",
+    "databaseType": "supabase"
+  },
+  "employees": [
+    {
+      "id": 3,
+      "name": "王小文",
+      "idNumber": "K011133456",
+      "isEncrypted": true,
+      "position": "約聘",
+      "department": "行政部",
+      "email": "",
+      "phone": "",
+      "active": true,
+      "createdAt": "2025-04-25T09:15:10.190Z"
+    },
+    {
+      "id": 1,
+      "name": "陳文山",
+      "idNumber": "N90728491",
+      "isEncrypted": true,
+      "position": "產線人員",
+      "department": "生產部",
+      "email": "",
+      "phone": "",
+      "active": true,
+      "createdAt": "2025-04-25T01:52:25.322Z"
+    }
+  ],
+  "settings": {
+    "id": 1,
+    "baseHourlyRate": 119,
+    "ot1Multiplier": 1.34,
+    "ot2Multiplier": 1.67,
+    "baseMonthSalary": 28590,
+    "welfareAllowance": 2500,
+    "deductions": [
+      {
+        "name": "勞保費",
+        "amount": 658,
+        "description": "勞工保險費用"
+      },
+      {
+        "name": "健保費",
+        "amount": 443,
+        "description": "全民健康保險費用"
+      },
+      {
+        "name": "服務費",
+        "amount": 1800,
+        "description": "仲介公司服務費"
+      },
+      {
+        "name": "宿舍費",
+        "amount": 2500,
+        "description": "外勞宿舍費"
+      }
+    ],
+    "adminPin": "010329",
+    "updatedAt": "2025-04-25T01:51:54.838Z"
+  },
+  "holidays": [],
+  "salaryRecords": [
+    {
+      "id": 8,
+      "salaryYear": 2025,
+      "salaryMonth": 4,
+      "employeeId": 3,
+      "employeeName": "王小文",
+      "baseSalary": 28590,
+      "housingAllowance": 0,
+      "welfareAllowance": 2500,
+      "totalOT1Hours": 2,
+      "totalOT2Hours": 5,
+      "totalOvertimePay": 1295,
+      "holidayDays": 0,
+      "holidayDailySalary": 953,
+      "totalHolidayPay": 0,
+      "grossSalary": 32385,
+      "deductions": [
+        {
+          "name": "勞保費",
+          "amount": 658
+        },
+        {
+          "name": "健保費",
+          "amount": 443
+        },
+        {
+          "name": "服務費",
+          "amount": 1800
+        },
+        {
+          "name": "宿舍費",
+          "amount": 2500
+        }
+      ],
+      "totalDeductions": 5401,
+      "netSalary": 26984,
+      "attendanceData": [
+        {
+          "id": 39,
+          "employeeId": 3,
+          "date": "2025/04/25",
+          "clockIn": "22:50",
+          "clockOut": "22:50",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T14:50:39.106Z",
+          "_employeeName": "王小文",
+          "_employeeDepartment": "行政部"
+        }
+      ],
+      "createdAt": "2025-04-25T14:51:35.197Z"
+    },
+    {
+      "id": 1,
+      "salaryYear": 2025,
+      "salaryMonth": 3,
+      "employeeId": null,
+      "employeeName": null,
+      "baseSalary": 28590,
+      "housingAllowance": 0,
+      "welfareAllowance": 2500,
+      "totalOT1Hours": 40,
+      "totalOT2Hours": 21,
+      "totalOvertimePay": 10551,
+      "holidayDays": 0,
+      "holidayDailySalary": 953,
+      "totalHolidayPay": 0,
+      "grossSalary": 41641,
+      "deductions": [
+        {
+          "name": "勞保費",
+          "amount": 658
+        },
+        {
+          "name": "健保費",
+          "amount": 443
+        },
+        {
+          "name": "服務費",
+          "amount": 1800
+        },
+        {
+          "name": "宿舍費",
+          "amount": 2500
+        }
+      ],
+      "totalDeductions": 5401,
+      "netSalary": 36240,
+      "attendanceData": [
+        {
+          "id": 2,
+          "employeeId": 1,
+          "date": "2025/03/03",
+          "clockIn": "07:42",
+          "clockOut": "18:54",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:09:53.047Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 3,
+          "employeeId": 1,
+          "date": "2025/03/04",
+          "clockIn": "07:43",
+          "clockOut": "16:02",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:10:38.535Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 4,
+          "employeeId": 1,
+          "date": "2025/03/05",
+          "clockIn": "07:42",
+          "clockOut": "19:56",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:11:31.820Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 5,
+          "employeeId": 1,
+          "date": "2025/03/06",
+          "clockIn": "07:43",
+          "clockOut": "18:57",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:12:02.717Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 6,
+          "employeeId": 1,
+          "date": "2025/03/07",
+          "clockIn": "07:38",
+          "clockOut": "20:02",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:12:28.446Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 7,
+          "employeeId": 1,
+          "date": "2025/03/10",
+          "clockIn": "07:38",
+          "clockOut": "19:02",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:13:01.638Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 8,
+          "employeeId": 1,
+          "date": "2025/03/11",
+          "clockIn": "07:42",
+          "clockOut": "19:00",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:14:21.437Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 9,
+          "employeeId": 1,
+          "date": "2025/03/12",
+          "clockIn": "07:41",
+          "clockOut": "19:01",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:14:49.121Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 10,
+          "employeeId": 1,
+          "date": "2025/03/13",
+          "clockIn": "07:45",
+          "clockOut": "18:03",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:15:11.783Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 11,
+          "employeeId": 1,
+          "date": "2025/03/14",
+          "clockIn": "07:42",
+          "clockOut": "18:59",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:15:46.295Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 12,
+          "employeeId": 1,
+          "date": "2025/03/17",
+          "clockIn": "07:43",
+          "clockOut": "19:00",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:16:23.399Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 13,
+          "employeeId": 1,
+          "date": "2025/03/18",
+          "clockIn": "07:42",
+          "clockOut": "19:02",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:16:57.662Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 14,
+          "employeeId": 1,
+          "date": "2025/03/19",
+          "clockIn": "07:43",
+          "clockOut": "19:01",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:17:27.531Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 15,
+          "employeeId": 1,
+          "date": "2025/03/20",
+          "clockIn": "07:43",
+          "clockOut": "19:01",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:18:08.082Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 16,
+          "employeeId": 1,
+          "date": "2025/03/21",
+          "clockIn": "07:38",
+          "clockOut": "17:49",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:18:31.658Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 17,
+          "employeeId": 1,
+          "date": "2025/03/24",
+          "clockIn": "07:43",
+          "clockOut": "18:59",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:19:10.191Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 23,
+          "employeeId": 1,
+          "date": "2025/03/25",
+          "clockIn": "07:38",
+          "clockOut": "19:57",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:20:21.855Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 24,
+          "employeeId": 1,
+          "date": "2025/03/26",
+          "clockIn": "07:41",
+          "clockOut": "19:02",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:21:06.767Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 25,
+          "employeeId": 1,
+          "date": "2025/03/27",
+          "clockIn": "07:38",
+          "clockOut": "18:57",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:21:31.852Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 26,
+          "employeeId": 1,
+          "date": "2025/03/28",
+          "clockIn": "07:38",
+          "clockOut": "20:00",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:21:53.283Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        },
+        {
+          "id": 27,
+          "employeeId": 1,
+          "date": "2025/03/31",
+          "clockIn": "07:38",
+          "clockOut": "17:54",
+          "isHoliday": false,
+          "isBarcodeScanned": true,
+          "createdAt": "2025-04-25T06:22:16.749Z",
+          "_employeeName": "陳文山",
+          "_employeeDepartment": "生產部"
+        }
+      ],
+      "createdAt": "2025-04-25T06:23:36.348Z"
+    }
+  ],
+  "temporaryAttendance": []
+}
