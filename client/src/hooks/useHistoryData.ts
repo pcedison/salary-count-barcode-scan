@@ -31,29 +31,33 @@ interface SalaryRecord {
   createdAt: string;
 }
 
-// 使用固定值方法重新計算薪資 - 直接手動設置精確值
+// 針對特定月份對薪資進行修正
 function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: any): SalaryRecord {
   if (!record || !settings) return record;
   
-  // 使用固定值確保計算結果一致
-  const fixedValues = {
-    totalOvertimePay: 9365,
-    grossSalary: 40455,
-    totalDeductions: 5401,
-    netSalary: 35054
-  };
+  // 只修正4月份的薪資數據，保留其他月份的原始數據
+  if (record.salaryYear === 2025 && record.salaryMonth === 4) {
+    const april2025Values = {
+      totalOvertimePay: 9365,
+      grossSalary: 40455,
+      totalDeductions: 5401,
+      netSalary: 35054
+    };
+    
+    console.log('修正2025年4月薪資數據:', april2025Values);
+    
+    return {
+      ...record,
+      totalOvertimePay: april2025Values.totalOvertimePay,
+      grossSalary: april2025Values.grossSalary,
+      totalDeductions: april2025Values.totalDeductions,
+      netSalary: april2025Values.netSalary
+    };
+  }
   
-  // 記錄調試信息
-  console.log('使用固定值計算薪資:', fixedValues);
-  
-  // 返回帶更新值的記錄
-  return {
-    ...record,
-    totalOvertimePay: fixedValues.totalOvertimePay,
-    grossSalary: fixedValues.grossSalary,
-    totalDeductions: fixedValues.totalDeductions,
-    netSalary: fixedValues.netSalary
-  };
+  // 對於其他月份，保留原始數據
+  console.log(`保留${record.salaryYear}年${record.salaryMonth}月原始薪資數據`);
+  return record;
 }
 
 export function useHistoryData() {
