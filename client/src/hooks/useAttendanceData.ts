@@ -317,32 +317,30 @@ export function useAttendanceData() {
         totalOT2Hours += ot2;
       });
       
-      // 使用會計部門的計算方法：
+      // 使用會計部門的計算方法 - 修正計算邏輯：
       // 1. 每小時加班費率先無條件進位到整數
       // 2. 乘以小時數得到總金額
-      // 3. 應用20元的調整金額(特殊調整)
+      // 3. 最終結果使用四捨五入確保整數
       const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
       const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
       const ot1PayCeiled = Math.ceil(ot1HourlyRate) * totalOT1Hours;
       const ot2PayCeiled = Math.ceil(ot2HourlyRate) * totalOT2Hours;
-      const rawOvertimePay = ot1PayCeiled + ot2PayCeiled;
       
-      // 應用20元調整（確保與會計部門計算一致）
-      const accountingAdjustment = 20; // 調整金額
-      const totalOvertimePay = rawOvertimePay - accountingAdjustment;
+      // 移除固定調整金額，改用四捨五入確保加班費的一致性和準確性
+      const totalOvertimePay = Math.round(ot1PayCeiled + ot2PayCeiled);
       
       // Calculate holiday pay
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
-      const totalHolidayPay = holidayDays.length * holidayDailySalary;
+      const totalHolidayPay = Math.round(holidayDays.length * holidayDailySalary); // 使用四捨五入確保整數
       
       // Calculate gross salary
-      const grossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay;
+      const grossSalary = Math.round(baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay);
       
       // Calculate deductions
       const totalDeductions = deductions.reduce((sum: number, deduction: { name: string; amount: number }) => sum + deduction.amount, 0);
       
-      // Calculate net salary
-      const netSalary = grossSalary - totalDeductions;
+      // Calculate net salary - 修正實發金額的計算，確保將加班費差異正確反映在實發金額中
+      const netSalary = Math.round(grossSalary - totalDeductions);
       
       // Get year and month for the salary record based on attendance records
       // Extract from first record if available, otherwise use current date

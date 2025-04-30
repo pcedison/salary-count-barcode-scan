@@ -124,8 +124,8 @@ export default function HistoryTable({
                   </div>
                 ) : record.attendanceData && record.attendanceData.length > 0 ? (
                   <div className="flex items-center">
-                    <User className="mr-1 h-4 w-4 text-slate-400" />
-                    <span>
+                    <User className="mr-1 h-4 w-4 text-primary" />
+                    <span className="font-medium">
                       {getEmployeesFromAttendanceData(record.attendanceData).join(', ') || '無員工資料'}
                     </span>
                   </div>
