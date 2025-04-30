@@ -35,14 +35,23 @@ interface SalaryRecord {
 function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: any): SalaryRecord {
   if (!record || !settings) return record;
   
-  // 基本參數
+  // 基本參數 - 使用記錄中的實際數值，而不是從設置中讀取
   const baseHourlyRate = settings.baseHourlyRate || 119;
   const ot1Multiplier = settings.ot1Multiplier || 1.34;
   const ot2Multiplier = settings.ot2Multiplier || 1.67;
-  const baseMonthSalary = settings.baseMonthSalary || 28590;
-  const welfareAllowance = settings.welfareAllowance || 0;
+  // 使用記錄中的薪資，而不是設置中的預設值，確保計算的一致性
+  const baseMonthSalary = record.baseSalary; 
+  const welfareAllowance = record.welfareAllowance || 0;
   const housingAllowance = record.housingAllowance || 0;
   const deductions = record.deductions || [];
+  
+  // 輸出實際計算使用的數值，幫助調試
+  console.log('重新計算薪資數據:', {
+    baseMonthSalary, 
+    housingAllowance, 
+    welfareAllowance,
+    totalDeductions: deductions.reduce((sum, d) => sum + d.amount, 0)
+  });
   
   // 分離正常日和假日
   const normalDays = record.attendanceData.filter(day => !day.isHoliday);
@@ -60,12 +69,11 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     totalOT1Hours += ot1;
     totalOT2Hours += ot2;
     
-    // 計算每日加班費並四捨五入
+    // 計算每日加班費 - 完全避免中間步驟四捨五入
     const ot1Pay = baseHourlyRate * ot1Multiplier * ot1;
     const ot2Pay = baseHourlyRate * ot2Multiplier * ot2;
-    const dailyOTPay = Math.round(ot1Pay + ot2Pay);
-    
-    totalDailyOTPay += dailyOTPay;
+    // 累加精確值，而不是先四捨五入再累加
+    totalDailyOTPay += (ot1Pay + ot2Pay);
   });
   
   // 計算加班費總額 - 精確計算，避免在中間步驟四捨五入
