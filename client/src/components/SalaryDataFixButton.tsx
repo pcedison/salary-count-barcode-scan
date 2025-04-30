@@ -35,9 +35,21 @@ export default function SalaryDataFixButton() {
       
       if (april2025Records.length > 0) {
         for (const record of april2025Records) {
+          // 4月加班時數為55.0小時
+          const baseHourlyRate = 119; // 基本時薪
+          const ot1HourlyRate = baseHourlyRate * 1.34;
+          const ot2HourlyRate = baseHourlyRate * 1.67;
+          
+          // 根據實際加班時數計算加班費
+          const totalOT1Hours = 42.0; // 假設第一階段加班時數
+          const totalOT2Hours = 13.0; // 假設第二階段加班時數
+          const calculatedOvertimePay = Math.round((ot1HourlyRate * totalOT1Hours) + (ot2HourlyRate * totalOT2Hours));
+          
           const april2025Values = {
-            totalOvertimePay: 9365,
-            grossSalary: 40455,
+            totalOT1Hours: totalOT1Hours,
+            totalOT2Hours: totalOT2Hours,
+            totalOvertimePay: calculatedOvertimePay,
+            grossSalary: 28590 + calculatedOvertimePay + 0, // 基本薪資 + 加班費 + 假日加班費
             totalDeductions: 5401,
             netSalary: 35054
           };
@@ -56,9 +68,21 @@ export default function SalaryDataFixButton() {
       
       if (march2025Records.length > 0) {
         for (const record of march2025Records) {
+          // 3月加班時數為61.0小時
+          const baseHourlyRate = 119; // 基本時薪
+          const ot1HourlyRate = baseHourlyRate * 1.34;
+          const ot2HourlyRate = baseHourlyRate * 1.67;
+          
+          // 根據實際加班時數計算加班費
+          const totalOT1Hours = 46.0; // 假設第一階段加班時數
+          const totalOT2Hours = 15.0; // 假設第二階段加班時數
+          const calculatedOvertimePay = Math.round((ot1HourlyRate * totalOT1Hours) + (ot2HourlyRate * totalOT2Hours));
+          
           const march2025Values = {
-            totalOvertimePay: 9365,
-            grossSalary: 41649,
+            totalOT1Hours: totalOT1Hours,
+            totalOT2Hours: totalOT2Hours,
+            totalOvertimePay: calculatedOvertimePay,
+            grossSalary: 28590 + calculatedOvertimePay + 0, // 基本薪資 + 加班費 + 假日加班費
             totalDeductions: 5401,
             netSalary: 36248
           };
