@@ -45,7 +45,6 @@ interface SalaryRecord {
  * 3. 計算並確保總薪資(grossSalary)和實發金額(netSalary)的一致性
  * 4. 為所有月份提供標準化計算，便於擴展
  */
-
 function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: any): SalaryRecord {
   if (!record || !settings) return record;
   
