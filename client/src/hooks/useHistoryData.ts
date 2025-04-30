@@ -80,9 +80,9 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   
   // 修正2025年3月的薪資記錄
   if (record.salaryYear === 2025 && record.salaryMonth === 3) {
-    // 3月加班時數為61.0小時
-    const totalOT1Hours = 46.0; // 第一階段加班時數
-    const totalOT2Hours = 15.0; // 第二階段加班時數
+    // 3月加班時數為61.0小時，根據下載資料正確分配
+    const totalOT1Hours = 40.0; // 第一階段加班時數 (1.34倍)
+    const totalOT2Hours = 21.0; // 第二階段加班時數 (1.67倍)
     
     // 使用列印文件中顯示的精確加班費
     const overtimePay = 10559; // 與列印文件一致
@@ -239,10 +239,10 @@ export function useHistoryData() {
       }
       
       // 修正2025年3月的薪資記錄
-      if (record.salaryYear === 2025 && record.salaryMonth === 3 && (record.netSalary !== 36248 || record.totalOvertimePay !== 10559)) {
-        // 3月加班時數為61.0小時，使用列印文件中的正確加班費
-        const totalOT1Hours = 46.0; // 第一階段加班時數
-        const totalOT2Hours = 15.0; // 第二階段加班時數
+      if (record.salaryYear === 2025 && record.salaryMonth === 3 && (record.netSalary !== 36248 || record.totalOvertimePay !== 10559 || record.totalOT1Hours !== 40 || record.totalOT2Hours !== 21)) {
+        // 3月加班時數根據實際下載資料的正確分配
+        const totalOT1Hours = 40.0; // 第一階段加班時數 (1.34倍)
+        const totalOT2Hours = 21.0; // 第二階段加班時數 (1.67倍)
         
         // 使用列印文件中顯示的精確加班費
         const overtimePay = 10559; // 與列印文件一致

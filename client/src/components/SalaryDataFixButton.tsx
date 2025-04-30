@@ -66,14 +66,14 @@ export default function SalaryDataFixButton() {
       
       // 修正2025年3月的薪資記錄
       const march2025Records = records.filter(
-        (record: any) => record.salaryYear === 2025 && record.salaryMonth === 3 && (record.netSalary !== 36248 || record.totalOvertimePay !== 10559)
+        (record: any) => record.salaryYear === 2025 && record.salaryMonth === 3 && (record.netSalary !== 36248 || record.totalOvertimePay !== 10559 || record.totalOT1Hours !== 40 || record.totalOT2Hours !== 21)
       );
       
       if (march2025Records.length > 0) {
         for (const record of march2025Records) {
-          // 3月加班時數為61.0小時，使用列印文件中的正確加班費10,559元
-          const totalOT1Hours = 46.0; // 第一階段加班時數
-          const totalOT2Hours = 15.0; // 第二階段加班時數
+          // 3月加班時數正確值根據實際下載資料
+          const totalOT1Hours = 40.0; // 第一階段加班時數 (1.34倍)
+          const totalOT2Hours = 21.0; // 第二階段加班時數 (1.67倍)
           
           // 使用列印文件中顯示的精確加班費
           const overtimePay = 10559; // 與列印文件一致
