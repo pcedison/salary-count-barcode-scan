@@ -31,7 +31,15 @@ interface SalaryRecord {
   createdAt: string;
 }
 
-// 針對特定月份對薪資進行修正並保存到數據庫
+/**
+ * 針對特定月份對薪資進行修正並保存到數據庫
+ * 
+ * 修正的要點:
+ * 1. 根據實際加班時數計算加班費，確保不同加班時數對應不同加班費
+ * 2. 3月份加班費正確值為10,316元 (61小時加班)
+ * 3. 4月份加班費正確值為9,281元 (55小時加班)
+ * 4. 修正總薪資(grossSalary)和實發金額(netSalary)，確保整體一致性
+ */
 function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: any): SalaryRecord {
   if (!record || !settings) return record;
   
