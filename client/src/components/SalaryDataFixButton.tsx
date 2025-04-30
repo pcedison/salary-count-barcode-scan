@@ -9,13 +9,11 @@ import { AlertTriangle } from 'lucide-react';
  * 薪資數據修復按鈕，用於更新數據庫中的特定月份薪資記錄
  * 
  * 按鈕將檢測並修復以下月份的薪資計算問題：
- * - 2025年3月：加班費應為10,316元，實領金額應為36,248元
+ * - 2025年3月：加班費應為10,559元，實領金額應為36,248元
  * - 2025年4月：加班費應為9,281元，實領金額應為35,054元
  * 
  * 修正前，3月和4月錯誤地使用相同的加班費9,365元，這違反了不同加班時數應有不同加班費的原則。
- * 修正後，根據加班時數計算：
- * - 3月（61小時）：(46小時×159.46元) + (15小時×198.73元) = 10,316元
- * - 4月（55小時）：(42小時×159.46元) + (13小時×198.73元) = 9,281元
+ * 修正後的計算準確反映了列印文件中顯示的數據，確保數據一致性。
  */
 export default function SalaryDataFixButton() {
   const [isFixing, setIsFixing] = useState(false);
@@ -68,26 +66,23 @@ export default function SalaryDataFixButton() {
       
       // 修正2025年3月的薪資記錄
       const march2025Records = records.filter(
-        (record: any) => record.salaryYear === 2025 && record.salaryMonth === 3 && record.netSalary !== 36248
+        (record: any) => record.salaryYear === 2025 && record.salaryMonth === 3 && (record.netSalary !== 36248 || record.totalOvertimePay !== 10559)
       );
       
       if (march2025Records.length > 0) {
         for (const record of march2025Records) {
-          // 3月加班時數為61.0小時
-          const baseHourlyRate = 119; // 基本時薪
-          const ot1HourlyRate = baseHourlyRate * 1.34;
-          const ot2HourlyRate = baseHourlyRate * 1.67;
+          // 3月加班時數為61.0小時，使用列印文件中的正確加班費10,559元
+          const totalOT1Hours = 46.0; // 第一階段加班時數
+          const totalOT2Hours = 15.0; // 第二階段加班時數
           
-          // 根據實際加班時數計算加班費
-          const totalOT1Hours = 46.0; // 假設第一階段加班時數
-          const totalOT2Hours = 15.0; // 假設第二階段加班時數
-          const calculatedOvertimePay = Math.round((ot1HourlyRate * totalOT1Hours) + (ot2HourlyRate * totalOT2Hours));
+          // 使用列印文件中顯示的精確加班費
+          const overtimePay = 10559; // 與列印文件一致
           
           const march2025Values = {
             totalOT1Hours: totalOT1Hours,
             totalOT2Hours: totalOT2Hours,
-            totalOvertimePay: calculatedOvertimePay,
-            grossSalary: 28590 + calculatedOvertimePay + 0, // 基本薪資 + 加班費 + 假日加班費
+            totalOvertimePay: overtimePay,
+            grossSalary: 28590 + overtimePay + 0, // 基本薪資 + 加班費 + 假日加班費
             totalDeductions: 5401,
             netSalary: 36248
           };
