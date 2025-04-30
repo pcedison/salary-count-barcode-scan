@@ -326,20 +326,21 @@ export function useAttendanceData() {
       const ot1PayCeiled = Math.ceil(ot1HourlyRate) * totalOT1Hours;
       const ot2PayCeiled = Math.ceil(ot2HourlyRate) * totalOT2Hours;
       
-      // 移除固定調整金額，改用四捨五入確保加班費的一致性和準確性
-      const totalOvertimePay = Math.round(ot1PayCeiled + ot2PayCeiled);
+      // 計算總加班費 - 精確計算，不提前四捨五入
+      const totalOvertimePay = ot1PayCeiled + ot2PayCeiled;
       
-      // Calculate holiday pay
+      // Calculate holiday pay - 精確計算假日薪資
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
-      const totalHolidayPay = Math.round(holidayDays.length * holidayDailySalary); // 使用四捨五入確保整數
+      const totalHolidayPay = holidayDays.length * holidayDailySalary; // 保持精確計算，不提前四捨五入
       
-      // Calculate gross salary
-      const grossSalary = Math.round(baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay);
+      // Calculate gross salary - 精確計算總薪資，避免四捨五入帶來的誤差
+      const grossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay;
       
       // Calculate deductions
       const totalDeductions = deductions.reduce((sum: number, deduction: { name: string; amount: number }) => sum + deduction.amount, 0);
       
-      // Calculate net salary - 修正實發金額的計算，確保將加班費差異正確反映在實發金額中
+      // Calculate net salary - 只在最後一步使用四捨五入，確保計算結果與手動計算一致
+      // (9365+28590+2500)-658-443-1800-2500 = 35054
       const netSalary = Math.round(grossSalary - totalDeductions);
       
       // Get year and month for the salary record based on attendance records

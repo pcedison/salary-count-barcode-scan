@@ -68,18 +68,19 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     totalDailyOTPay += dailyOTPay;
   });
   
-  // 計算加班費總額 - 根據實際工時計算，不再依賴固定數值
-  const totalOvertimePay = Math.round(totalDailyOTPay);
+  // 計算加班費總額 - 精確計算，避免在中間步驟四捨五入
+  const totalOvertimePay = totalDailyOTPay;
   
   // 計算假日薪資
   const holidayDailySalary = Math.ceil(baseMonthSalary / 30);
   const totalHolidayPay = holidayDays.length * holidayDailySalary;
   
-  // 計算總薪資和扣除額
-  const grossSalary = Math.round(baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay);
+  // 計算總薪資和扣除額 - 計算時避免四捨五入誤差
+  // 精確計算總薪資，確保與手動計算結果一致
+  const grossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay;
   const totalDeductions = deductions.reduce((sum: number, deduction: { name: string; amount: number }) => sum + deduction.amount, 0);
   
-  // 計算實發薪資 - 根據加班費差異正確計算
+  // 計算實發薪資 - 只在最後一步四捨五入，減少誤差
   const netSalary = Math.round(grossSalary - totalDeductions);
   
   return {
