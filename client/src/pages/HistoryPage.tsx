@@ -8,6 +8,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 import EditHistoryRecordModal from '@/components/EditHistoryRecordModal';
 import { CsvImportModal } from '@/components/CsvImportModal';
+import SalaryDataFixButton from '@/components/SalaryDataFixButton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -345,6 +346,7 @@ export default function HistoryPage() {
                 <Database className="w-4 h-4 mr-1" />
                 資料備份
               </Button>
+              <SalaryDataFixButton />
               <Button 
                 variant="outline" 
                 size="sm" 

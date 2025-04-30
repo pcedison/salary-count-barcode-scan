@@ -107,6 +107,60 @@ export function useHistoryData() {
     );
   }, [rawSalaryRecords, settings]);
   
+  // Delete a salary record
+  const deleteSalaryRecordMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/salary-records/${id}`, undefined);
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
+      toast({
+        title: "刪除成功",
+        description: "薪資紀錄已成功刪除",
+      });
+    },
+    onError: (error) => {
+      console.error('Error deleting salary record:', error);
+      toast({
+        title: "刪除失敗",
+        description: "無法刪除薪資紀錄，請稍後再試",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Update a salary record
+  const updateSalaryRecordMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>> }) => {
+      const response = await apiRequest('PATCH', `/api/salary-records/${id}`, data);
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
+      toast({
+        title: "更新成功",
+        description: "薪資紀錄已成功更新",
+      });
+    },
+    onError: (error) => {
+      console.error('Error updating salary record:', error);
+      toast({
+        title: "更新失敗",
+        description: "無法更新薪資紀錄，請稍後再試",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const deleteSalaryRecord = async (id: number) => {
+    return await deleteSalaryRecordMutation.mutateAsync(id);
+  };
+  
+  const updateSalaryRecord = async (id: number, data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>>) => {
+    return await updateSalaryRecordMutation.mutateAsync({ id, data });
+  };
+  
   // 單獨的函數來更新數據庫中的薪資記錄
   const fixAndUpdateSalaryRecords = useCallback(async () => {
     if (!settings || !rawSalaryRecords.length) return;
@@ -291,60 +345,6 @@ export function useHistoryData() {
         variant: "destructive"
       });
     }
-  };
-  
-  // Delete a salary record
-  const deleteSalaryRecordMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest('DELETE', `/api/salary-records/${id}`, undefined);
-      return id;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
-      toast({
-        title: "刪除成功",
-        description: "薪資紀錄已成功刪除",
-      });
-    },
-    onError: (error) => {
-      console.error('Error deleting salary record:', error);
-      toast({
-        title: "刪除失敗",
-        description: "無法刪除薪資紀錄，請稍後再試",
-        variant: "destructive"
-      });
-    }
-  });
-  
-  // Update a salary record
-  const updateSalaryRecordMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>> }) => {
-      const response = await apiRequest('PATCH', `/api/salary-records/${id}`, data);
-      return await response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
-      toast({
-        title: "更新成功",
-        description: "薪資紀錄已成功更新",
-      });
-    },
-    onError: (error) => {
-      console.error('Error updating salary record:', error);
-      toast({
-        title: "更新失敗",
-        description: "無法更新薪資紀錄，請稍後再試",
-        variant: "destructive"
-      });
-    }
-  });
-  
-  const deleteSalaryRecord = async (id: number) => {
-    return await deleteSalaryRecordMutation.mutateAsync(id);
-  };
-  
-  const updateSalaryRecord = async (id: number, data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>>) => {
-    return await updateSalaryRecordMutation.mutateAsync({ id, data });
   };
 
   return {
