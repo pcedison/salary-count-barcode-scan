@@ -116,17 +116,14 @@ export default function HistoryTable({
               )}
               <td className="px-6 py-4 whitespace-nowrap font-medium">{record.salaryYear}年{record.salaryMonth}月</td>
               <td className="px-6 py-4 whitespace-nowrap">
-                {/* 首先檢查薪資記錄中是否直接包含員工信息 */}
-                {(record as any).employeeName ? (
-                  <div className="flex items-center">
-                    <User className="mr-1 h-4 w-4 text-primary" />
-                    <span className="font-medium">{(record as any).employeeName}</span>
-                  </div>
-                ) : record.attendanceData && record.attendanceData.length > 0 ? (
+                {/* 統一顯示樣式，無論來源如何，確保一致性 */}
+                {(record as any).employeeName || (record.attendanceData && record.attendanceData.length > 0) ? (
                   <div className="flex items-center">
                     <User className="mr-1 h-4 w-4 text-primary" />
                     <span className="font-medium">
-                      {getEmployeesFromAttendanceData(record.attendanceData).join(', ') || '無員工資料'}
+                      {(record as any).employeeName || 
+                      (record.attendanceData && record.attendanceData.length > 0 ? 
+                        getEmployeesFromAttendanceData(record.attendanceData).join(', ') : '無員工資料')}
                     </span>
                   </div>
                 ) : (
