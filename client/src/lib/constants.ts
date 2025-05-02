@@ -32,4 +32,17 @@ export const constants = {
   // 計算相關常量
   OT_ROUNDING_PRECISION: 1,      // 加班時數四捨五入小數位數
   SALARY_ROUNDING_PRECISION: 0,  // 薪資四捨五入小數位數
+  
+  // 數據庫相關常量
+  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || "YOUR_SUPABASE_URL",       // Supabase URL
+  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_KEY || "YOUR_SUPABASE_ANON_KEY", // Supabase 匿名密鑰
+  TEMP_TABLE_NAME: 'temporary_attendance',  // 考勤暫存表名
+  FINAL_TABLE_NAME: 'salary_records',       // 薪資記錄表名
+  
+  // 資料庫默認值
+  DEFAULT_LABOR_INSURANCE: 525,  // 默認勞保費用
+  DEFAULT_HEALTH_INSURANCE: 372, // 默認健保費用
+  
+  // 員工相關常量
+  DEFAULT_EMPLOYEE_ID: 1,        // 默認員工ID（用於遷移期）
 };
