@@ -15,6 +15,97 @@ import {
   validateSalaryRecord as sharedValidateSalaryRecord
 } from '@shared/calculationModel';
 
+/**
+ * 將時間字串轉換為分鐘數
+ * @param timeStr 時間字串 (格式 HH:MM)
+ */
+export function timeToMinutes(timeStr: string): number {
+  if (!timeStr || !timeStr.includes(':')) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+/**
+ * 計算打卡之間的加班時數
+ * 確保前端與後端使用同一種計算邏輯
+ * @param clockIn 上班打卡時間
+ * @param clockOut 下班打卡時間
+ */
+export function calculateOvertime(clockIn: string, clockOut: string): { ot1: number, ot2: number } {
+  if (!clockIn || !clockOut) return { ot1: 0, ot2: 0 };
+  
+  const inTime = timeToMinutes(clockIn);
+  const outTime = timeToMinutes(clockOut);
+  const STANDARD_END = timeToMinutes(constants.STANDARD_END_TIME); // 正常下班時間 16:00
+  const OT1_END = timeToMinutes(constants.OT1_END_TIME);          // 第一階段加班結束 18:00
+  const OT2_END = timeToMinutes(constants.OT2_END_TIME);          // 第二階段加班結束 20:00
+  
+  let ot1 = 0;
+  let ot2 = 0;
+  const bufferMinutes = constants.BUFFER_MINUTES; // 7分鐘緩衝時間
+  
+  // --- OT1 計算 (16:00 - 18:00) ---
+  if (outTime > STANDARD_END + bufferMinutes) {
+    const ot1Duration = Math.min(outTime, OT1_END) - STANDARD_END;
+    if (ot1Duration > (1*60 + 30 + bufferMinutes)) ot1 = 2.0;      // > 1:37 -> 2.0h
+    else if (ot1Duration > (1*60 + bufferMinutes)) ot1 = 1.5;       // > 1:07 -> 1.5h
+    else if (ot1Duration > (0*60 + 30 + bufferMinutes)) ot1 = 1.0;  // > 0:37 -> 1.0h
+    else if (ot1Duration > (0*60 + bufferMinutes)) ot1 = 0.5;       // > 0:07 -> 0.5h
+  }
+  
+  // --- OT2 計算 (18:00 - 20:00 以及更晚) ---
+  if (outTime > OT1_END + bufferMinutes) {
+    // 18:00 - 20:00 範圍內的時間
+    const ot2Range1Duration = Math.max(0, Math.min(outTime, OT2_END) - OT1_END);
+    if (ot2Range1Duration > (1*60 + 30 + bufferMinutes)) ot2 += 2.0;
+    else if (ot2Range1Duration > (1*60 + bufferMinutes)) ot2 += 1.5;
+    else if (ot2Range1Duration > (0*60 + 30 + bufferMinutes)) ot2 += 1.0;
+    else if (ot2Range1Duration > (0*60 + bufferMinutes)) ot2 += 0.5;
+    
+    // 20:00 之後的時間 (加到 ot2)
+    if (outTime > OT2_END + bufferMinutes) {
+      const ot2Range2Duration = outTime - OT2_END;
+      // 簡化: 每30分鐘增加0.5小時加班
+      let additionalOt2 = 0;
+      if (ot2Range2Duration > bufferMinutes) {
+        // 計算緩衝時間後的完整30分鐘區塊
+        additionalOt2 = Math.floor((ot2Range2Duration - bufferMinutes) / 30) * 0.5;
+        // 檢查最後一個不完整區塊是否有超過緩衝時間
+        if (((ot2Range2Duration - bufferMinutes) % 30) > 0) {
+          additionalOt2 += 0.5;
+        }
+      }
+      ot2 += additionalOt2;
+    }
+  }
+  
+  // 確保 ot1 不超過 2 小時
+  ot1 = Math.min(ot1, 2.0);
+  
+  return { ot1, ot2 };
+}
+
+/**
+ * 計算單日加班費用 
+ * @param clockIn 上班打卡時間
+ * @param clockOut 下班打卡時間
+ * @param baseSalary 基本薪資 (用於計算時薪)
+ */
+export function calculateDailyOvertimePay(clockIn: string, clockOut: string, baseSalary: number): number {
+  if (!clockIn || !clockOut) return 0;
+  
+  // 使用標準計算獲取加班時數
+  const { ot1, ot2 } = calculateOvertime(clockIn, clockOut);
+  
+  // 使用標準時薪計算
+  const hourlyRate = baseSalary / constants.STANDARD_WORK_DAYS / constants.STANDARD_WORK_HOURS;
+  const ot1HourlyRate = hourlyRate * constants.OT1_MULTIPLIER;
+  const ot2HourlyRate = hourlyRate * constants.OT2_MULTIPLIER;
+  
+  // 計算加班費並對每日總和做四捨五入
+  return Math.round((ot1HourlyRate * ot1) + (ot2HourlyRate * ot2));
+}
+
 // 直接在客戶端定義所有需要的類型 (避免導入問題)
 /**
  * 加班時數結構
@@ -186,9 +277,9 @@ export function validateSalaryRecord(
 }
 
 /**
- * 計算單一日期的加班時數
+ * 此簡化版本用於支持舊有代碼兼容，新代碼應使用上面的標準實現
  */
-export function calculateOvertime(clockIn: string, clockOut: string): { ot1: number; ot2: number } {
+export function calculateSimpleOvertime(clockIn: string, clockOut: string): { ot1: number; ot2: number } {
   // 解析上班和下班時間
   const [inHours, inMinutes] = clockIn.split(':').map(Number);
   const [outHours, outMinutes] = clockOut.split(':').map(Number);
@@ -198,7 +289,7 @@ export function calculateOvertime(clockIn: string, clockOut: string): { ot1: num
   if (totalMinutes < 0) totalMinutes += 24 * 60; // 處理跨日情況
   
   // 標準工作時間 (小時)
-  const standardHours = constants.STANDARD_HOURS;
+  const standardHours = constants.STANDARD_WORK_HOURS;
   
   // 總工作小時
   const totalHours = totalMinutes / 60;

@@ -1,4 +1,6 @@
 import React from 'react';
+import { calculateOvertime } from '@/lib/salaryCalculations';
+import { constants } from '@/lib/constants';
 
 interface PrintableSalarySheetProps {
   result: {
@@ -33,75 +35,27 @@ function timeToMinutesForPrint(timeStr: string): number {
 }
 
 export default function PrintableSalarySheet({ result }: PrintableSalarySheetProps) {
-  // 計算日期對應加班費
-  const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2: number, pay: number} => {
-    if (!clockIn || !clockOut) return { ot1: 0, ot2: 0, pay: 0 };
+
+// 計算日期對應加班費 - 使用統一模組
+const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2: number, pay: number} => {
+  if (!clockIn || !clockOut) return { ot1: 0, ot2: 0, pay: 0 };
+  
+  // 使用統一的加班計算函數
+  const { ot1, ot2 } = calculateOvertime(clockIn, clockOut);
+  
+  // 使用標準時薪計算方法（確保與後端計算一致）
+  const baseHourlyRate = constants.BASE_HOURLY_RATE; // 使用常數確保一致性
+  const ot1HourlyRate = baseHourlyRate * constants.OT1_MULTIPLIER; // 119 * 1.34 = 159.46
+  const ot2HourlyRate = baseHourlyRate * constants.OT2_MULTIPLIER; // 119 * 1.67 = 198.73
+  
+  // 對每日加班費進行四捨五入（與後端保持一致的計算方式）
+  const dailyOTPay = Math.round((ot1HourlyRate * ot1) + (ot2HourlyRate * ot2));
     
-    const inTime = timeToMinutesForPrint(clockIn);
-    const outTime = timeToMinutesForPrint(clockOut);
-    const STANDARD_END = timeToMinutesForPrint('16:00'); // 正常下班時間 16:00
-    const OT1_END = timeToMinutesForPrint('18:00');      // 第一階段加班結束 18:00
-    const OT2_END = timeToMinutesForPrint('20:00');      // 第二階段加班結束 20:00
-    
-    let ot1 = 0;
-    let ot2 = 0;
-    const bufferMinutes = 7; // 7分鐘緩衝時間
-    
-    // --- OT1 計算 (16:00 - 18:00) ---
-    if (outTime > STANDARD_END + bufferMinutes) {
-      const ot1Duration = Math.min(outTime, OT1_END) - STANDARD_END;
-      if (ot1Duration > (1*60 + 30 + bufferMinutes)) ot1 = 2.0;      // > 1:37 -> 2.0h
-      else if (ot1Duration > (1*60 + bufferMinutes)) ot1 = 1.5;       // > 1:07 -> 1.5h
-      else if (ot1Duration > (0*60 + 30 + bufferMinutes)) ot1 = 1.0;  // > 0:37 -> 1.0h
-      else if (ot1Duration > (0*60 + bufferMinutes)) ot1 = 0.5;       // > 0:07 -> 0.5h
-    }
-    
-    // --- OT2 計算 (18:00 - 20:00 以及更晚) ---
-    if (outTime > OT1_END + bufferMinutes) {
-      // 18:00 - 20:00 範圍內的時間
-      const ot2Range1Duration = Math.max(0, Math.min(outTime, OT2_END) - OT1_END);
-      if (ot2Range1Duration > (1*60 + 30 + bufferMinutes)) ot2 += 2.0;
-      else if (ot2Range1Duration > (1*60 + bufferMinutes)) ot2 += 1.5;
-      else if (ot2Range1Duration > (0*60 + 30 + bufferMinutes)) ot2 += 1.0;
-      else if (ot2Range1Duration > (0*60 + bufferMinutes)) ot2 += 0.5;
-      
-      // 20:00 之後的時間 (加到 ot2)
-      if (outTime > OT2_END + bufferMinutes) {
-        const ot2Range2Duration = outTime - OT2_END;
-        // 簡化: 每30分鐘增加0.5小時加班
-        let additionalOt2 = 0;
-        if (ot2Range2Duration > bufferMinutes) {
-          // 計算緩衝時間後的完整30分鐘區塊
-          additionalOt2 = Math.floor((ot2Range2Duration - bufferMinutes) / 30) * 0.5;
-          // 檢查最後一個不完整區塊是否有超過緩衝時間
-          if (((ot2Range2Duration - bufferMinutes) % 30) > 0) {
-            additionalOt2 += 0.5;
-          }
-        }
-        ot2 += additionalOt2;
-      }
-    }
-    
-    // 確保 ot1 不超過 2 小時
-    ot1 = Math.min(ot1, 2.0);
-    
-    // 計算加班費（使用會計部門計算方法）
-    const hourlyRate = result.baseSalary / 30 / 8; // 估算時薪
-    // 每小時加班費率
-    const ot1HourlyRate = hourlyRate * 1.34;
-    const ot2HourlyRate = hourlyRate * 1.67;
-    
-    // 計算總加班費用（未四捨五入）
-    const totalDailyPay = (ot1HourlyRate * ot1) + (ot2HourlyRate * ot2);
-    
-    // 對總加班費進行四捨五入（不是對時薪進行四捨五入）
-    const roundedDailyPay = Math.round(totalDailyPay);
-    
-    return { 
-      ot1: ot1, 
-      ot2: ot2, 
-      pay: roundedDailyPay
-    };
+  return { 
+    ot1: ot1, 
+    ot2: ot2, 
+    pay: dailyOTPay
+  };
   };
   
   // 按日期排序考勤記錄
