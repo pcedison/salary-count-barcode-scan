@@ -1,6 +1,10 @@
 // 凱薩加密工具測試
 
-// 默認的偏移量
+// 導入共享常量
+import { constants } from './shared/constants.js';
+
+// 使用共享常量
+// 注意：這裡使用的加密偏移量可能與DEFAULT_CIPHER_SHIFT不同，因為這是初始版本的測試
 const DEFAULT_SHIFT = 7;
 
 /**

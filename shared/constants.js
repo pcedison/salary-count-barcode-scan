@@ -46,4 +46,7 @@ export const constants = {
   
   // 員工相關常量
   DEFAULT_EMPLOYEE_ID: 1,        // 默認員工ID（用於遷移期）
+  
+  // 加密相關常量
+  DEFAULT_CIPHER_SHIFT: 9,       // 默認加密偏移量
 };

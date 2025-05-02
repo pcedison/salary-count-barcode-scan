@@ -1,7 +1,10 @@
 // 測試特定條碼的解密結果
 
-// 默認的偏移量
-const DEFAULT_SHIFT = 9;
+// 導入共享常量
+import { constants } from './shared/constants.js';
+
+// 使用共享常量
+const DEFAULT_SHIFT = constants.DEFAULT_CIPHER_SHIFT;
 
 /**
  * 改良版凱薩加密函數 - 只加密字母部分

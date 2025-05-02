@@ -1,6 +1,10 @@
 // 測試員工ID加密結果
 
-// 默認的偏移量
+// 導入共享常量
+import { constants } from './shared/constants.js';
+
+// 這裡使用的偏移量是舊版本的7，而不是DEFAULT_CIPHER_SHIFT
+// 這樣做是為了保持兼容性，測試特定的舊版加密方式
 const DEFAULT_SHIFT = 7;
 
 /**
