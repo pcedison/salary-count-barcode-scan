@@ -12,15 +12,16 @@ import AdminLoginDialog from '@/components/AdminLoginDialog';
 
 // 預設系統配置
 const DEFAULT_CONFIG = {
-  // 預設時薪率與計算參數
-  DEFAULT_BASE_HOURLY_RATE: constants.BASE_HOURLY_RATE,
-  DEFAULT_BASE_MONTH_SALARY: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
-  DEFAULT_WELFARE_ALLOWANCE: constants.DEFAULT_WELFARE_ALLOWANCE,
-  DEFAULT_OT1_MULTIPLIER: constants.OT1_MULTIPLIER,
-  DEFAULT_OT2_MULTIPLIER: constants.OT2_MULTIPLIER,
+  // 基本計算參數 - 使用constants中的標準值
+  BASE_HOURLY_RATE: constants.BASE_HOURLY_RATE,
+  BASE_MONTH_SALARY: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
+  WELFARE_ALLOWANCE: constants.DEFAULT_WELFARE_ALLOWANCE,
+  HOUSING_ALLOWANCE: constants.DEFAULT_HOUSING_ALLOWANCE,
+  OT1_MULTIPLIER: constants.OT1_MULTIPLIER,
+  OT2_MULTIPLIER: constants.OT2_MULTIPLIER,
   
   // 預設扣除項
-  DEFAULT_DEDUCTIONS: [
+  DEDUCTIONS: [
     { id: 1, name: '勞保費', amount: 1077, description: '勞工保險費用' },
     { id: 2, name: '健保費', amount: 932, description: '健康保險費用' },
     { id: 3, name: '服務費', amount: 3392, description: '管理服務費' },
@@ -39,12 +40,12 @@ export default function SettingsPage() {
   const { settings, isLoading, updateSettings } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
   
-  const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.DEFAULT_BASE_HOURLY_RATE);
-  const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.DEFAULT_BASE_MONTH_SALARY);
-  const [welfareAllowance, setWelfareAllowance] = useState<number>(DEFAULT_CONFIG.DEFAULT_WELFARE_ALLOWANCE);
-  const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.DEFAULT_OT1_MULTIPLIER);
-  const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.DEFAULT_OT2_MULTIPLIER);
-  const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEFAULT_DEDUCTIONS);
+  const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
+  const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.BASE_MONTH_SALARY);
+  const [welfareAllowance, setWelfareAllowance] = useState<number>(DEFAULT_CONFIG.WELFARE_ALLOWANCE);
+  const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.OT1_MULTIPLIER);
+  const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.OT2_MULTIPLIER);
+  const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
   const [holidays, setHolidays] = useState<Array<{ id: number; date: string; description: string }>>([]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
@@ -68,12 +69,12 @@ export default function SettingsPage() {
   // Load settings when component mounts
   useEffect(() => {
     if (!isLoading && settings) {
-      setBaseHourlyRate(settings.baseHourlyRate || DEFAULT_CONFIG.DEFAULT_BASE_HOURLY_RATE);
-      setBaseMonthSalary(settings.baseMonthSalary || DEFAULT_CONFIG.DEFAULT_BASE_MONTH_SALARY);
-      setWelfareAllowance(settings.welfareAllowance || DEFAULT_CONFIG.DEFAULT_WELFARE_ALLOWANCE);
-      setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.DEFAULT_OT1_MULTIPLIER);
-      setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.DEFAULT_OT2_MULTIPLIER);
-      setDeductions(settings.deductions || DEFAULT_CONFIG.DEFAULT_DEDUCTIONS);
+      setBaseHourlyRate(settings.baseHourlyRate || DEFAULT_CONFIG.BASE_HOURLY_RATE);
+      setBaseMonthSalary(settings.baseMonthSalary || DEFAULT_CONFIG.BASE_MONTH_SALARY);
+      setWelfareAllowance(settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE);
+      setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.OT1_MULTIPLIER);
+      setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.OT2_MULTIPLIER);
+      setDeductions(settings.deductions || DEFAULT_CONFIG.DEDUCTIONS);
       
       // 重置變更狀態
       setHasUnsavedChanges(false);
@@ -372,9 +373,9 @@ export default function SettingsPage() {
   const initializeConnection = () => {
     // 僅在初始渲染時嘗試連接，不進行實際的連接測試
     
-    // 從本地存儲和環境常量加載
-    const savedUrl = localStorage.getItem('supabaseUrl') || constants.SUPABASE_URL || '';
-    const savedKey = localStorage.getItem('supabaseAnonKey') || constants.SUPABASE_ANON_KEY || '';
+    // 從本地存儲和環境變量加載
+    const savedUrl = localStorage.getItem('supabaseUrl') || import.meta.env.VITE_SUPABASE_URL || '';
+    const savedKey = localStorage.getItem('supabaseAnonKey') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     
     // 設置到 state
     setSupabaseUrl(savedUrl);
