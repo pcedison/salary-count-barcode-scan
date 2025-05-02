@@ -308,6 +308,8 @@ export function useHistoryData() {
   }
   
   // 增強版 CSV 匯出功能 - 匯出詳細考勤記錄
+  // 注意：此功能已經淘汰，僅保留作為參考。使用者應使用批量下載 ZIP 功能代替
+  // 此方法有bug - 只會下載最新月份，而不是使用者選擇的月份
   const exportSalaryRecordAsCsv = (record: SalaryRecord) => {
     try {
       // 考勤數據CSV (基本版)

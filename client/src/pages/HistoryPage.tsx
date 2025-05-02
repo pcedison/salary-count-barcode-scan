@@ -8,7 +8,7 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 import EditHistoryRecordModal from '@/components/EditHistoryRecordModal';
 import { CsvImportModal } from '@/components/CsvImportModal';
-import SalaryDataFixButton from '@/components/SalaryDataFixButton';
+// SalaryDataFixButton 已移除，因為現在所有計算都使用標準化方法
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
@@ -346,28 +346,8 @@ export default function HistoryPage() {
                 <Database className="w-4 h-4 mr-1" />
                 資料備份
               </Button>
-              <SalaryDataFixButton />
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  if (paginatedRecords.length > 0) {
-                    // 獲取當前顯示的第一筆紀錄
-                    const currentRecord = paginatedRecords[0];
-                    exportSalaryRecordAsCsv(currentRecord);
-                  } else {
-                    toast({
-                      title: "無可匯出資料",
-                      description: "沒有找到可匯出的薪資記錄。",
-                      variant: "destructive"
-                    });
-                  }
-                }}
-                className="flex items-center text-primary border-primary/50 hover:bg-primary/10"
-              >
-                <FileSpreadsheet className="w-4 h-4 mr-1" />
-                下載 CSV
-              </Button>
+              {/* 套用統一計算標準按鈕已移除 - 所有計算現在都自動使用標準化方法 */}
+              {/* 下載 CSV 按鈕已移除 - 使用批量下載 ZIP 功能代替 */}
               <Button 
                 variant="outline" 
                 size="sm" 
