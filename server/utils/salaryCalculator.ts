@@ -6,11 +6,6 @@
  */
 
 import {
-  OvertimeHours,
-  CalculationSettings,
-  SalaryCalculationResult,
-  SpecialCaseRule,
-  CalculationModel,
   calculateSalary as sharedCalculateSalary,
   standardCalculationModel,
   april2025CalculationModel,
@@ -18,14 +13,73 @@ import {
   registerSpecialRule
 } from '../../shared/calculationModel';
 
-// 重新導出共享類型和函數，確保服務器端代碼使用統一的模型
-export { 
-  OvertimeHours, 
-  CalculationSettings, 
-  SalaryCalculationResult,
-  SpecialCaseRule,
-  CalculationModel
-};
+// 在伺服器端定義所有需要的類型，避免依賴導入問題
+/**
+ * 加班時數結構
+ */
+export interface OvertimeHours {
+  totalOT1Hours: number;  // 第一階段加班時數 (1.34倍)
+  totalOT2Hours: number;  // 第二階段加班時數 (1.67倍)
+}
+
+/**
+ * 薪資計算結果
+ */
+export interface SalaryCalculationResult {
+  totalOT1Hours: number;    // 最終計算使用的第一階段加班時數
+  totalOT2Hours: number;    // 最終計算使用的第二階段加班時數
+  totalOvertimePay: number; // 總加班費
+  grossSalary: number;      // 毛薪資 (總薪資)
+  netSalary: number;        // 淨薪資 (實領金額)
+}
+
+/**
+ * 計算模型基本配置
+ */
+export interface CalculationSettings {
+  baseHourlyRate: number;   // 基本時薪
+  ot1Multiplier: number;    // 第一階段加班倍率
+  ot2Multiplier: number;    // 第二階段加班倍率
+  baseMonthSalary: number;  // 基本月薪
+  welfareAllowance?: number; // 福利津貼
+}
+
+/**
+ * 特殊規則條件
+ */
+export interface SpecialCaseCondition {
+  year: number;             // 適用年份
+  month: number;            // 適用月份
+  employeeId?: number;      // 適用員工ID (可選)
+  totalOT1Hours: number;    // 匹配的第一階段加班時數
+  totalOT2Hours: number;    // 匹配的第二階段加班時數
+  baseSalary: number;       // 匹配的基本薪資
+  welfareAllowance?: number; // 匹配的福利津貼 (可選)
+  housingAllowance?: number; // 匹配的住房津貼 (可選)
+}
+
+/**
+ * 特殊規則配置
+ */
+export interface SpecialCaseRule extends SpecialCaseCondition {
+  totalOvertimePay: number; // 要使用的總加班費
+  grossSalary?: number;     // 要使用的總薪資 (可選)
+  netSalary?: number;       // 要使用的實領金額 (可選)
+  description?: string;     // 規則描述
+}
+
+/**
+ * 完整計算模型接口
+ */
+export interface CalculationModel {
+  baseConfiguration: CalculationSettings;
+  calculateOvertimePay: (overtimeHours: OvertimeHours, settings: CalculationSettings) => number;
+  calculateGrossSalary: (baseSalary: number, overtimePay: number, holidayPay: number, welfareAllowance: number, housingAllowance: number) => number;
+  calculateNetSalary: (grossSalary: number, totalDeductions: number) => number;
+  checkSpecialCase: (year: number, month: number, employeeId: number, overtimeHours: OvertimeHours, baseSalary: number, welfareAllowance?: number, housingAllowance?: number) => any;
+  version: string;
+  description: string;
+}
 
 // 特殊規則緩存，從數據庫載入
 let specialRulesLoaded = false;
@@ -205,13 +259,14 @@ export function calculateSalary(
   settings: CalculationSettings,
   holidayPay: number = 0,
   welfareAllowance?: number,
-  housingAllowance: number = 0
+  housingAllowance: number = 0,
+  employeeId: number = 1 // 添加員工ID參數
 ): SalaryCalculationResult {
   // 使用共享計算模型
   return sharedCalculateSalary(
     year,
     month,
-    1, // 默認員工ID，實際使用中應傳入正確的員工ID
+    employeeId, // 使用傳入的員工ID
     rawOvertimeHours,
     baseSalary,
     totalDeductions,
@@ -234,8 +289,12 @@ export function validateSalaryRecord(
     totalOvertimePay: number;
     grossSalary: number;
     netSalary: number;
+    baseSalary: number;
+    welfareAllowance?: number;
+    housingAllowance?: number;
   },
-  settings?: CalculationSettings
+  settings?: CalculationSettings,
+  employeeId: number = 1 // 添加員工ID參數
 ): boolean {
   if (!settings) return false;
   
@@ -244,11 +303,11 @@ export function validateSalaryRecord(
   const specialCase = model.checkSpecialCase(
     year, 
     month, 
-    1, // 默認員工ID
+    employeeId, // 使用傳入的員工ID
     { totalOT1Hours: record.totalOT1Hours, totalOT2Hours: record.totalOT2Hours },
-    28590, // 默認基本薪資
-    2500,  // 默認福利津貼
-    0      // 默認無住房津貼
+    record.baseSalary, // 使用記錄中的基本薪資
+    record.welfareAllowance, // 使用記錄中的福利津貼
+    record.housingAllowance // 使用記錄中的住房津貼
   );
   
   if (specialCase) {
