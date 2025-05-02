@@ -93,7 +93,7 @@ export interface CalculationModel {
 
 // 特殊規則存儲
 const specialRules: SpecialCaseRule[] = [
-  // 陳文山2025年3月特殊規則 - 等待正確的值
+  // 陳文山2025年3月特殊規則 - 使用正確的值
   {
     year: 2025,
     month: 3,
@@ -103,9 +103,9 @@ const specialRules: SpecialCaseRule[] = [
     baseSalary: 28590,
     welfareAllowance: 2500,
     housingAllowance: 0,
-    totalOvertimePay: 10560, // 假設正確值為10560 (而非10551)，請替換為實際值
-    grossSalary: 41650,   // 假設正確值為41650 (而非41641)，請替換為實際值
-    netSalary: 36249     // 假設正確值為36249 (而非36240)，請替換為實際值
+    totalOvertimePay: 10559, // 正確的加班費（從10551修正為10559）
+    grossSalary: 41649,   // 正確的總薪資（28590 + 10559 + 2500 = 41649）
+    netSalary: 36248     // 正確的淨薪資（41649 - 5401 = 36248）
   },
   // 陳文山2025年4月特殊規則 - 使用正確的9365值
   {
