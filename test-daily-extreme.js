@@ -3,11 +3,14 @@
  * 這個測試使用極端的小數點加班時數，以顯示兩種方法的差異
  */
 
-// 模擬共享的計算設置
+// 導入共享常量
+import { constants } from './shared/constants.js';
+
+// 使用共享常量建立計算設置
 const settings = {
-  baseHourlyRate: 119,  // 基本時薪
-  ot1Multiplier: 1.34,  // 第一階段加班倍率 (1.34倍)
-  ot2Multiplier: 1.67   // 第二階段加班倍率 (1.67倍)
+  baseHourlyRate: constants.BASE_HOURLY_RATE,  // 基本時薪
+  ot1Multiplier: constants.OT1_MULTIPLIER,  // 第一階段加班倍率 (1.34倍)
+  ot2Multiplier: constants.OT2_MULTIPLIER   // 第二階段加班倍率 (1.67倍)
 };
 
 // 極端情況下的每日加班記錄 - 大量接近0.5的小數時數
@@ -29,8 +32,8 @@ const totalOT1Hours = dailyRecords.reduce((total, record) => total + record.ot1H
 const totalOT2Hours = dailyRecords.reduce((total, record) => total + record.ot2Hours, 0);
 
 console.log('=== 加班時數總計 ===');
-console.log(`總第一階段加班時數(1.34倍): ${totalOT1Hours} 小時`);
-console.log(`總第二階段加班時數(1.67倍): ${totalOT2Hours} 小時`);
+console.log(`總第一階段加班時數(${constants.OT1_MULTIPLIER}倍): ${totalOT1Hours} 小時`);
+console.log(`總第二階段加班時數(${constants.OT2_MULTIPLIER}倍): ${totalOT2Hours} 小時`);
 console.log('');
 
 // 方法1: 整月匯總後計算加班費 (不夠準確的方法)
@@ -107,8 +110,8 @@ const monthlyResult = calculateMonthlyOvertimeMethod1();
 const dailyResult = calculateMonthlyOvertimeMethod2();
 
 console.log('=== 方法1: 整月匯總後計算加班費 ===');
-console.log(`1.34倍時薪: ${settings.baseHourlyRate} * ${settings.ot1Multiplier} = ${settings.baseHourlyRate * settings.ot1Multiplier}`);
-console.log(`1.67倍時薪: ${settings.baseHourlyRate} * ${settings.ot2Multiplier} = ${settings.baseHourlyRate * settings.ot2Multiplier}`);
+console.log(`${constants.OT1_MULTIPLIER}倍時薪: ${settings.baseHourlyRate} * ${settings.ot1Multiplier} = ${settings.baseHourlyRate * settings.ot1Multiplier}`);
+console.log(`${constants.OT2_MULTIPLIER}倍時薪: ${settings.baseHourlyRate} * ${settings.ot2Multiplier} = ${settings.baseHourlyRate * settings.ot2Multiplier}`);
 console.log(`第一階段加班費(未四捨五入): ${monthlyResult.ot1Pay.toFixed(2)}`);
 console.log(`第二階段加班費(未四捨五入): ${monthlyResult.ot2Pay.toFixed(2)}`);
 console.log(`第一階段加班費(四捨五入): ${monthlyResult.roundedOt1Pay}`);
@@ -119,7 +122,7 @@ console.log('');
 console.log('=== 方法2: 每日單獨計算加班費後加總 (正確方法) ===');
 console.log('每日詳細計算:');
 dailyResult.dailyPayments.forEach(payment => {
-  console.log(`${payment.date}: 加班${payment.ot1Hours}小時(1.34倍) + ${payment.ot2Hours}小時(1.67倍) = ${payment.roundedDailyOt1Pay} + ${payment.roundedDailyOt2Pay} = ${payment.dailyTotal}元`);
+  console.log(`${payment.date}: 加班${payment.ot1Hours}小時(${constants.OT1_MULTIPLIER}倍) + ${payment.ot2Hours}小時(${constants.OT2_MULTIPLIER}倍) = ${payment.roundedDailyOt1Pay} + ${payment.roundedDailyOt2Pay} = ${payment.dailyTotal}元`);
 });
 console.log(`總加班費: ${dailyResult.totalOvertimePay}`);
 console.log('');
