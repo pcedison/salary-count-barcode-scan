@@ -10,6 +10,30 @@ import {
   validateSalaryRecord
 } from '@/lib/salaryCalculations';
 
+// SalaryRecord界面定義
+interface SalaryRecord {
+  id: number;
+  salaryYear: number;
+  salaryMonth: number;
+  employeeId?: number; // 員工ID，可選
+  employeeName?: string; // 員工姓名，可選
+  baseSalary: number;
+  housingAllowance: number;
+  welfareAllowance?: number; // 福利津貼
+  totalOT1Hours: number;
+  totalOT2Hours: number;
+  totalOvertimePay: number;
+  holidayDays: number;
+  holidayDailySalary: number;
+  totalHolidayPay: number;
+  grossSalary: number;
+  deductions: Array<{ name: string; amount: number }>;
+  totalDeductions: number;
+  netSalary: number;
+  attendanceData: Array<any>;
+  createdAt: string;
+}
+
 /**
  * 薪資數據修復按鈕
  * 
@@ -49,13 +73,23 @@ export default function SalaryDataFixButton() {
       // 檢查並修正所有月份的薪資記錄
       for (const record of records) {
         // 驗證薪資記錄是否需要修正
-        const isValid = validateSalaryRecord(record.salaryYear, record.salaryMonth, {
-          totalOT1Hours: record.totalOT1Hours,
-          totalOT2Hours: record.totalOT2Hours,
-          totalOvertimePay: record.totalOvertimePay,
-          grossSalary: record.grossSalary,
-          netSalary: record.netSalary
-        }, settings);
+        const isValid = validateSalaryRecord(
+          record.salaryYear, 
+          record.salaryMonth, 
+          {
+            totalOT1Hours: record.totalOT1Hours,
+            totalOT2Hours: record.totalOT2Hours,
+            totalOvertimePay: record.totalOvertimePay,
+            grossSalary: record.grossSalary,
+            netSalary: record.netSalary,
+            baseSalary: record.baseSalary,
+            welfareAllowance: record.welfareAllowance,
+            housingAllowance: record.housingAllowance
+          }, 
+          record.totalDeductions,
+          settings,
+          record.employeeId || 1
+        );
         
         // 如果記錄已經正確，跳過
         if (isValid) continue;
@@ -73,7 +107,8 @@ export default function SalaryDataFixButton() {
           settings,
           record.totalHolidayPay,
           record.welfareAllowance,
-          record.housingAllowance
+          record.housingAllowance,
+          record.employeeId || 1 // 提供員工ID以支持特殊規則
         );
         
         // 創建更新數據對象

@@ -13,6 +13,8 @@ interface SalaryRecord {
   id: number;
   salaryYear: number;
   salaryMonth: number;
+  employeeId?: number; // 員工ID，可選
+  employeeName?: string; // 員工姓名，可選 
   baseSalary: number;
   housingAllowance: number;
   welfareAllowance?: number; // 福利津貼
@@ -49,13 +51,23 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   if (!record || !settings) return record;
   
   // 檢查記錄是否需要標準化修正
-  const isValid = validateSalaryRecord(record.salaryYear, record.salaryMonth, {
-    totalOT1Hours: record.totalOT1Hours,
-    totalOT2Hours: record.totalOT2Hours,
-    totalOvertimePay: record.totalOvertimePay,
-    grossSalary: record.grossSalary,
-    netSalary: record.netSalary
-  }, settings);
+  const isValid = validateSalaryRecord(
+    record.salaryYear, 
+    record.salaryMonth, 
+    {
+      totalOT1Hours: record.totalOT1Hours,
+      totalOT2Hours: record.totalOT2Hours,
+      totalOvertimePay: record.totalOvertimePay,
+      grossSalary: record.grossSalary,
+      netSalary: record.netSalary,
+      baseSalary: record.baseSalary,
+      welfareAllowance: record.welfareAllowance,
+      housingAllowance: record.housingAllowance
+    }, 
+    record.totalDeductions,
+    settings,
+    record.employeeId || 1
+  );
   
   // 如果記錄已經是有效的，則直接返回
   if (isValid) {
@@ -75,7 +87,8 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     settings,
     record.totalHolidayPay,
     record.welfareAllowance,
-    record.housingAllowance
+    record.housingAllowance,
+    record.employeeId || 1 // 提供員工ID以支持特殊規則
   );
   
   // 輸出日誌以供檢查
@@ -186,13 +199,23 @@ export function useHistoryData() {
     // 尋找需要更新的記錄
     for (const record of rawSalaryRecords) {
       // 檢查記錄是否需要標準化修正
-      const isValid = validateSalaryRecord(record.salaryYear, record.salaryMonth, {
-        totalOT1Hours: record.totalOT1Hours,
-        totalOT2Hours: record.totalOT2Hours,
-        totalOvertimePay: record.totalOvertimePay,
-        grossSalary: record.grossSalary,
-        netSalary: record.netSalary
-      }, settings);
+      const isValid = validateSalaryRecord(
+        record.salaryYear, 
+        record.salaryMonth, 
+        {
+          totalOT1Hours: record.totalOT1Hours,
+          totalOT2Hours: record.totalOT2Hours,
+          totalOvertimePay: record.totalOvertimePay,
+          grossSalary: record.grossSalary,
+          netSalary: record.netSalary,
+          baseSalary: record.baseSalary,
+          welfareAllowance: record.welfareAllowance,
+          housingAllowance: record.housingAllowance
+        }, 
+        record.totalDeductions,
+        settings,
+        record.employeeId || 1
+      );
       
       // 如果記錄已經是有效的，則跳過
       if (isValid) continue;
@@ -210,7 +233,8 @@ export function useHistoryData() {
         settings,
         record.totalHolidayPay,
         record.welfareAllowance,
-        record.housingAllowance
+        record.housingAllowance,
+        record.employeeId || 1 // 提供員工ID以支持特殊規則
       );
       
       // 創建更新數據對象

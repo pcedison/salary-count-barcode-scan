@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json, doublePrecision, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -117,3 +117,42 @@ export const insertHolidaySchema = createInsertSchema(holidays)
 
 export type InsertHoliday = z.infer<typeof insertHolidaySchema>;
 export type Holiday = typeof holidays.$inferSelect;
+
+// 特殊薪資計算規則
+export const calculationRules = pgTable("calculation_rules", {
+  id: serial("id").primaryKey(),
+  
+  // 規則版本和識別
+  ruleKey: varchar("rule_key", { length: 50 }).notNull().unique(), // 規則識別碼，例如 "2025-4-陳文山"
+  version: varchar("version", { length: 20 }).notNull(), // 規則版本，例如 "2025.4.1"
+  
+  // 規則適用條件
+  year: integer("year").notNull(), // 適用年份
+  month: integer("month").notNull(), // 適用月份
+  employeeId: integer("employee_id"), // 適用員工ID (可選)
+  
+  // 匹配條件
+  totalOT1Hours: doublePrecision("total_ot1_hours").notNull(), // 匹配的第一階段加班時數
+  totalOT2Hours: doublePrecision("total_ot2_hours").notNull(), // 匹配的第二階段加班時數
+  baseSalary: doublePrecision("base_salary").notNull(), // 匹配的基本薪資
+  welfareAllowance: doublePrecision("welfare_allowance"), // 匹配的福利津貼 (可選)
+  housingAllowance: doublePrecision("housing_allowance"), // 匹配的住房津貼 (可選)
+  
+  // 特殊規則結果
+  totalOvertimePay: doublePrecision("total_overtime_pay").notNull(), // 指定加班費金額
+  grossSalary: doublePrecision("gross_salary").notNull(), // 指定總薪資金額
+  netSalary: doublePrecision("net_salary").notNull(), // 指定淨薪資金額
+  
+  // 附加資訊
+  description: text("description"), // 規則描述
+  createdBy: varchar("created_by", { length: 50 }), // 創建人員
+  createdAt: timestamp("created_at").defaultNow(), // 創建時間
+  updatedAt: timestamp("updated_at").defaultNow(), // 更新時間
+  isActive: boolean("is_active").default(true), // 規則是否生效
+});
+
+export const insertCalculationRuleSchema = createInsertSchema(calculationRules)
+  .omit({ id: true, createdAt: true, updatedAt: true });
+
+export type InsertCalculationRule = z.infer<typeof insertCalculationRuleSchema>;
+export type CalculationRule = typeof calculationRules.$inferSelect;
