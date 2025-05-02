@@ -265,6 +265,9 @@ export function useHistoryData() {
   const hasFixedRecordsRef = useRef(false);
   
   useEffect(() => {
+    // 重置標記，強制執行修正
+    hasFixedRecordsRef.current = false;
+    
     if (!isLoading && rawSalaryRecords.length > 0 && !hasFixedRecordsRef.current && settings) {
       // 設置標記，表示已經執行過修正
       hasFixedRecordsRef.current = true;
