@@ -2,12 +2,15 @@
  * 測試計算加班費 - 根據指定的時數和時薪
  */
 
+// 導入共享常量
+import { constants } from './shared/constants.js';
+
 // 基本時薪
-const baseHourlyRate = 119;
+const baseHourlyRate = constants.BASE_HOURLY_RATE;
 
 // 加班倍率
-const ot1Multiplier = 1.34;  // 134% 加班費率
-const ot2Multiplier = 1.67;  // 167% 加班費率
+const ot1Multiplier = constants.OT1_MULTIPLIER;  // 134% 加班費率
+const ot2Multiplier = constants.OT2_MULTIPLIER;  // 167% 加班費率
 
 // 指定加班時數
 const totalOT1Hours = 40;

@@ -90,7 +90,7 @@ async function setupDatabase() {
     
     // Create temporary_attendance table
     console.log('Creating temporary_attendance table...');
-    const { error: error1 } = await supabase.from('temporary_attendance').insert({
+    const { error: error1 } = await supabase.from(constants.TEMP_TABLE_NAME).insert({
       date: '2025/01/01',
       clock_in: '08:00',
       clock_out: '17:00',
@@ -149,10 +149,10 @@ async function setupDatabase() {
           query: `
           CREATE TABLE IF NOT EXISTS settings (
             id SERIAL PRIMARY KEY,
-            base_hourly_rate NUMERIC NOT NULL DEFAULT 119,
-            ot1_multiplier NUMERIC NOT NULL DEFAULT 1.34,
-            ot2_multiplier NUMERIC NOT NULL DEFAULT 1.67,
-            base_month_salary NUMERIC NOT NULL DEFAULT 28590,
+            base_hourly_rate NUMERIC NOT NULL DEFAULT ${constants.BASE_HOURLY_RATE},
+            ot1_multiplier NUMERIC NOT NULL DEFAULT ${constants.OT1_MULTIPLIER},
+            ot2_multiplier NUMERIC NOT NULL DEFAULT ${constants.OT2_MULTIPLIER},
+            base_month_salary NUMERIC NOT NULL DEFAULT ${constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS},
             deductions JSONB DEFAULT '[]'::jsonb,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -160,11 +160,11 @@ async function setupDatabase() {
 
           INSERT INTO settings (base_hourly_rate, ot1_multiplier, ot2_multiplier, base_month_salary, deductions)
           VALUES (
-            119, 
-            1.34, 
-            1.67, 
-            28590, 
-            '[{"name": "勞保費", "amount": 525, "description": "勞工保險費用"}, {"name": "健保費", "amount": 372, "description": "全民健康保險費用"}]'::jsonb
+            ${constants.BASE_HOURLY_RATE}, 
+            ${constants.OT1_MULTIPLIER}, 
+            ${constants.OT2_MULTIPLIER}, 
+            ${constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS}, 
+            '[{"name": "勞保費", "amount": ${constants.DEFAULT_LABOR_INSURANCE}, "description": "勞工保險費用"}, {"name": "健保費", "amount": ${constants.DEFAULT_HEALTH_INSURANCE}, "description": "全民健康保險費用"}]'::jsonb
           )
           ON CONFLICT (id) DO NOTHING;`
         })
@@ -177,21 +177,24 @@ async function setupDatabase() {
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     
-    const { error: error3 } = await supabase.from('salary_records').insert({
+    // 計算基本薪資
+    const baseSalary = constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS;
+    
+    const { error: error3 } = await supabase.from(constants.FINAL_TABLE_NAME).insert({
       salary_year: currentYear,
       salary_month: currentMonth,
-      base_salary: 28590,
-      housing_allowance: 0,
+      base_salary: baseSalary,
+      housing_allowance: constants.DEFAULT_HOUSING_ALLOWANCE,
       total_ot1_hours: 0,
       total_ot2_hours: 0,
       total_overtime_pay: 0,
       holiday_days: 0,
       holiday_daily_salary: 0,
       total_holiday_pay: 0,
-      gross_salary: 28590,
+      gross_salary: baseSalary,
       deductions: [],
       total_deductions: 0,
-      net_salary: 28590,
+      net_salary: baseSalary,
       attendance_data: []
     }).select();
     
@@ -233,7 +236,7 @@ async function setupDatabase() {
     
     // Create holidays table
     console.log('Creating holidays table...');
-    const { error: error4 } = await supabase.from('holidays').insert({
+    const { error: error4 } = await supabase.from(constants.HOLIDAYS_TABLE_NAME).insert({
       date: '2025/01/01',
       description: '元旦'
     }).select();
@@ -268,7 +271,7 @@ async function setupDatabase() {
     console.log('Database setup complete!');
     
     // Verify by checking one of the tables
-    const { data, error } = await supabase.from('settings').select('*').limit(1);
+    const { data, error } = await supabase.from(constants.SETTINGS_TABLE_NAME).select('*').limit(1);
     if (error) {
       console.error('Error verifying tables:', error);
     } else {
