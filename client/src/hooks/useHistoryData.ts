@@ -227,24 +227,31 @@ export function useHistoryData() {
         // 計數已修正的月份
         fixedCount++;
         
-        // 成功更新後顯示通知（避免過多通知，僅在處理完所有記錄後顯示一次總結）
+        // 不再顯示每個階段的通知，避免干擾用戶界面
+        // 注釋掉通知代碼，僅保留記錄功能
+        /*
         if (fixedCount === 1) {
           toast({
             title: "薪資數據修正中",
             description: `正在套用統一計算標準至所有薪資記錄...`,
           });
         }
+        */
       } catch (error) {
         console.error(`更新${record.salaryYear}年${record.salaryMonth}月薪資記錄失敗:`, error);
       }
     }
     
-    // 完成所有修正後顯示總結性通知
+    // 不再顯示完成通知，避免干擾用戶界面
+    // 注釋掉通知代碼，僅保留記錄功能
     if (fixedCount > 0) {
+      console.log(`薪資數據標準化完成：已修正 ${fixedCount} 筆薪資記錄`);
+      /*
       toast({
         title: "薪資數據標準化完成",
         description: `已修正 ${fixedCount} 筆薪資記錄，確保所有月份使用統一的計算邏輯`,
       });
+      */
     }
   }, [rawSalaryRecords, settings, updateSalaryRecord, toast]);
   
