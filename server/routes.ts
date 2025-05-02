@@ -310,7 +310,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { totalOT1Hours, totalOT2Hours, attendanceData } = validatedData;
       
       // 從導入的計算模組中獲取標準化函數
-      const { calculateSalary } = require('./utils/salaryCalculator');
+      // 使用動態導入而非require (避免ESM兼容性問題)
+      const salaryCalculator = await import('./utils/salaryCalculator');
+      const { calculateSalary } = salaryCalculator;
       
       // 準備薪資計算所需的參數
       const totalDeductions = validatedData.deductions ? 
@@ -388,7 +390,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           updateData.totalHolidayPay !== undefined) {
         
         // 從導入的計算模組中獲取標準化函數
-        const { calculateSalary } = require('./utils/salaryCalculator');
+        // 使用動態導入而非require (避免ESM兼容性問題)
+        const salaryCalculator = await import('./utils/salaryCalculator');
+        const { calculateSalary } = salaryCalculator;
         
         // 合併現有資料和更新資料
         const mergedData = {
