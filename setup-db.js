@@ -1,6 +1,9 @@
 // Import the createClient function from the @supabase/supabase-js package
 import { createClient } from '@supabase/supabase-js';
 
+// 導入共享常量
+import { constants } from './shared/constants.js';
+
 // Get the environment variables
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
@@ -121,14 +124,14 @@ async function setupDatabase() {
     
     // Create settings table
     console.log('Creating settings table...');
-    const { error: error2 } = await supabase.from('settings').insert({
-      base_hourly_rate: 119,
-      ot1_multiplier: 1.34,
-      ot2_multiplier: 1.67,
-      base_month_salary: 28590,
+    const { error: error2 } = await supabase.from(constants.SETTINGS_TABLE_NAME).insert({
+      base_hourly_rate: constants.BASE_HOURLY_RATE,
+      ot1_multiplier: constants.OT1_MULTIPLIER,
+      ot2_multiplier: constants.OT2_MULTIPLIER,
+      base_month_salary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
       deductions: [
-        { name: "勞保費", amount: 525, description: "勞工保險費用" },
-        { name: "健保費", amount: 372, description: "全民健康保險費用" }
+        { name: "勞保費", amount: constants.DEFAULT_LABOR_INSURANCE, description: "勞工保險費用" },
+        { name: "健保費", amount: constants.DEFAULT_HEALTH_INSURANCE, description: "全民健康保險費用" }
       ]
     }).select();
     
