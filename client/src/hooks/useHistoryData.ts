@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { 
   calculateSalary, 
   validateSalaryRecord,
@@ -249,11 +249,16 @@ export function useHistoryData() {
   }, [rawSalaryRecords, settings, updateSalaryRecord, toast]);
   
   // 當數據加載完成後，檢查並更新薪資記錄
+  // 使用ref來追蹤是否已執行過修正，避免循環更新
+  const hasFixedRecordsRef = useRef(false);
+  
   useEffect(() => {
-    if (!isLoading && rawSalaryRecords.length > 0) {
+    if (!isLoading && rawSalaryRecords.length > 0 && !hasFixedRecordsRef.current && settings) {
+      // 設置標記，表示已經執行過修正
+      hasFixedRecordsRef.current = true;
       fixAndUpdateSalaryRecords();
     }
-  }, [isLoading, rawSalaryRecords, fixAndUpdateSalaryRecords]);
+  }, [isLoading, rawSalaryRecords, settings]);
   
   // Fetch a specific salary record by ID and recalculate using the accounting method
   const getSalaryRecordById = async (id: number) => {

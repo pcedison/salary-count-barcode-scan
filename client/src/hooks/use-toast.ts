@@ -5,8 +5,8 @@ import type {
   ToastProps,
 } from "@/components/ui/toast"
 
-const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_LIMIT = 3 // 允許最多3個通知同時顯示
+const TOAST_REMOVE_DELAY = 5000 // 減少為5秒，避免通知堆積
 
 type ToasterToast = ToastProps & {
   id: string
