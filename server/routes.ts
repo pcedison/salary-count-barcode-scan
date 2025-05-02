@@ -380,14 +380,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 解析更新資料
       const updateData = req.body;
       
-      // 如果包含加班時數相關欄位，則重新計算薪資
-      if (updateData.totalOT1Hours !== undefined || 
+      // 檢查是否有強制更新標誌 (不進行重新計算)
+      const forceUpdate = req.headers['x-force-update'] === 'true';
+      
+      // 如果沒有強制更新且包含加班時數相關欄位，則重新計算薪資
+      if (!forceUpdate && (
+          updateData.totalOT1Hours !== undefined || 
           updateData.totalOT2Hours !== undefined || 
           updateData.baseSalary !== undefined || 
           updateData.deductions !== undefined ||
           updateData.housingAllowance !== undefined ||
           updateData.welfareAllowance !== undefined ||
-          updateData.totalHolidayPay !== undefined) {
+          updateData.totalHolidayPay !== undefined)) {
         
         // 從導入的計算模組中獲取標準化函數
         // 使用動態導入而非require (避免ESM兼容性問題)
