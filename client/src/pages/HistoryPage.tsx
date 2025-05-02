@@ -318,66 +318,74 @@ export default function HistoryPage() {
   
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0">
-        <div className="flex items-center space-x-2">
+      {/* 頁面橫幅標題 */}
+      <div className="flex items-center justify-between bg-muted/30 px-4 py-2 rounded-md mb-4">
+        <div className="flex items-center">
           <h2 className="text-xl font-bold">歷史薪資紀錄</h2>
           {isAdmin && (
-            <div className="flex space-x-2 ml-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setIsImportModalOpen(true)}
-                className="flex items-center text-primary border-primary/50 hover:bg-primary/10"
-              >
-                <Upload className="w-4 h-4 mr-1" />
-                匯入 CSV
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => {
-                  toast({
-                    title: "資料庫備份",
-                    description: "正在執行資料庫備份...",
-                  });
-                }}
-                className="flex items-center text-primary border-primary/50 hover:bg-primary/10"
-              >
-                <Database className="w-4 h-4 mr-1" />
-                資料備份
-              </Button>
-              {/* 套用統一計算標準按鈕已移除 - 所有計算現在都自動使用標準化方法 */}
-              {/* 下載 CSV 按鈕已移除 - 使用批量下載 ZIP 功能代替 */}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleBatchDownloadAsZip}
-                disabled={isExportingZip || selectedRecordIds.length === 0}
-                className="flex items-center text-primary border-primary/50 hover:bg-primary/10"
-              >
-                <Archive className="w-4 h-4 mr-1" />
-                {isExportingZip ? '處理中...' : '批量下載 ZIP'}
-              </Button>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
-          {isAdmin ? (
-            <div className="bg-primary/10 px-3 py-1 rounded-full text-primary text-sm font-medium flex items-center mr-2">
+            <div className="ml-2 bg-primary/10 px-3 py-1 rounded-full text-primary text-sm font-medium flex items-center">
               <Shield className="w-4 h-4 mr-1" />
               管理員模式
             </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsLoginModalOpen(true)}
-              className="text-gray-500 mr-2"
-            >
-              <Lock className="w-4 h-4 mr-1" />
-              管理員登入
-            </Button>
           )}
+        </div>
+        
+        {!isAdmin && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsLoginModalOpen(true)}
+            className="text-gray-500"
+          >
+            <Lock className="w-4 h-4 mr-1" />
+            管理員登入
+          </Button>
+        )}
+      </div>
+      
+      {/* 功能按鈕與搜尋區域 */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-3 sm:space-y-0 mb-4">
+        {isAdmin && (
+          <div className="flex flex-wrap space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center text-primary border-primary/50 hover:bg-primary/10 mb-2 sm:mb-0"
+            >
+              <Upload className="w-4 h-4 mr-1" />
+              匯入 CSV
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                toast({
+                  title: "資料庫備份",
+                  description: "正在執行資料庫備份...",
+                });
+              }}
+              className="flex items-center text-primary border-primary/50 hover:bg-primary/10 mb-2 sm:mb-0"
+            >
+              <Database className="w-4 h-4 mr-1" />
+              資料備份
+            </Button>
+            {/* 套用統一計算標準按鈕已移除 - 所有計算現在都自動使用標準化方法 */}
+            {/* 下載 CSV 按鈕已移除 - 使用批量下載 ZIP 功能代替 */}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleBatchDownloadAsZip}
+              disabled={isExportingZip || selectedRecordIds.length === 0}
+              className="flex items-center text-primary border-primary/50 hover:bg-primary/10 mb-2 sm:mb-0"
+            >
+              <Archive className="w-4 h-4 mr-1" />
+              {isExportingZip ? '處理中...' : '批量下載 ZIP'}
+            </Button>
+          </div>
+        )}
+        
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-none">
             <Input
               id="historySearch"
