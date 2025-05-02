@@ -95,10 +95,53 @@ export interface CalculationModel {
 const specialRules: SpecialCaseRule[] = [];
 
 /**
+ * 單日加班記錄界面
+ */
+export interface DailyOvertimeRecord {
+  date: string;      // 日期 (YYYY-MM-DD)
+  ot1Hours: number;  // 當日第一階段加班時數 (1.34倍)
+  ot2Hours: number;  // 當日第二階段加班時數 (1.67倍)
+}
+
+/**
  * 標準計算邏輯的實現 - 按照會計部門提供的計算方法
  */
 export const standardCalculationLogic = {
-  // 基本時薪計算
+  /**
+   * 計算單日加班費 - 此為正確方法，確保每日單獨計算後才加總
+   */
+  calculateDailyOvertimePay: (record: DailyOvertimeRecord, settings: CalculationSettings): number => {
+    const { baseHourlyRate, ot1Multiplier, ot2Multiplier } = settings;
+    
+    // 計算精確時薪 (不取整)
+    const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
+    const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
+    
+    // 計算該日各階段加班費 (不預先四捨五入)
+    const dailyOt1Pay = ot1HourlyRate * record.ot1Hours;
+    const dailyOt2Pay = ot2HourlyRate * record.ot2Hours;
+    
+    // 將該日各階段加班費四捨五入為整數，並加總
+    const dailyOvertimePay = Math.round(dailyOt1Pay) + Math.round(dailyOt2Pay);
+    
+    return dailyOvertimePay;
+  },
+  
+  /**
+   * 計算整月加班費 - 正確方法：每日單獨計算後加總
+   */
+  calculateMonthlyOvertimePayByDaily: (dailyRecords: DailyOvertimeRecord[], settings: CalculationSettings): number => {
+    // 計算每日加班費並加總
+    return dailyRecords.reduce((total, record) => {
+      const dailyPay = standardCalculationLogic.calculateDailyOvertimePay(record, settings);
+      return total + dailyPay;
+    }, 0);
+  },
+  
+  /**
+   * 舊的方法 (不推薦使用) - 將月加班時數一次性計算
+   * 只保留以兼容舊代碼，新的計算應使用 calculateMonthlyOvertimePayByDaily
+   */
   calculateOvertimePay: (overtimeHours: OvertimeHours, settings: CalculationSettings): number => {
     const { baseHourlyRate, ot1Multiplier, ot2Multiplier } = settings;
     const { totalOT1Hours, totalOT2Hours } = overtimeHours;

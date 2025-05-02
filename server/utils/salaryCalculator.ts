@@ -261,7 +261,30 @@ export function calculateNetSalary(
 }
 
 /**
+ * 根據日考勤記錄轉換為日加班記錄
+ */
+export function convertAttendanceToDaily(attendanceRecords: any[]): DailyOvertimeRecord[] {
+  return attendanceRecords.map(record => {
+    // 判斷是否有加班
+    if (!record.clockIn || !record.clockOut) return null;
+    
+    // 計算加班時數
+    const { ot1, ot2 } = calculateOvertime(record.clockIn, record.clockOut);
+    
+    // 如果沒有加班，返回null
+    if (ot1 === 0 && ot2 === 0) return null;
+    
+    return {
+      date: record.date,
+      ot1Hours: ot1,
+      ot2Hours: ot2
+    };
+  }).filter(record => record !== null) as DailyOvertimeRecord[];
+}
+
+/**
  * 統一薪資計算函數 - 整合所有計算步驟，確保一致性
+ * 推薦使用下方的 calculateSalaryByDaily 函數，此函數僅為兼容舊代碼保留
  */
 export function calculateSalary(
   year: number,
@@ -288,6 +311,68 @@ export function calculateSalary(
     welfareAllowance,
     housingAllowance
   );
+}
+
+/**
+ * 新的薪資計算函數 - 按照會計實務正確方式處理：每日單獨計算後再加總
+ */
+export function calculateSalaryByDaily(
+  year: number,
+  month: number,
+  dailyRecords: DailyOvertimeRecord[],
+  baseSalary: number,
+  totalDeductions: number,
+  settings: CalculationSettings,
+  holidayPay: number = 0,
+  welfareAllowance?: number,
+  housingAllowance: number = 0,
+  employeeId: number = 1
+): SalaryCalculationResult {
+  // 選擇適當的計算模型
+  const model = selectCalculationModel(year, month);
+  
+  // 使用模型配置或提供的配置
+  const config = settings || model.baseConfiguration;
+  
+  // 計算總加班時數 (僅用於兼容特殊規則的檢查)
+  const totalOT1Hours = dailyRecords.reduce((total, record) => total + record.ot1Hours, 0);
+  const totalOT2Hours = dailyRecords.reduce((total, record) => total + record.ot2Hours, 0);
+  const overtimeHours: OvertimeHours = { totalOT1Hours, totalOT2Hours };
+  
+  // 檢查是否有適用的特殊情況
+  const specialCase = model.checkSpecialCase(
+    year, month, employeeId, overtimeHours, baseSalary, welfareAllowance, housingAllowance
+  );
+  
+  if (specialCase) {
+    // 對於特殊情況，使用特定的計算結果
+    return {
+      totalOT1Hours,
+      totalOT2Hours,
+      totalOvertimePay: specialCase.totalOvertimePay,
+      grossSalary: specialCase.grossSalary,
+      netSalary: specialCase.netSalary
+    };
+  }
+  
+  // 標準計算流程
+  // 1. 正確計算加班費 - 每日單獨計算後加總
+  const totalOvertimePay = standardCalculationLogic.calculateMonthlyOvertimePayByDaily(dailyRecords, config);
+  
+  // 2. 計算總薪資
+  const welfareAmount = welfareAllowance !== undefined ? welfareAllowance : (config.welfareAllowance || 0);
+  const grossSalary = model.calculateGrossSalary(baseSalary, totalOvertimePay, holidayPay, welfareAmount, housingAllowance);
+  
+  // 3. 計算淨薪資
+  const netSalary = model.calculateNetSalary(grossSalary, totalDeductions);
+  
+  return {
+    totalOT1Hours,
+    totalOT2Hours,
+    totalOvertimePay,
+    grossSalary,
+    netSalary
+  };
 }
 
 /**
