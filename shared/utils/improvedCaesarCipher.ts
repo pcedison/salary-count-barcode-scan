@@ -56,7 +56,9 @@ export function caesarEncrypt(text: string): string {
       
       // 處理小寫字母 (ASCII 97-122)
       if (code >= 97 && code <= 122) {
-        return String.fromCharCode(((code - 97 + 17) % 26) + 97);
+        // 使用與大寫字母相同的特定偏移量
+        const specialShift = 17; // e->v的偏移量
+        return String.fromCharCode(((code - 97 + specialShift) % 26) + 97);
       }
       
       // 數字和其他字符保持不變
