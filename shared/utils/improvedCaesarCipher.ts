@@ -5,6 +5,10 @@
 
 import { constants } from '../constants';
 
+// 專用加密參數，與一般加密工具不同
+const SPECIAL_ENCRYPT_SHIFT = 17; // E -> V 的特殊偏移量
+const SPECIAL_DECRYPT_SHIFT = 26 - SPECIAL_ENCRYPT_SHIFT; // V -> E 的反向偏移量
+
 // 實際資料庫中已有的加密映射關係
 interface EncryptionMap {
   [key: string]: string; // 原始ID -> 加密ID
@@ -49,16 +53,14 @@ export function caesarEncrypt(text: string): string {
       // 只加密字母，數字保持不變
       // 處理大寫字母 (ASCII 65-90)
       if (code >= 65 && code <= 90) {
-        // 使用特定的偏移量，而非共享常量，因為這是專用映射
-        const specialShift = 17; // E->V的偏移量
-        return String.fromCharCode(((code - 65 + specialShift) % 26) + 65);
+        // 使用專用的特殊偏移量常量
+        return String.fromCharCode(((code - 65 + SPECIAL_ENCRYPT_SHIFT) % 26) + 65);
       }
       
       // 處理小寫字母 (ASCII 97-122)
       if (code >= 97 && code <= 122) {
-        // 使用與大寫字母相同的特定偏移量
-        const specialShift = 17; // e->v的偏移量
-        return String.fromCharCode(((code - 97 + specialShift) % 26) + 97);
+        // 使用與大寫字母相同的特殊偏移量常量
+        return String.fromCharCode(((code - 97 + SPECIAL_ENCRYPT_SHIFT) % 26) + 97);
       }
       
       // 數字和其他字符保持不變
@@ -91,13 +93,14 @@ export function caesarDecrypt(text: string): string {
       // 只解密字母，數字保持不變
       // 處理大寫字母 (ASCII 65-90)
       if (code >= 65 && code <= 90) {
-        // 9是V->E的偏移量 (26-17)
-        return String.fromCharCode(((code - 65 + 9) % 26) + 65);
+        // 使用專用的特殊解密偏移量常量
+        return String.fromCharCode(((code - 65 + SPECIAL_DECRYPT_SHIFT) % 26) + 65);
       }
       
       // 處理小寫字母 (ASCII 97-122)
       if (code >= 97 && code <= 122) {
-        return String.fromCharCode(((code - 97 + 9) % 26) + 97);
+        // 使用專用的特殊解密偏移量常量
+        return String.fromCharCode(((code - 97 + SPECIAL_DECRYPT_SHIFT) % 26) + 97);
       }
       
       // 數字和其他字符保持不變
