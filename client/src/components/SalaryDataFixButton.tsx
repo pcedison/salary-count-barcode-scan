@@ -55,7 +55,7 @@ export default function SalaryDataFixButton() {
           totalOvertimePay: record.totalOvertimePay,
           grossSalary: record.grossSalary,
           netSalary: record.netSalary
-        });
+        }, settings);
         
         // 如果記錄已經正確，跳過
         if (isValid) continue;

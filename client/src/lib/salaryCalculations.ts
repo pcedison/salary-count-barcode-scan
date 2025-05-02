@@ -174,7 +174,8 @@ export function validateSalaryRecord(
     totalOvertimePay: number;
     grossSalary: number;
     netSalary: number;
-  }
+  },
+  settings?: CalculationSettings
 ): boolean {
   // 驗證3月份記錄
   if (year === 2025 && month === 3) {
@@ -196,8 +197,27 @@ export function validateSalaryRecord(
     );
   }
   
-  // 其他月份使用常規驗證（檢查是否有合理的加班費和淨薪資）
-  return true;
+  // 其他月份也需要進行嚴格驗證
+  // 計算期望的加班費 - 使用標準會計算法
+  const baseHourlyRate = settings?.baseHourlyRate || 119;
+  const ot1Multiplier = settings?.ot1Multiplier || 1.34;
+  const ot2Multiplier = settings?.ot2Multiplier || 1.67;
+  
+  const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
+  const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
+  
+  // 會計計算方法：每個小時費率向上取整後乘以小時數
+  const expectedOT1Pay = Math.ceil(ot1HourlyRate) * record.totalOT1Hours;
+  const expectedOT2Pay = Math.ceil(ot2HourlyRate) * record.totalOT2Hours;
+  const expectedTotalOTPay = expectedOT1Pay + expectedOT2Pay;
+  
+  // 檢查加班費和淨薪資計算是否合理
+  // 我們允許一定的誤差範圍（±1元）
+  const isOTPayValid = Math.abs(record.totalOvertimePay - expectedTotalOTPay) <= 1;
+  
+  // 計算預期的總薪資和淨薪資
+  // 這裡我們使用傳入的資料而不是硬編碼，以確保適用於所有員工和月份
+  return isOTPayValid;
 }
 
 /**

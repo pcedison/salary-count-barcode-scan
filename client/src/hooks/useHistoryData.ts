@@ -55,7 +55,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     totalOvertimePay: record.totalOvertimePay,
     grossSalary: record.grossSalary,
     netSalary: record.netSalary
-  });
+  }, settings);
   
   // 如果記錄已經是有效的，則直接返回
   if (isValid) {
@@ -192,7 +192,7 @@ export function useHistoryData() {
         totalOvertimePay: record.totalOvertimePay,
         grossSalary: record.grossSalary,
         netSalary: record.netSalary
-      });
+      }, settings);
       
       // 如果記錄已經是有效的，則跳過
       if (isValid) continue;
