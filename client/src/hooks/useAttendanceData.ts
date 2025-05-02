@@ -307,27 +307,52 @@ export function useAttendanceData() {
       const normalDays = sortedData.filter(day => !day.isHoliday);
       const holidayDays = sortedData.filter(day => day.isHoliday);
       
-      // Calculate overtime hours and pay
+      // 按每日獨立計算加班費 (依照用戶要求)
       let totalOT1Hours = 0;
       let totalOT2Hours = 0;
+      let totalOvertimePay = 0;
       
-      normalDays.forEach(day => {
+      // 每日加班費用詳細記錄 (用於調試)
+      const dailyOvertimeDetails = normalDays.map(day => {
+        // 1. 計算當日加班時數
         const { ot1, ot2 } = calculateOvertime(day.clockIn, day.clockOut);
+        
+        // 2. 使用精確時薪 (不取整) 計算每階段加班費
+        const ot1HourlyRate = baseHourlyRate * ot1Multiplier;  // 134% 加班時薪
+        const ot2HourlyRate = baseHourlyRate * ot2Multiplier;  // 167% 加班時薪
+        
+        // 3. 計算各階段加班費 (不預先四捨五入)
+        const ot1Pay = ot1HourlyRate * ot1;  // 第一階段加班費
+        const ot2Pay = ot2HourlyRate * ot2;  // 第二階段加班費
+        
+        // 4. 分別將各階段加班費四捨五入為整數
+        const roundedOt1Pay = Math.round(ot1Pay);
+        const roundedOt2Pay = Math.round(ot2Pay);
+        
+        // 5. 當日總加班費
+        const dailyOvertimePay = roundedOt1Pay + roundedOt2Pay;
+        
+        // 累計總時數和加班費
         totalOT1Hours += ot1;
         totalOT2Hours += ot2;
+        totalOvertimePay += dailyOvertimePay;
+        
+        // 返回每日計算詳情，方便調試
+        return {
+          date: day.date,
+          clockIn: day.clockIn,
+          clockOut: day.clockOut,
+          ot1Hours: ot1,
+          ot2Hours: ot2,
+          ot1Pay: roundedOt1Pay,
+          ot2Pay: roundedOt2Pay,
+          dailyTotal: dailyOvertimePay
+        };
       });
       
-      // 使用會計部門的計算方法 - 修正計算邏輯：
-      // 1. 每小時加班費率先無條件進位到整數
-      // 2. 乘以小時數得到總金額
-      // 3. 最終結果使用四捨五入確保整數
-      const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
-      const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
-      const ot1PayCeiled = Math.ceil(ot1HourlyRate) * totalOT1Hours;
-      const ot2PayCeiled = Math.ceil(ot2HourlyRate) * totalOT2Hours;
-      
-      // 計算總加班費 - 精確計算，不提前四捨五入
-      const totalOvertimePay = ot1PayCeiled + ot2PayCeiled;
+      // 將計算詳情輸出到控制台，方便調試
+      console.log('每日加班費計算詳情:', dailyOvertimeDetails);
+      console.log('加班費總計:', totalOvertimePay);
       
       // Calculate holiday pay - 精確計算假日薪資
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)

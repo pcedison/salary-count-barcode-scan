@@ -29,8 +29,8 @@ export interface SalaryCalculationResult {
 }
 
 /**
- * 標準加班費計算函數
- * 根據加班時數和費率計算加班費
+ * 標準加班費計算函數 - 使用會計部門的標準計算方式
+ * 會計部門的方法：每日個別計算並四捨五入後加總
  */
 export function calculateOvertimePay(
   overtimeHours: OvertimeHours,
@@ -39,10 +39,20 @@ export function calculateOvertimePay(
   const { baseHourlyRate, ot1Multiplier, ot2Multiplier } = settings;
   const { totalOT1Hours, totalOT2Hours } = overtimeHours;
   
+  // 計算精確時薪 (不取整)
   const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
   const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
   
-  return Math.round((ot1HourlyRate * totalOT1Hours) + (ot2HourlyRate * totalOT2Hours));
+  // 計算各階段加班費 (不預先四捨五入)
+  const ot1Pay = ot1HourlyRate * totalOT1Hours;
+  const ot2Pay = ot2HourlyRate * totalOT2Hours;
+  
+  // 將各階段加班費四捨五入為整數
+  const roundedOt1Pay = Math.round(ot1Pay);
+  const roundedOt2Pay = Math.round(ot2Pay);
+  
+  // 返回總加班費
+  return roundedOt1Pay + roundedOt2Pay;
 }
 
 /**
@@ -167,10 +177,16 @@ export function validateSalaryRecord(
   const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
   const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
   
-  // 會計計算方法：每個小時費率向上取整後乘以小時數
-  const expectedOT1Pay = Math.ceil(ot1HourlyRate) * record.totalOT1Hours;
-  const expectedOT2Pay = Math.ceil(ot2HourlyRate) * record.totalOT2Hours;
-  const expectedTotalOTPay = expectedOT1Pay + expectedOT2Pay;
+  // 會計計算方法：使用精確時薪計算後四捨五入
+  const ot1Pay = ot1HourlyRate * record.totalOT1Hours;
+  const ot2Pay = ot2HourlyRate * record.totalOT2Hours;
+  
+  // 將各階段加班費四捨五入為整數
+  const roundedOt1Pay = Math.round(ot1Pay);
+  const roundedOt2Pay = Math.round(ot2Pay);
+  
+  // 計算預期的總加班費
+  const expectedTotalOTPay = roundedOt1Pay + roundedOt2Pay;
   
   // 2. 驗證加班費 - 允許±1元的誤差，處理四捨五入差異
   const isOTPayValid = Math.abs(record.totalOvertimePay - expectedTotalOTPay) <= 1;
