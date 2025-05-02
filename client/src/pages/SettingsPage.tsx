@@ -111,78 +111,95 @@ export default function SettingsPage() {
         throw new Error("Supabase client update failed");
       }
       
-      // 在更新客戶端後嘗試訪問設置表
-      import('@/lib/supabase').then(async ({ supabaseClient }) => {
-        try {
-          if (!supabaseClient) {
-            throw new Error("Supabase client is not available");
-          }
-          
-          // 使用更新後的客戶端嘗試訪問settings表
-          // 因為我們剛剛遷移到Supabase，表名可能遵循PostgreSQL的命名規則
-          const { data: data1, error: error1 } = await supabaseClient
-            .from('settings')
-            .select('id')
-            .limit(1);
-            
-          if (error1) {
-            console.log('First attempt failed:', error1.message);
-            
-            // 檢查是否是API密鑰無效的錯誤
-            if (error1.message && error1.message.includes('Invalid API')) {
-              throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
+      // 直接使用服務器端來測試連接，這更可靠
+      const connectionResponse = await fetch('/api/supabase-connection');
+      const connectionData = await connectionResponse.json();
+      
+      if (!connectionData.isConnected) {
+        // 如果服務器端測試失敗，再嘗試客戶端測試
+        console.warn('Server-side connection test failed, trying client-side test...');
+        
+        // 在更新客戶端後嘗試訪問設置表
+        await import('@/lib/supabase').then(async ({ supabaseClient }) => {
+          try {
+            if (!supabaseClient) {
+              throw new Error("Supabase client is not available");
             }
             
-            // 如果第一次查詢失敗，嘗試使用表名的變體（設置）
-            const { data: data2, error: error2 } = await supabaseClient
-              .from('設置')
+            // 使用更新後的客戶端嘗試訪問settings表
+            // 因為我們剛剛遷移到Supabase，表名可能遵循PostgreSQL的命名規則
+            const { data: data1, error: error1 } = await supabaseClient
+              .from('settings')
               .select('id')
               .limit(1);
               
-            if (error2) {
-              console.log('Second attempt failed:', error2.message);
+            if (error1) {
+              console.log('First attempt failed:', error1.message);
               
               // 檢查是否是API密鑰無效的錯誤
-              if (error2.message && error2.message.includes('Invalid API')) {
+              if (error1.message && error1.message.includes('Invalid API')) {
                 throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
               }
               
-              // 如果兩種表名都失敗，則嘗試獲取所有可用的表或進行其他檢查
-              try {
-                // 最後嘗試直接進行授權驗證測試
-                const authResponse = await supabaseClient.auth.getSession();
-                console.log('Auth check result:', authResponse);
+              // 如果第一次查詢失敗，嘗試使用表名的變體（設置）
+              const { data: data2, error: error2 } = await supabaseClient
+                .from('設置')
+                .select('id')
+                .limit(1);
                 
-                if (authResponse.error) {
-                  throw authResponse.error;
+              if (error2) {
+                console.log('Second attempt failed:', error2.message);
+                
+                // 檢查是否是API密鑰無效的錯誤
+                if (error2.message && error2.message.includes('Invalid API')) {
+                  throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
                 }
-                // 如果能成功獲取會話，也視為連接成功
-              } catch (finalError) {
-                console.error('Final connection check failed:', finalError);
-                throw finalError;
+                
+                // 如果兩種表名都失敗，則嘗試獲取所有可用的表或進行其他檢查
+                try {
+                  // 最後嘗試直接進行授權驗證測試
+                  const authResponse = await supabaseClient.auth.getSession();
+                  console.log('Auth check result:', authResponse);
+                  
+                  if (authResponse.error) {
+                    throw authResponse.error;
+                  }
+                  // 如果能成功獲取會話，也視為連接成功
+                } catch (finalError) {
+                  console.error('Final connection check failed:', finalError);
+                  throw finalError;
+                }
               }
             }
+            
+            // 連接成功，更新狀態並顯示成功消息
+            setConnectionStatus('connected');
+            toast({
+              title: "連線成功",
+              description: "客戶端 Supabase 連線測試成功，設定已同時保存到本地及服務器，Redeploy 後將自動使用此連線資訊。",
+            });
+          } catch (connectionError) {
+            console.error('Connection test failed in inner try-catch:', connectionError);
+            throw connectionError; // 向外層拋出錯誤
           }
-          
-          // 連接成功，更新狀態並顯示成功消息
-          setConnectionStatus('connected');
+        }).catch(error => {
+          console.error('Connection test failed:', error);
+          setConnectionStatus('disconnected');
           toast({
-            title: "連線成功",
-            description: "Supabase 連線測試成功，設定已同時保存到本地及服務器，Redeploy 後將自動使用此連線資訊。",
+            title: "連線失敗",
+            description: "無法連接到 Supabase，請檢查 URL 和密鑰是否正確。",
+            variant: "destructive"
           });
-        } catch (connectionError) {
-          console.error('Connection test failed in inner try-catch:', connectionError);
-          throw connectionError; // 向外層拋出錯誤
-        }
-      }).catch(error => {
-        console.error('Connection test failed:', error);
-        setConnectionStatus('disconnected');
-        toast({
-          title: "連線失敗",
-          description: "無法連接到 Supabase，請檢查 URL 和密鑰是否正確。",
-          variant: "destructive"
         });
-      });
+      } else {
+        // 服務器端測試成功
+        setConnectionStatus('connected');
+        setIsSupabaseActive(connectionData.isActive || false);
+        toast({
+          title: "連線成功",
+          description: "服務器端 Supabase 連線測試成功。設定已保存，重啟應用後將自動使用此連線資訊。",
+        });
+      }
     } catch (error) {
       console.error('Connection test failed:', error);
       setConnectionStatus('disconnected');
