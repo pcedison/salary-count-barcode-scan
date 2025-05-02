@@ -10,6 +10,24 @@ import { supabaseClient, updateSupabaseConnection } from '@/lib/supabase';
 import { Lock, Shield, Loader2, Save, AlertCircle } from 'lucide-react';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 
+// 預設系統配置
+const DEFAULT_CONFIG = {
+  // 預設時薪率與計算參數
+  DEFAULT_BASE_HOURLY_RATE: constants.BASE_HOURLY_RATE,
+  DEFAULT_BASE_MONTH_SALARY: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
+  DEFAULT_WELFARE_ALLOWANCE: constants.DEFAULT_WELFARE_ALLOWANCE,
+  DEFAULT_OT1_MULTIPLIER: constants.OT1_MULTIPLIER,
+  DEFAULT_OT2_MULTIPLIER: constants.OT2_MULTIPLIER,
+  
+  // 預設扣除項
+  DEFAULT_DEDUCTIONS: [
+    { id: 1, name: '勞保費', amount: 1077, description: '勞工保險費用' },
+    { id: 2, name: '健保費', amount: 932, description: '健康保險費用' },
+    { id: 3, name: '服務費', amount: 3392, description: '管理服務費' },
+    { id: 4, name: '宿舍費', amount: 0, description: '宿舍住宿費' }
+  ]
+};
+
 interface DeductionItem {
   name: string;
   amount: number;
@@ -21,17 +39,17 @@ export default function SettingsPage() {
   const { settings, isLoading, updateSettings } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
   
-  const [baseHourlyRate, setBaseHourlyRate] = useState<number>(constants.DEFAULT_BASE_HOURLY_RATE);
-  const [baseMonthSalary, setBaseMonthSalary] = useState<number>(constants.DEFAULT_BASE_MONTH_SALARY);
-  const [welfareAllowance, setWelfareAllowance] = useState<number>(constants.DEFAULT_WELFARE_ALLOWANCE);
-  const [ot1Multiplier, setOt1Multiplier] = useState<number>(constants.DEFAULT_OT1_MULTIPLIER);
-  const [ot2Multiplier, setOt2Multiplier] = useState<number>(constants.DEFAULT_OT2_MULTIPLIER);
-  const [deductions, setDeductions] = useState<DeductionItem[]>(constants.DEFAULT_DEDUCTIONS);
+  const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.DEFAULT_BASE_HOURLY_RATE);
+  const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.DEFAULT_BASE_MONTH_SALARY);
+  const [welfareAllowance, setWelfareAllowance] = useState<number>(DEFAULT_CONFIG.DEFAULT_WELFARE_ALLOWANCE);
+  const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.DEFAULT_OT1_MULTIPLIER);
+  const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.DEFAULT_OT2_MULTIPLIER);
+  const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEFAULT_DEDUCTIONS);
   const [holidays, setHolidays] = useState<Array<{ id: number; date: string; description: string }>>([]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
-  const [supabaseUrl, setSupabaseUrl] = useState<string>(constants.SUPABASE_URL);
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(constants.SUPABASE_ANON_KEY);
+  const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
+  const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
   const [isSupabaseActive, setIsSupabaseActive] = useState<boolean>(false);
   
@@ -50,12 +68,12 @@ export default function SettingsPage() {
   // Load settings when component mounts
   useEffect(() => {
     if (!isLoading && settings) {
-      setBaseHourlyRate(settings.baseHourlyRate || constants.DEFAULT_BASE_HOURLY_RATE);
-      setBaseMonthSalary(settings.baseMonthSalary || constants.DEFAULT_BASE_MONTH_SALARY);
-      setWelfareAllowance(settings.welfareAllowance || constants.DEFAULT_WELFARE_ALLOWANCE);
-      setOt1Multiplier(settings.ot1Multiplier || constants.DEFAULT_OT1_MULTIPLIER);
-      setOt2Multiplier(settings.ot2Multiplier || constants.DEFAULT_OT2_MULTIPLIER);
-      setDeductions(settings.deductions || constants.DEFAULT_DEDUCTIONS);
+      setBaseHourlyRate(settings.baseHourlyRate || DEFAULT_CONFIG.DEFAULT_BASE_HOURLY_RATE);
+      setBaseMonthSalary(settings.baseMonthSalary || DEFAULT_CONFIG.DEFAULT_BASE_MONTH_SALARY);
+      setWelfareAllowance(settings.welfareAllowance || DEFAULT_CONFIG.DEFAULT_WELFARE_ALLOWANCE);
+      setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.DEFAULT_OT1_MULTIPLIER);
+      setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.DEFAULT_OT2_MULTIPLIER);
+      setDeductions(settings.deductions || DEFAULT_CONFIG.DEFAULT_DEDUCTIONS);
       
       // 重置變更狀態
       setHasUnsavedChanges(false);

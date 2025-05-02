@@ -1,5 +1,5 @@
 import React from 'react';
-import { calculateOvertime } from '@/lib/salaryCalculations';
+import { calculateOvertime, calculateDailyOvertimePay } from '@/lib/salaryCalculations';
 import { constants } from '@/lib/constants';
 
 interface PrintableSalarySheetProps {
@@ -43,17 +43,12 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
   // 使用統一的加班計算函數
   const { ot1, ot2 } = calculateOvertime(clockIn, clockOut);
   
-  // 使用標準時薪計算方法（確保與後端計算一致）
-  const baseHourlyRate = constants.BASE_HOURLY_RATE; // 使用常數確保一致性
-  const ot1HourlyRate = baseHourlyRate * constants.OT1_MULTIPLIER; // 119 * 1.34 = 159.46
-  const ot2HourlyRate = baseHourlyRate * constants.OT2_MULTIPLIER; // 119 * 1.67 = 198.73
-  
-  // 對每日加班費進行四捨五入（與後端保持一致的計算方式）
-  const dailyOTPay = Math.round((ot1HourlyRate * ot1) + (ot2HourlyRate * ot2));
+  // 使用共享模組的標準化函數計算加班費
+  const dailyOTPay = calculateDailyOvertimePay(clockIn, clockOut, result.baseSalary);
     
   return { 
-    ot1: ot1, 
-    ot2: ot2, 
+    ot1, 
+    ot2, 
     pay: dailyOTPay
   };
   };
