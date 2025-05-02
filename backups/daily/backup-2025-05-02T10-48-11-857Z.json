@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-05-02T09:23:38.105Z",
+    "timestamp": "2025-05-02T10:48:11.857Z",
     "type": "daily",
-    "description": "初始每日備份 5/2/2025, 9:23:38 AM",
+    "description": "初始每日備份 5/2/2025, 10:48:11 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -77,11 +77,11 @@
       "welfareAllowance": 2500,
       "totalOT1Hours": 40,
       "totalOT2Hours": 15,
-      "totalOvertimePay": 9365,
+      "totalOvertimePay": 9359,
       "holidayDays": 0,
       "holidayDailySalary": 953,
       "totalHolidayPay": 0,
-      "grossSalary": 40455,
+      "grossSalary": 40449,
       "deductions": [
         {
           "name": "勞保費",
@@ -101,7 +101,7 @@
         }
       ],
       "totalDeductions": 5401,
-      "netSalary": 35054,
+      "netSalary": 35048,
       "attendanceData": [
         {
           "id": 43,

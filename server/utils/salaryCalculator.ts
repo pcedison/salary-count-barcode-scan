@@ -10,7 +10,9 @@ import {
   standardCalculationModel,
   april2025CalculationModel,
   selectCalculationModel,
-  registerSpecialRule
+  registerSpecialRule,
+  standardCalculationLogic,
+  DailyOvertimeRecord
 } from '../../shared/calculationModel';
 
 // 在伺服器端定義所有需要的類型，避免依賴導入問題
@@ -357,7 +359,14 @@ export function calculateSalaryByDaily(
   
   // 標準計算流程
   // 1. 正確計算加班費 - 每日單獨計算後加總
-  const totalOvertimePay = standardCalculationLogic.calculateMonthlyOvertimePayByDaily(dailyRecords, config);
+  // 使用標準計算邏輯中的每日計算方法
+  let totalOvertimePay = 0;
+  
+  // 逐日計算加班費並加總 - 這是正確的會計方法
+  for (const record of dailyRecords) {
+    const dailyOvertimePay = standardCalculationLogic.calculateDailyOvertimePay(record, config);
+    totalOvertimePay += dailyOvertimePay;
+  }
   
   // 2. 計算總薪資
   const welfareAmount = welfareAllowance !== undefined ? welfareAllowance : (config.welfareAllowance || 0);
@@ -416,6 +425,8 @@ export function validateSalaryRecord(
   }
   
   // 標準驗證：使用標準計算模型驗證
+  // 注意：這裡只是一個簡單的驗證，如果有每日記錄，應該使用 calculateSalaryByDaily 進行驗證
+  // 此處使用整月計算方法僅為兼容舊數據，未來應全面轉向每日計算
   const baseHourlyRate = settings.baseHourlyRate || 119;
   const ot1Multiplier = settings.ot1Multiplier || 1.34;
   const ot2Multiplier = settings.ot2Multiplier || 1.67;
@@ -431,11 +442,56 @@ export function validateSalaryRecord(
   const roundedOt1Pay = Math.round(ot1Pay);
   const roundedOt2Pay = Math.round(ot2Pay);
   
-  // 計算預期的總加班費
+  // 計算預期的總加班費（注意：這是簡化版，每日計算更準確）
   const expectedTotalOTPay = roundedOt1Pay + roundedOt2Pay;
   
   // 驗證加班費 - 允許±1元的誤差，處理四捨五入差異
   return Math.abs(record.totalOvertimePay - expectedTotalOTPay) <= 1;
+}
+
+/**
+ * 使用每日計算方法驗證薪資記錄 - 更精確的方法
+ */
+export function validateSalaryRecordByDaily(
+  year: number,
+  month: number,
+  record: {
+    totalOT1Hours: number;
+    totalOT2Hours: number;
+    totalOvertimePay: number;
+    grossSalary: number;
+    netSalary: number;
+    baseSalary: number;
+    welfareAllowance?: number;
+    housingAllowance?: number;
+  },
+  dailyRecords: DailyOvertimeRecord[],
+  settings?: CalculationSettings,
+  employeeId: number = 1,
+  holidayPay: number = 0,
+  totalDeductions: number = 0
+): boolean {
+  if (!settings) return false;
+  
+  // 使用每日計算方法計算薪資
+  const calculatedResult = calculateSalaryByDaily(
+    year,
+    month,
+    dailyRecords,
+    record.baseSalary,
+    totalDeductions,
+    settings,
+    holidayPay,
+    record.welfareAllowance,
+    record.housingAllowance,
+    employeeId
+  );
+  
+  // 比較計算結果與記錄的差異
+  // 加班費、總薪資和實發金額應該都相同（允許少量誤差）
+  return Math.abs(calculatedResult.totalOvertimePay - record.totalOvertimePay) <= 1 &&
+         Math.abs(calculatedResult.grossSalary - record.grossSalary) <= 1 &&
+         Math.abs(calculatedResult.netSalary - record.netSalary) <= 1;
 }
 
 /**
