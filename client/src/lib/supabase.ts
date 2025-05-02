@@ -484,10 +484,10 @@ export const settingsTable = {
   async get() {
     if (!supabaseClient) {
       return {
-        baseHourlyRate: 119,
-        ot1Multiplier: 1.34,
-        ot2Multiplier: 1.67,
-        baseMonthSalary: 28590,
+        baseHourlyRate: constants.BASE_HOURLY_RATE,
+        ot1Multiplier: constants.OT1_MULTIPLIER,
+        ot2Multiplier: constants.OT2_MULTIPLIER,
+        baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
         deductions: [
           { name: "勞保費", amount: 525, description: "勞工保險費用" },
           { name: "健保費", amount: 372, description: "全民健康保險費用" }
@@ -526,10 +526,10 @@ export const settingsTable = {
     
     // Return defaults if anything goes wrong
     return {
-      baseHourlyRate: 119,
-      ot1Multiplier: 1.34,
-      ot2Multiplier: 1.67,
-      baseMonthSalary: 28590,
+      baseHourlyRate: constants.BASE_HOURLY_RATE,
+      ot1Multiplier: constants.OT1_MULTIPLIER,
+      ot2Multiplier: constants.OT2_MULTIPLIER,
+      baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
       deductions: [
         { name: "勞保費", amount: 525, description: "勞工保險費用" },
         { name: "健保費", amount: 372, description: "全民健康保險費用" }
