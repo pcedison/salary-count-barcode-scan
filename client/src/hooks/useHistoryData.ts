@@ -148,10 +148,15 @@ export function useHistoryData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
+      // 移除自動通知，只在必要時顯示通知
+      console.log("薪資紀錄更新成功");
+      // 移除以下通知，避免不必要的彈出窗口
+      /*
       toast({
         title: "更新成功",
         description: "薪資紀錄已成功更新",
       });
+      */
     },
     onError: (error) => {
       console.error('Error updating salary record:', error);
