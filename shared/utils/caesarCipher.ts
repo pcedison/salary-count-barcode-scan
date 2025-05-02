@@ -9,8 +9,10 @@
  * @author 員工薪資系統團隊
  */
 
-// 默認的偏移量
-const DEFAULT_SHIFT = 9;
+import { constants } from '../constants';
+
+// 使用共享常量
+const DEFAULT_SHIFT = constants.DEFAULT_CIPHER_SHIFT;
 
 // 初始化緩存以提高性能
 const encryptCache = new Map<string, string>();

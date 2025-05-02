@@ -3,6 +3,8 @@
  * 加密映射表，用於確保特定加密/解密行為
  */
 
+import { constants } from '../constants';
+
 // 實際資料庫中已有的加密映射關係
 interface EncryptionMap {
   [key: string]: string; // 原始ID -> 加密ID
@@ -47,8 +49,9 @@ export function caesarEncrypt(text: string): string {
       // 只加密字母，數字保持不變
       // 處理大寫字母 (ASCII 65-90)
       if (code >= 65 && code <= 90) {
-        // 17是E->V的偏移量
-        return String.fromCharCode(((code - 65 + 17) % 26) + 65);
+        // 使用特定的偏移量，而非共享常量，因為這是專用映射
+        const specialShift = 17; // E->V的偏移量
+        return String.fromCharCode(((code - 65 + specialShift) % 26) + 65);
       }
       
       // 處理小寫字母 (ASCII 97-122)
