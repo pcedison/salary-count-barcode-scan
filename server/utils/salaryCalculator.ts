@@ -48,9 +48,10 @@ export function calculateOvertimePay(
 }
 
 /**
- * 特定月份薪資修正函數
- * 處理有特殊情況的月份的加班費，以確保與實際列印記錄一致
- * 同時提供通用計算方法以處理所有其他月份
+ * 標準化加班費計算函數
+ * 使用統一標準計算所有月份的加班費，確保計算的一致性
+ * 
+ * 本函數不再區分特殊月份，而是對所有月份使用相同的計算標準
  */
 export function getMonthSpecificOvertimePay(
   year: number,
@@ -58,55 +59,22 @@ export function getMonthSpecificOvertimePay(
   overtimeHours: OvertimeHours,
   calculatedOvertimePay: number
 ): number {
-  // 特定月份特殊調整 - 確保與會計文件一致性的關鍵月份
-  const specialCases: Record<string, number> = {
-    // 格式：'YYYY-MM': 精確加班費金額
-    '2025-3': 10559, // 2025年3月份 - 從列印文件獲取的精確值
-    '2025-4': 9365,  // 2025年4月份 - 從列印文件獲取的精確值
-    // 可以在這裡添加更多特定月份的特殊調整
-  };
-  
-  // 檢查是否存在特定月份的特殊處理
-  const key = `${year}-${month}`;
-  if (key in specialCases) {
-    return specialCases[key];
-  }
-  
-  // 其他月份使用標準計算方法
+  // 使用標準化計算方法 - 對所有月份採用同一標準
   return calculatedOvertimePay;
 }
 
 /**
- * 特定月份加班時數修正函數
- * 確保加班時數與實際記錄一致
- * 同時提供通用處理方法以適用於所有月份
+ * 標準化加班時數處理函數
+ * 使用統一標準處理所有月份的加班時數，確保計算的一致性
+ * 
+ * 本函數不再區分特殊月份，而是對所有月份使用相同的標準
  */
 export function getMonthSpecificOvertimeHours(
   year: number,
   month: number,
   defaultOvertimeHours: OvertimeHours
 ): OvertimeHours {
-  // 特定月份特殊調整 - 確保與會計文件一致性的關鍵月份
-  const specialCases: Record<string, OvertimeHours> = {
-    // 格式：'YYYY-MM': {totalOT1Hours, totalOT2Hours}
-    '2025-3': {
-      totalOT1Hours: 40, // 1.34倍加班時數
-      totalOT2Hours: 21, // 1.67倍加班時數
-    },
-    '2025-4': {
-      totalOT1Hours: 42, // 1.34倍加班時數
-      totalOT2Hours: 13, // 1.67倍加班時數
-    },
-    // 可以在這裡添加更多特定月份的特殊調整
-  };
-  
-  // 檢查是否存在特定月份的特殊處理
-  const key = `${year}-${month}`;
-  if (key in specialCases) {
-    return specialCases[key];
-  }
-  
-  // 其他月份使用提供的預設值，確保標準計算模式適用於所有非特殊月份
+  // 使用標準化處理方法 - 對所有月份採用同一標準
   return defaultOvertimeHours;
 }
 
@@ -174,8 +142,9 @@ export function calculateSalary(
 }
 
 /**
- * 驗證薪資記錄是否符合計算標準
- * 用於檢測哪些記錄需要修正
+ * 驗證薪資記錄是否符合統一計算標準
+ * 使用單一標準方法驗證所有月份的薪資記錄
+ * 不再區分特殊月份，確保系統計算邏輯的一致性
  */
 export function validateSalaryRecord(
   year: number,
@@ -189,50 +158,10 @@ export function validateSalaryRecord(
   },
   settings?: CalculationSettings
 ): boolean {
-  // 特定月份的特殊驗證 - 使用參考標準值進行驗證
-  interface ReferenceValues {
-    totalOT1Hours: number;
-    totalOT2Hours: number;
-    totalOvertimePay: number;
-    netSalary: number;
-  }
-  
-  // 特定月份的參考標準值表
-  const referenceStandards: Record<string, ReferenceValues> = {
-    // 格式：'YYYY-MM': {標準值}
-    '2025-3': {
-      totalOT1Hours: 40,
-      totalOT2Hours: 21,
-      totalOvertimePay: 10559,
-      netSalary: 36248
-    },
-    '2025-4': {
-      totalOT1Hours: 42,
-      totalOT2Hours: 13,
-      totalOvertimePay: 9365,
-      netSalary: 35054 // 正確的實發金額計算：(9365+28590+2500)-(658+443+1800+2500)=35054
-    },
-    // 可以添加更多參考標準
-  };
-  
-  // 檢查是否有特定月份的參考標準
-  const key = `${year}-${month}`;
-  if (key in referenceStandards) {
-    const standard = referenceStandards[key];
-    
-    // 嚴格匹配特定月份的標準值，確保數據準確性
-    return (
-      record.totalOT1Hours === standard.totalOT1Hours &&
-      record.totalOT2Hours === standard.totalOT2Hours &&
-      record.totalOvertimePay === standard.totalOvertimePay &&
-      record.netSalary === standard.netSalary
-    );
-  }
-  
-  // 所有其他月份的通用驗證邏輯 - 使用標準會計計算方法
+  // 所有月份使用統一的標準會計計算方法進行驗證
   if (!settings) return false;
   
-  // 1. 驗證加班費計算
+  // 1. 使用會計部門標準方法驗證加班費計算
   const baseHourlyRate = settings.baseHourlyRate || 119;
   const ot1Multiplier = settings.ot1Multiplier || 1.34;
   const ot2Multiplier = settings.ot2Multiplier || 1.67;
@@ -248,14 +177,11 @@ export function validateSalaryRecord(
   // 2. 驗證加班費 - 允許±1元的誤差，處理四捨五入差異
   const isOTPayValid = Math.abs(record.totalOvertimePay - expectedTotalOTPay) <= 1;
   
-  // 如果加班費有問題，則整個記錄視為無效
-  if (!isOTPayValid) return false;
+  // 3. 驗證總薪資和淨薪資計算
+  // 此處僅驗證加班費計算，因為其他部分(如基本薪資、扣除額)需要完整的記錄數據
+  // 確保加班費計算是符合標準的
   
-  // 3. 驗證總薪資計算 (加班費 + 底薪應等於總薪資)
-  // 注意：此驗證僅適用於記錄中包含底薪和總薪資的情況
-  // 此處僅驗證加班費，因為其他部分(如底薪、扣除額)依賴於前端提供的完整數據
-  
-  return true;
+  return isOTPayValid;
 }
 
 /**
