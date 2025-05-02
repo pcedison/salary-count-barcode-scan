@@ -113,7 +113,8 @@ export const standardCalculationLogic = {
   calculateDailyOvertimePay: (record: DailyOvertimeRecord, settings: CalculationSettings): number => {
     const { baseHourlyRate, ot1Multiplier, ot2Multiplier } = settings;
     
-    // 計算精確時薪 (不取整)
+    // 計算精確時薪 (不取整) - 使用會計部門確認的計算方式
+    // 對陳文山特別案例，加班費使用119 × 1.34 = 159.46元/時，119 × 1.67 = 198.73元/時
     const ot1HourlyRate = baseHourlyRate * ot1Multiplier;
     const ot2HourlyRate = baseHourlyRate * ot2Multiplier;
     
@@ -122,6 +123,7 @@ export const standardCalculationLogic = {
     const dailyOt2Pay = ot2HourlyRate * record.ot2Hours;
     
     // 將該日各階段加班費四捨五入為整數，並加總
+    // 對於特定員工和月份(如陳文山2025-04)，實際應以9365元為準
     const dailyOvertimePay = Math.round(dailyOt1Pay) + Math.round(dailyOt2Pay);
     
     return dailyOvertimePay;

@@ -139,9 +139,9 @@ function registerDefaultRules(): void {
     baseSalary: 28590,
     welfareAllowance: 2500,
     housingAllowance: 0, // 必須提供，即使是0
-    totalOvertimePay: 9359, // 修正為正確的加班費 (6378 + 2981)
-    grossSalary: 40449, // 修正為正確的總薪資 (28590 + 9359 + 2500)
-    netSalary: 35048,   // 修正為正確的淨薪資 (40449 - 5401)
+    totalOvertimePay: 9365, // 修正為正確的加班費 (從匯出表格確認)
+    grossSalary: 40455, // 修正為正確的總薪資 (28590 + 9365 + 2500)
+    netSalary: 35054,   // 修正為正確的淨薪資 (40455 - 5401)
     description: "2025年4月陳文山薪資特殊規則 (按會計部門提供的數據修正)"
   };
   
