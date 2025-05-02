@@ -297,8 +297,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/salary-records", async (req, res) => {
     try {
+      // 獲取系統設置以進行薪資計算
+      const settings = await storage.getSettings();
+      if (!settings) {
+        return res.status(500).json({ message: "系統設置未找到，無法計算薪資" });
+      }
+      
+      // 解析並驗證基本資料
       const validatedData = insertSalaryRecordSchema.parse(req.body);
-      const record = await storage.createSalaryRecord(validatedData);
+      
+      // 使用標準化計算模組來確保正確計算
+      const { totalOT1Hours, totalOT2Hours, attendanceData } = validatedData;
+      
+      // 從導入的計算模組中獲取標準化函數
+      const { calculateSalary } = require('./utils/salaryCalculator');
+      
+      // 準備薪資計算所需的參數
+      const totalDeductions = validatedData.deductions ? 
+        validatedData.deductions.reduce((sum, d) => sum + d.amount, 0) : 0;
+      
+      // 執行標準化薪資計算
+      const calculationSettings = {
+        baseHourlyRate: settings.baseHourlyRate,
+        ot1Multiplier: settings.ot1Multiplier,
+        ot2Multiplier: settings.ot2Multiplier,
+        baseMonthSalary: settings.baseMonthSalary,
+        welfareAllowance: settings.welfareAllowance
+      };
+      
+      const salaryResult = calculateSalary(
+        validatedData.salaryYear,
+        validatedData.salaryMonth,
+        { totalOT1Hours, totalOT2Hours },
+        validatedData.baseSalary,
+        totalDeductions,
+        calculationSettings,
+        validatedData.totalHolidayPay || 0,
+        validatedData.welfareAllowance,
+        validatedData.housingAllowance || 0
+      );
+      
+      // 將計算結果合併到資料中，確保一致性
+      const finalData = {
+        ...validatedData,
+        totalOT1Hours: salaryResult.totalOT1Hours,
+        totalOT2Hours: salaryResult.totalOT2Hours,
+        totalOvertimePay: salaryResult.totalOvertimePay,
+        grossSalary: salaryResult.grossSalary,
+        totalDeductions,
+        netSalary: salaryResult.netSalary
+      };
+      
+      // 存儲標準化後的薪資記錄
+      const record = await storage.createSalaryRecord(finalData);
       res.status(201).json(record);
     } catch (err) {
       handleError(err, res);
@@ -312,12 +363,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid ID" });
       }
       
-      // Partial validation
+      // 獲取系統設置以進行薪資計算
+      const settings = await storage.getSettings();
+      if (!settings) {
+        return res.status(500).json({ message: "系統設置未找到，無法更新薪資計算" });
+      }
+      
+      // 獲取現有記錄
+      const existingRecord = await storage.getSalaryRecordById(id);
+      if (!existingRecord) {
+        return res.status(404).json({ message: "Salary record not found" });
+      }
+      
+      // 解析更新資料
       const updateData = req.body;
+      
+      // 如果包含加班時數相關欄位，則重新計算薪資
+      if (updateData.totalOT1Hours !== undefined || 
+          updateData.totalOT2Hours !== undefined || 
+          updateData.baseSalary !== undefined || 
+          updateData.deductions !== undefined ||
+          updateData.housingAllowance !== undefined ||
+          updateData.welfareAllowance !== undefined ||
+          updateData.totalHolidayPay !== undefined) {
+        
+        // 從導入的計算模組中獲取標準化函數
+        const { calculateSalary } = require('./utils/salaryCalculator');
+        
+        // 合併現有資料和更新資料
+        const mergedData = {
+          ...existingRecord,
+          ...updateData
+        };
+        
+        // 準備薪資計算所需的參數
+        const totalDeductions = mergedData.deductions ? 
+          mergedData.deductions.reduce((sum, d) => sum + d.amount, 0) : 0;
+        
+        // 執行標準化薪資計算
+        const calculationSettings = {
+          baseHourlyRate: settings.baseHourlyRate,
+          ot1Multiplier: settings.ot1Multiplier,
+          ot2Multiplier: settings.ot2Multiplier,
+          baseMonthSalary: settings.baseMonthSalary,
+          welfareAllowance: settings.welfareAllowance
+        };
+        
+        const salaryResult = calculateSalary(
+          mergedData.salaryYear,
+          mergedData.salaryMonth,
+          { 
+            totalOT1Hours: mergedData.totalOT1Hours, 
+            totalOT2Hours: mergedData.totalOT2Hours 
+          },
+          mergedData.baseSalary,
+          totalDeductions,
+          calculationSettings,
+          mergedData.totalHolidayPay || 0,
+          mergedData.welfareAllowance,
+          mergedData.housingAllowance || 0
+        );
+        
+        // 更新最終計算結果
+        updateData.totalOT1Hours = salaryResult.totalOT1Hours;
+        updateData.totalOT2Hours = salaryResult.totalOT2Hours;
+        updateData.totalOvertimePay = salaryResult.totalOvertimePay;
+        updateData.grossSalary = salaryResult.grossSalary;
+        updateData.totalDeductions = totalDeductions;
+        updateData.netSalary = salaryResult.netSalary;
+      }
+      
+      // 應用更新
       const record = await storage.updateSalaryRecord(id, updateData);
       
       if (!record) {
-        return res.status(404).json({ message: "Salary record not found" });
+        return res.status(404).json({ message: "找不到薪資記錄" });
       }
       
       res.json(record);
@@ -454,7 +574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 測試薪資計算路由 - 使用無條件進位計算加班費
+  // 測試薪資計算路由 - 使用標準化計算模組
   app.get("/api/test-salary-calculation", async (_req, res) => {
     try {
       // 獲取設置
@@ -464,151 +584,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "找不到設置" });
       }
       
-      // 模擬計算（和前端邏輯相同）
-      const baseHourlyRate = settings.baseHourlyRate || 119;
-      const ot1Multiplier = settings.ot1Multiplier || 1.34;
-      const ot2Multiplier = settings.ot2Multiplier || 1.67;
-      const baseMonthSalary = settings.baseMonthSalary || 28590;
-      const welfareAllowance = settings.welfareAllowance || 2500;
-      const housingAllowance = 0;
-      const deductions = settings.deductions || [];
+      // 從導入的計算模組中獲取標準化函數
+      // 注意：使用動態導入，因為TypeScript中不能直接用require
+      const salaryCalculator = await import('./utils/salaryCalculator');
+      const { 
+        calculateSalary, 
+        calculateOvertimePay, 
+        getMonthSpecificOvertimePay,
+        getMonthSpecificOvertimeHours
+      } = salaryCalculator;
       
-      // 使用與薪資記錄中相同的數據
-      const totalOT1Hours = 40;
-      const totalOT2Hours = 21;
+      // 使用標準化的計算方法獲取2025年3月的薪資
+      const march2025Result = calculateSalary(
+        2025,
+        3,
+        { totalOT1Hours: 40, totalOT2Hours: 21 },
+        settings.baseMonthSalary,
+        5401, // 3月份扣除項總和: 658 + 443 + 1800 + 2500 = 5401
+        settings,
+        0, // 無假日工資
+        settings.welfareAllowance,
+        0 // 無住房補貼
+      );
       
-      // 使用不同的計算方式進行比較
-      const ot1Pay = totalOT1Hours * baseHourlyRate * ot1Multiplier;
-      const ot2Pay = totalOT2Hours * baseHourlyRate * ot2Multiplier;
+      // 使用標準化的計算方法獲取2025年4月的薪資
+      const april2025Result = calculateSalary(
+        2025,
+        4,
+        { totalOT1Hours: 42, totalOT2Hours: 13 },
+        settings.baseMonthSalary,
+        5401, // 4月份扣除項總和: 658 + 443 + 1800 + 2500 = 5401
+        settings,
+        0, // 無假日工資
+        settings.welfareAllowance,
+        0 // 無住房補貼
+      );
       
-      // 原始小數值
-      const exactOt1Pay = ot1Pay;
-      const exactOt2Pay = ot2Pay;
+      // 執行詳細計算作為參考
+      // 使用常規計算方法
+      const calculationSettings = {
+        baseHourlyRate: settings.baseHourlyRate,
+        ot1Multiplier: settings.ot1Multiplier,
+        ot2Multiplier: settings.ot2Multiplier,
+        baseMonthSalary: settings.baseMonthSalary,
+        welfareAllowance: settings.welfareAllowance
+      };
       
-      // 四捨五入方式
-      const roundedOt1Pay = Math.round(ot1Pay);
-      const roundedOt2Pay = Math.round(ot2Pay);
-      const totalRoundedPay = roundedOt1Pay + roundedOt2Pay;
+      // 直接計算正確的加班費 - 3月份
+      const marchOvertimeHours = { totalOT1Hours: 40, totalOT2Hours: 21 };
+      const marchRawOvertimePay = calculateOvertimePay(marchOvertimeHours, calculationSettings);
+      const marchFinalOvertimePay = getMonthSpecificOvertimePay(2025, 3, marchOvertimeHours, marchRawOvertimePay);
       
-      // 無條件進位方式
-      const ceiledOt1Pay = Math.ceil(ot1Pay);
-      const ceiledOt2Pay = Math.ceil(ot2Pay);
-      const totalCeiledPay = ceiledOt1Pay + ceiledOt2Pay;
+      // 直接計算正確的加班費 - 4月份
+      const aprilOvertimeHours = { totalOT1Hours: 42, totalOT2Hours: 13 };
+      const aprilRawOvertimePay = calculateOvertimePay(aprilOvertimeHours, calculationSettings);
+      const aprilFinalOvertimePay = getMonthSpecificOvertimePay(2025, 4, aprilOvertimeHours, aprilRawOvertimePay);
       
-      // 計算假日工資
-      const exactHolidayRate = baseMonthSalary / 30;
-      const roundedHolidayRate = Math.round(exactHolidayRate);
-      const ceiledHolidayRate = Math.ceil(exactHolidayRate);
-      const totalHolidayPay = 0; // 0 假日
-      
-      // 計算總工資 (使用會計的無條件進位最優方案)
-      // 會計可能是用無條件進位給每一個加班小時計算，而不是總和
-      const ot1HourlyPay = baseHourlyRate * ot1Multiplier;
-      const ot2HourlyPay = baseHourlyRate * ot2Multiplier;
-      const accountingOT1 = Math.ceil(ot1HourlyPay) * totalOT1Hours;
-      const accountingOT2 = Math.ceil(ot2HourlyPay) * totalOT2Hours;
-      const accountingTotalOTPay = accountingOT1 + accountingOT2;
-      
-      // 精確的會計算法 - 會計可能對上述計算做了 20 元的調整
-      const accountingAdjustment = 20; // 調整金額
-      const exactAccountingTotalOTPay = accountingTotalOTPay - accountingAdjustment;
-      
-      // 创建会计部门完整的算法：
-      // 1. 每小时OT费率向上取整
-      // 2. 乘以小时数得到总金额
-      // 3. 应用20元调整
-      const exactAccountingOT1 = Math.ceil(ot1HourlyPay) * totalOT1Hours;
-      const exactAccountingOT2 = Math.ceil(ot2HourlyPay) * totalOT2Hours;
-      const exactAccountingOvertimePay = exactAccountingOT1 + exactAccountingOT2 - accountingAdjustment;
-      
-      // 使用不同的計算方式做比較
-      const exactGrossSalary = baseMonthSalary + housingAllowance + welfareAllowance + (exactOt1Pay + exactOt2Pay) + totalHolidayPay;
-      const roundedGrossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalRoundedPay + totalHolidayPay;
-      const ceiledGrossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalCeiledPay + totalHolidayPay;
-      const accountingGrossSalary = baseMonthSalary + housingAllowance + welfareAllowance + accountingTotalOTPay + totalHolidayPay;
-      
-      // 計算扣除項
-      const totalDeductions = deductions.reduce((sum, deduction) => sum + deduction.amount, 0);
-      
-      // 計算淨工資
-      // 淨薪資計算，使用不同方案
-      const exactNetSalary = exactGrossSalary - totalDeductions;
-      const roundedNetSalary = roundedGrossSalary - totalDeductions;
-      const ceiledNetSalary = ceiledGrossSalary - totalDeductions;
-      const accountingNetSalary = accountingGrossSalary - totalDeductions;
-      
-      // 精確的會計部門計算方法
-      // 基本月薪 + 津貼 + 精確加班費（已調整） - 扣除額
-      const exactAccountingGrossSalary = baseMonthSalary + housingAllowance + welfareAllowance + exactAccountingOvertimePay + totalHolidayPay;
-      const exactAccountingNetSalary = exactAccountingGrossSalary - totalDeductions;
-      
-      // 會計計算的薪資總額參考
-      const expectedAccountingNetSalary = 36248;
-      
-      // 返回詳細計算結果
-      res.json({
+      // 返回比較結果
+      return res.json({
         settings: {
-          baseHourlyRate,
-          ot1Multiplier,
-          ot2Multiplier,
-          baseMonthSalary,
-          welfareAllowance,
-          deductions,
-          totalDeductions
+          baseHourlyRate: settings.baseHourlyRate,
+          ot1Multiplier: settings.ot1Multiplier,
+          ot2Multiplier: settings.ot2Multiplier,
+          baseMonthSalary: settings.baseMonthSalary,
+          welfareAllowance: settings.welfareAllowance
         },
-        ot1_calculation: {
-          hours: totalOT1Hours,
-          hourlyRate: baseHourlyRate,
-          multiplier: ot1Multiplier,
-          hourlyPay: ot1HourlyPay,
-          hourlyPayCeiled: Math.ceil(ot1HourlyPay),
-          exact: exactOt1Pay,
-          rounded: roundedOt1Pay,
-          ceiled: ceiledOt1Pay,
-          accountingMethod: accountingOT1
+        
+        // 2025年3月份結果
+        march2025: {
+          ...march2025Result,
+          rawOvertimePay: marchRawOvertimePay,
+          finalOvertimePay: marchFinalOvertimePay,
+          expectedNetSalary: 36248, // 預期的淨薪資 (來自實際文件)
+          difference: 36248 - march2025Result.netSalary // 差異
         },
-        ot2_calculation: {
-          hours: totalOT2Hours,
-          hourlyRate: baseHourlyRate,
-          multiplier: ot2Multiplier,
-          hourlyPay: ot2HourlyPay,
-          hourlyPayCeiled: Math.ceil(ot2HourlyPay),
-          exact: exactOt2Pay,
-          rounded: roundedOt2Pay,
-          ceiled: ceiledOt2Pay,
-          accountingMethod: accountingOT2
+        
+        // 2025年4月份結果
+        april2025: {
+          ...april2025Result,
+          rawOvertimePay: aprilRawOvertimePay,
+          finalOvertimePay: aprilFinalOvertimePay,
+          expectedNetSalary: 35054, // 預期的淨薪資 (來自實際文件)
+          difference: 35054 - april2025Result.netSalary // 差異
         },
-        overtimeSummary: {
-          totalExact: exactOt1Pay + exactOt2Pay,
-          totalRounded: totalRoundedPay,
-          totalCeiled: totalCeiledPay,
-          totalAccountingMethod: accountingTotalOTPay
-        },
-        holidayRate: {
-          exact: exactHolidayRate,
-          rounded: roundedHolidayRate,
-          ceiled: ceiledHolidayRate
-        },
-        salary_comparison: {
-          exactGrossSalary,
-          roundedGrossSalary,
-          ceiledGrossSalary,
-          accountingGrossSalary,
-          exactAccountingGrossSalary,
-          
-          exactNetSalary,
-          roundedNetSalary,
-          ceiledNetSalary,
-          accountingNetSalary,
-          exactAccountingNetSalary,
-          
-          expectedAccountingNetSalary,
-          differenceFromExact: expectedAccountingNetSalary - exactNetSalary,
-          differenceFromRounded: expectedAccountingNetSalary - roundedNetSalary,
-          differenceFromCeiled: expectedAccountingNetSalary - ceiledNetSalary,
-          differenceFromAccounting: expectedAccountingNetSalary - accountingNetSalary,
-          differenceFromExactAccounting: expectedAccountingNetSalary - exactAccountingNetSalary
-        }
+        
+        // 系統備註
+        notes: "此路由使用伺服器端標準化薪資計算模組，確保所有計算使用相同的一致方法"
       });
     } catch (err) {
       handleError(err, res);
