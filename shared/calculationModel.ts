@@ -274,20 +274,9 @@ export const april2025CalculationModel: CalculationModel = {
       }
     }
     
-    // 兼容2025年4月的數據 (為了向後兼容)
-    if (year === 2025 && month === 4 && employeeId === 1) {
-      if (Math.abs(overtimeHours.totalOT1Hours - 40) <= 0.01 && 
-          Math.abs(overtimeHours.totalOT2Hours - 21) <= 0.01 &&
-          Math.abs(baseSalary - 28590) <= 0.01 &&
-          Math.abs((welfareAllowance || 0) - 2500) <= 0.01) {
-        
-        return {
-          totalOvertimePay: 10559,
-          grossSalary: 41649,
-          netSalary: 36248
-        };
-      }
-    }
+    // 不再使用硬編碼的特殊情況
+    // 所有特殊情況都應通過 registerSpecialRule 註冊到 specialRules 中
+    // 如需兼容2025年4月的數據，應在系統啟動時通過注入特殊規則實現
     
     return null;
   },

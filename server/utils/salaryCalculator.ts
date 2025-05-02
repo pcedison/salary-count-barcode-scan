@@ -63,8 +63,8 @@ export interface SpecialCaseCondition {
  */
 export interface SpecialCaseRule extends SpecialCaseCondition {
   totalOvertimePay: number; // 要使用的總加班費
-  grossSalary?: number;     // 要使用的總薪資 (可選)
-  netSalary?: number;       // 要使用的實領金額 (可選)
+  grossSalary: number;      // 要使用的總薪資
+  netSalary: number;        // 要使用的實領金額
   description?: string;     // 規則描述
 }
 
@@ -127,8 +127,8 @@ export async function loadSpecialRulesFromDB(db: any): Promise<void> {
  * 註冊默認規則（當數據庫不可用時使用）
  */
 function registerDefaultRules(): void {
-  // 重新註冊2025年4月陳文山的特殊規則
-  registerSpecialRule({
+  // 註冊默認規則 - 確保提供所有必要欄位，不使用可選欄位
+  const rule: SpecialCaseRule = {
     year: 2025,
     month: 4,
     employeeId: 1, // 陳文山
@@ -136,11 +136,15 @@ function registerDefaultRules(): void {
     totalOT2Hours: 15,
     baseSalary: 28590,
     welfareAllowance: 2500,
+    housingAllowance: 0, // 必須提供，即使是0
     totalOvertimePay: 9365,
-    grossSalary: 40455,
-    netSalary: 35054,
+    grossSalary: 40455, // 必須提供，不能為可選
+    netSalary: 35054,   // 必須提供，不能為可選
     description: "2025年4月陳文山薪資特殊規則 (按會計部門提供的數據修正)"
-  });
+  };
+  
+  // 註冊規則
+  registerSpecialRule(rule);
   
   specialRulesLoaded = true;
   console.log('已註冊默認特殊計算規則');
@@ -199,7 +203,16 @@ export async function saveSpecialRuleToDB(db: any, rule: SpecialCaseRule): Promi
     }
     
     // 註冊規則到內存中
-    registerSpecialRule(rule);
+    // 確保所有必需的屬性都有定義
+    const validRule: SpecialCaseRule = {
+      ...rule,
+      // 確保沒有可選的 grossSalary 和 netSalary
+      grossSalary: rule.grossSalary || 0,
+      netSalary: rule.netSalary || 0,
+      // 確保其他可能缺失的屬性也有默認值
+      housingAllowance: rule.housingAllowance || 0
+    };
+    registerSpecialRule(validRule);
     
     console.log(`特殊計算規則 ${ruleKey} 已保存到數據庫`);
   } catch (err) {
