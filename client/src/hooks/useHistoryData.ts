@@ -40,17 +40,30 @@ interface SalaryRecord {
 /**
  * 薪資數據標準化處理函數
  * 
- * 使用統一的計算模塊來確保所有月份（現有和未來）使用一致的計算邏輯
+ * 使用統一的計算模塊來確保所有月份和所有員工（現有和未來）使用一致的計算邏輯
  * 主要功能:
  * 1. 根據各月份的實際加班時數計算正確的加班費
- * 2. 特殊處理3月和4月的加班費和加班時數，確保與列印文件一致
+ * 2. 運用特殊規則處理系統，支持不同員工在不同月份的特殊要求
  * 3. 計算並確保總薪資(grossSalary)和實發金額(netSalary)的一致性
- * 4. 為所有月份提供標準化計算，便於擴展
+ * 4. 為所有員工、所有月份提供標準化計算，便於擴展
+ * 5. 支持新增員工的計算正確性
  */
 function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: any): SalaryRecord {
   if (!record || !settings) return record;
   
-  // 檢查記錄是否需要標準化修正
+  // 確保有員工ID，如果沒有則使用預設值
+  const employeeId = record.employeeId || 1;
+  
+  // 創建計算設置物件（與後端格式一致）
+  const calculationSettings = {
+    baseHourlyRate: settings.baseHourlyRate,
+    ot1Multiplier: settings.ot1Multiplier,
+    ot2Multiplier: settings.ot2Multiplier,
+    baseMonthSalary: settings.baseMonthSalary,
+    welfareAllowance: settings.welfareAllowance
+  };
+  
+  // 檢查記錄是否需要標準化修正 - 考慮員工ID、年份和月份
   const isValid = validateSalaryRecord(
     record.salaryYear, 
     record.salaryMonth, 
@@ -65,8 +78,8 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
       housingAllowance: record.housingAllowance
     }, 
     record.totalDeductions,
-    settings,
-    record.employeeId || 1
+    calculationSettings,
+    employeeId // 明確提供員工ID
   );
   
   // 如果記錄已經是有效的，則直接返回
@@ -74,7 +87,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     return record;
   }
   
-  // 計算正確的薪資數據
+  // 計算正確的薪資數據 - 使用標準計算函數
   const salaryResult = calculateSalary(
     record.salaryYear,
     record.salaryMonth,
@@ -84,15 +97,15 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     },
     record.baseSalary,
     record.totalDeductions,
-    settings,
+    calculationSettings,
     record.totalHolidayPay,
     record.welfareAllowance,
     record.housingAllowance,
-    record.employeeId || 1 // 提供員工ID以支持特殊規則
+    employeeId // 明確提供員工ID
   );
   
-  // 輸出日誌以供檢查
-  console.log(`修正${record.salaryYear}年${record.salaryMonth}月薪資數據:`, salaryResult);
+  // 輸出日誌以供檢查 - 包含員工ID資訊
+  console.log(`修正員工ID:${employeeId} ${record.employeeName || ''} ${record.salaryYear}年${record.salaryMonth}月薪資數據:`, salaryResult);
   
   // 返回修正後的記錄
   return {

@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
+import { constants } from '@/lib/constants';
 import { 
   calculateOvertime, 
   getDeductionAmount, 
@@ -280,14 +281,23 @@ export function useAttendanceData() {
     }
     
     try {
-      // Extract settings
-      const baseHourlyRate = settings.baseHourlyRate || 119;
-      const ot1Multiplier = settings.ot1Multiplier || 1.34;
-      const ot2Multiplier = settings.ot2Multiplier || 1.67;
-      const baseMonthSalary = settings.baseMonthSalary || 28590;
-      const welfareAllowance = settings.welfareAllowance || 0; // 從設定中提取福利金，預設為0
-      const housingAllowance = 0; // Default to 0 if not provided
+      // Extract settings for calculation (統一使用system-wide constants)
+      const baseHourlyRate = settings.baseHourlyRate || constants.BASE_HOURLY_RATE;
+      const ot1Multiplier = settings.ot1Multiplier || constants.OT1_MULTIPLIER;
+      const ot2Multiplier = settings.ot2Multiplier || constants.OT2_MULTIPLIER;
+      const baseMonthSalary = settings.baseMonthSalary || constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS;
+      const welfareAllowance = settings.welfareAllowance || constants.DEFAULT_WELFARE_ALLOWANCE;
+      const housingAllowance = constants.DEFAULT_HOUSING_ALLOWANCE; // 使用系統常量
       const deductions = settings.deductions || [];
+
+      // 建立計算設置對象，與後端保持一致格式
+      const calculationSettings = {
+        baseHourlyRate,
+        ot1Multiplier,
+        ot2Multiplier,
+        baseMonthSalary,
+        welfareAllowance
+      };
       
       // 對傳入的數據進行排序
       const sortedData = [...recordsToProcess].sort((a, b) => {
@@ -303,6 +313,30 @@ export function useAttendanceData() {
         return dateA[2] - dateB[2];
       });
       
+      // Get year and month for the salary record based on attendance records
+      // Extract from first record if available, otherwise use current date
+      let salaryYear, salaryMonth;
+      
+      if (sortedData.length > 0) {
+        const firstRecordDate = sortedData[0].date.split('/');
+        salaryYear = parseInt(firstRecordDate[0]);
+        salaryMonth = parseInt(firstRecordDate[1]);
+      } else {
+        const { year, month } = getCurrentYearMonth();
+        salaryYear = year;
+        salaryMonth = month;
+      }
+      
+      // 獲取員工資訊以添加到結果中
+      const employeeInfo = sortedData.length > 0 && sortedData[0].employeeId ? 
+        {
+          employeeId: sortedData[0].employeeId,
+          employeeName: sortedData[0]._employeeName || '未知員工'
+        } : { employeeId: 1, employeeName: '預設員工' }; // 確保始終有員工ID
+      
+      // 使用員工ID
+      const employeeId = employeeInfo.employeeId as number;
+      
       // Separate normal days and holidays
       const normalDays = sortedData.filter(day => !day.isHoliday);
       const holidayDays = sortedData.filter(day => day.isHoliday);
@@ -312,7 +346,24 @@ export function useAttendanceData() {
       let totalOT2Hours = 0;
       let totalOvertimePay = 0;
       
-      // 每日加班費用詳細記錄 (用於調試)
+      // 準備日計算資料格式 (與共享模型保持一致)
+      const dailyOvertimeRecords = normalDays.map(day => {
+        // 計算當日加班時數
+        const { ot1, ot2 } = calculateOvertime(day.clockIn, day.clockOut);
+        
+        // 累計總時數
+        totalOT1Hours += ot1;
+        totalOT2Hours += ot2;
+        
+        // 返回標準格式數據，方便數據記錄和後續處理
+        return {
+          date: day.date,
+          ot1Hours: ot1,
+          ot2Hours: ot2
+        };
+      });
+      
+      // 使用共享計算邏輯 - 每日單獨計算加班費並加總
       const dailyOvertimeDetails = normalDays.map(day => {
         // 1. 計算當日加班時數
         const { ot1, ot2 } = calculateOvertime(day.clockIn, day.clockOut);
@@ -332,9 +383,7 @@ export function useAttendanceData() {
         // 5. 當日總加班費
         const dailyOvertimePay = roundedOt1Pay + roundedOt2Pay;
         
-        // 累計總時數和加班費
-        totalOT1Hours += ot1;
-        totalOT2Hours += ot2;
+        // 累計總加班費
         totalOvertimePay += dailyOvertimePay;
         
         // 返回每日計算詳情，方便調試
@@ -365,37 +414,17 @@ export function useAttendanceData() {
       const totalDeductions = deductions.reduce((sum: number, deduction: { name: string; amount: number }) => sum + deduction.amount, 0);
       
       // Calculate net salary - 只在最後一步使用四捨五入，確保計算結果與手動計算一致
-      // (9365+28590+2500)-658-443-1800-2500 = 35054
       const netSalary = Math.round(grossSalary - totalDeductions);
       
-      // Get year and month for the salary record based on attendance records
-      // Extract from first record if available, otherwise use current date
-      let salaryYear, salaryMonth;
-      
-      if (sortedData.length > 0) {
-        const firstRecordDate = sortedData[0].date.split('/');
-        salaryYear = parseInt(firstRecordDate[0]);
-        salaryMonth = parseInt(firstRecordDate[1]);
-      } else {
-        const { year, month } = getCurrentYearMonth();
-        salaryYear = year;
-        salaryMonth = month;
-      }
-      
-      // 獲取員工資訊以添加到結果中
-      const employeeInfo = sortedData.length > 0 && sortedData[0].employeeId ? 
-        {
-          employeeId: sortedData[0].employeeId,
-          employeeName: sortedData[0]._employeeName || '未知員工'
-        } : undefined;
-      
-      // Prepare result
+      // 創建整合結果
       const result: SalaryResult = {
-        salaryYear: salaryYear,
-        salaryMonth: salaryMonth,
+        salaryYear,
+        salaryMonth,
+        employeeId: employeeInfo.employeeId, // 確保一定有員工ID
+        employeeName: employeeInfo.employeeName, // 添加員工姓名
         baseSalary: baseMonthSalary,
         housingAllowance,
-        welfareAllowance,  // 添加福利金到結果中
+        welfareAllowance,
         totalOT1Hours,
         totalOT2Hours,
         totalOvertimePay,
@@ -406,8 +435,7 @@ export function useAttendanceData() {
         deductions: deductions.map((d: { name: string; amount: number; description?: string }) => ({ name: d.name, amount: d.amount })),
         totalDeductions,
         netSalary,
-        attendanceData: sortedData,
-        ...(employeeInfo ? employeeInfo : {})
+        attendanceData: sortedData
       };
       
       // Save result
