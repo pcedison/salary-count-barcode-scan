@@ -816,8 +816,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // 條碼掃描打卡路由
+  // 緩存上次成功的假日數據，避免重複查詢
+  let cachedHolidays = [];
+  let holidaysCacheTime = 0;
+  
+  // EventBus 通知前端的函數
+  const notifyAttendanceUpdate = (data = {}) => {
+    eventBus.emit(EventNames.ATTENDANCE_UPDATED, { 
+      timestamp: new Date().toISOString(),
+      ...data
+    });
+    
+    // 發送完整更新事件
+    setTimeout(() => {
+      eventBus.emit(EventNames.ATTENDANCE_UPDATED, { 
+        complete: true, 
+        timestamp: new Date().toISOString()
+      });
+    }, 500);
+  };
+  
+  // 條碼掃描打卡路由 - 優化版本
   app.post("/api/barcode-scan", async (req, res) => {
+    let findEmployeePromise;
+    
     try {
       const { idNumber } = req.body;
       
@@ -832,158 +854,288 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`掃描處理過程 [Web]: 原始輸入的ID = ${idNumber}`);
       console.log(`此ID是否被識別為加密 = ${isEncrypted(idNumber)}`);
       
-      // 先直接嘗試查找員工
-      let employee = await storage.getEmployeeByIdNumber(idNumber);
-      console.log(`直接查找結果: ${employee ? '找到員工 ' + employee.name : '未找到員工'}`);
+      // 根據ID生成持久化打卡緩存鍵
+      const cacheKey = `barcode_scan_${idNumber.replace(/[^a-zA-Z0-9]/g, '_')}`;
       
-      // 嘗試解密後再查找（無論是否被判斷為加密）
-      if (!employee) {
-        // 嘗試解密，即使原始判斷可能沒認為是加密的
-        const decrypted = caesarDecrypt(idNumber);
-        console.log(`嘗試解密ID = ${decrypted}`);
-        
-        employee = await storage.getEmployeeByIdNumber(decrypted);
-        console.log(`解密後查找結果: ${employee ? '找到員工 ' + employee.name : '未找到員工'}`);
-      }
-      
-      // 如果仍然找不到，嘗試獲取所有員工並逐一比對
-      if (!employee) {
-        console.log('未找到匹配的員工，嘗試全部員工比對');
-        const allEmployees = await storage.getAllEmployees();
-        console.log(`現有員工數量: ${allEmployees.length}`);
-        
-        // 嘗試多種比對方案
-        for (const emp of allEmployees) {
-          console.log(`比對員工: ${emp.name}, ID: ${emp.idNumber}, 此ID是否已加密: ${isEncrypted(emp.idNumber)}`);
-          
-          // 情況1：直接比對
-          if (emp.idNumber === idNumber) {
-            console.log(`匹配成功: 直接ID相等 (${emp.idNumber} == ${idNumber})`);
-            employee = emp;
-            break;
-          }
-          
-          // 情況2：掃描的是解密的ID，資料庫儲存的是加密ID
-          if (isEncrypted(emp.idNumber)) {
-            const decrypted = caesarDecrypt(emp.idNumber);
-            if (decrypted === idNumber) {
-              console.log(`匹配成功: 資料庫存的是加密ID (${emp.idNumber})，掃描的是解密ID (${idNumber})`);
-              employee = emp;
-              break;
+      // 創建快速查找員工的函數
+      const findEmployeeWithTimeout = () => {
+        return new Promise((resolve, reject) => {
+          // 設置 3 秒超時
+          const timeout = setTimeout(() => {
+            console.log("員工查找超時，使用緩存數據");
+            // 檢查是否有緩存的結果
+            try {
+              const cachedResult = localStorage.getItem(cacheKey);
+              if (cachedResult) {
+                resolve(JSON.parse(cachedResult));
+                return;
+              }
+            } catch (e) {
+              console.error("讀取緩存時出錯", e);
             }
-          }
+            reject(new Error('查找員工超時'));
+          }, 3000);
           
-          // 情況3：掃描的是加密的ID，資料庫儲存的是解密ID
-          const decrypted = caesarDecrypt(idNumber);
-          if (decrypted === emp.idNumber) {
-            console.log(`匹配成功: 資料庫存的是解密ID (${emp.idNumber})，掃描的是加密ID (${idNumber})`);
-            employee = emp;
-            break;
-          }
-          
-          // 情況4：兩邊都是加密ID，但使用不同的加密方式
-          if (isEncrypted(idNumber) && isEncrypted(emp.idNumber)) {
-            if (caesarDecrypt(idNumber) === caesarDecrypt(emp.idNumber)) {
-              console.log(`匹配成功: 兩邊都是加密的，但加密方式不同`);
-              employee = emp;
-              break;
+          // 執行查找
+          (async () => {
+            try {
+              // 先直接嘗試查找員工
+              let employee = await storage.getEmployeeByIdNumber(idNumber);
+              console.log(`直接查找結果: ${employee ? '找到員工 ' + employee.name : '未找到員工'}`);
+              
+              // 嘗試解密後再查找（無論是否被判斷為加密）
+              if (!employee) {
+                // 嘗試解密，即使原始判斷可能沒認為是加密的
+                const decrypted = caesarDecrypt(idNumber);
+                console.log(`嘗試解密ID = ${decrypted}`);
+                
+                employee = await storage.getEmployeeByIdNumber(decrypted);
+                console.log(`解密後查找結果: ${employee ? '找到員工 ' + employee.name : '未找到員工'}`);
+              }
+              
+              // 如果仍然找不到，嘗試獲取所有員工並逐一比對
+              if (!employee) {
+                console.log('未找到匹配的員工，嘗試全部員工比對');
+                const allEmployees = await storage.getAllEmployees();
+                console.log(`現有員工數量: ${allEmployees.length}`);
+                
+                // 嘗試多種比對方案
+                for (const emp of allEmployees) {
+                  // 情況1：直接比對
+                  if (emp.idNumber === idNumber) {
+                    console.log(`匹配成功: 直接ID相等`);
+                    employee = emp;
+                    break;
+                  }
+                  
+                  // 情況2：掃描的是解密的ID，資料庫儲存的是加密ID
+                  if (isEncrypted(emp.idNumber)) {
+                    const decrypted = caesarDecrypt(emp.idNumber);
+                    if (decrypted === idNumber) {
+                      console.log(`匹配成功: 資料庫存的是加密ID，掃描的是解密ID`);
+                      employee = emp;
+                      break;
+                    }
+                  }
+                  
+                  // 情況3：掃描的是加密的ID，資料庫儲存的是解密ID
+                  const decrypted = caesarDecrypt(idNumber);
+                  if (decrypted === emp.idNumber) {
+                    console.log(`匹配成功: 資料庫存的是解密ID，掃描的是加密ID`);
+                    employee = emp;
+                    break;
+                  }
+                  
+                  // 情況4：兩邊都是加密ID，但使用不同的加密方式
+                  if (isEncrypted(idNumber) && isEncrypted(emp.idNumber)) {
+                    if (caesarDecrypt(idNumber) === caesarDecrypt(emp.idNumber)) {
+                      console.log(`匹配成功: 兩邊都是加密的，但加密方式不同`);
+                      employee = emp;
+                      break;
+                    }
+                  }
+                }
+              }
+              
+              if (employee) {
+                // 找到員工時緩存結果
+                try {
+                  localStorage.setItem(cacheKey, JSON.stringify(employee));
+                } catch (e) {
+                  console.error("緩存員工數據時出錯", e);
+                }
+              }
+              
+              clearTimeout(timeout);
+              resolve(employee);
+            } catch (error) {
+              clearTimeout(timeout);
+              reject(error);
             }
-          }
-        }
-      }
-      
-      if (!employee) {
-        console.log(`找不到匹配的員工，ID: ${idNumber}`);
-        return res.status(404).json({
-          success: false,
-          message: "找不到匹配的員工，請確認條碼資料正確"
+          })();
         });
-      }
+      };
       
       // 獲取當前日期和時間（使用台灣時區 UTC+8）
       const now = new Date();
-      // 將時間轉換為台灣時區 (UTC+8)
       const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
       const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
       const currentTime = `${String(taiwanTime.getUTCHours()).padStart(2, '0')}:${String(taiwanTime.getUTCMinutes()).padStart(2, '0')}`;
       
-      // 檢查是否為假日
-      const holidays = await storage.getAllHolidays();
-      const isHoliday = holidays.some(holiday => holiday.date === currentDate);
+      // 我們將員工查找異步進行，但不等待其完成
+      findEmployeePromise = findEmployeeWithTimeout();
       
-      // 查找今天是否已有該員工打卡記錄
-      const attendanceRecords = await db
-        .select()
-        .from(temporaryAttendance)
-        .where(
-          and(
-            eq(temporaryAttendance.date, currentDate),
-            eq(temporaryAttendance.employeeId, employee.id)
-          )
-        );
-      
-      let result;
-      let isClockIn = true;
-      
-      // 如果沒有記錄，創建上班打卡記錄
-      if (attendanceRecords.length === 0) {
-        result = await storage.createTemporaryAttendance({
-          employeeId: employee.id,
-          date: currentDate,
-          clockIn: currentTime,
-          clockOut: '', // 下班時間暫時為空
-          isHoliday: isHoliday,
-          isBarcodeScanned: true
-        });
-      } else {
-        // 已有記錄，更新為下班打卡
-        const existingRecord = attendanceRecords[0];
-        
-        // 檢查記錄狀態
-        if (!existingRecord.clockOut || existingRecord.clockOut === '') {
-          // 下班打卡為空，更新為下班打卡
-          result = await storage.updateTemporaryAttendance(
-            existingRecord.id,
-            { clockOut: currentTime }
-          );
-          isClockIn = false;
-        } else {
-          // 已經有完整的上下班記錄
-          // 此時我們應該刪除現有記錄，建立新的上班打卡記錄（開始新的打卡週期）
-          await storage.deleteTemporaryAttendance(existingRecord.id);
-          
-          // 創建新的上班打卡記錄
-          result = await storage.createTemporaryAttendance({
-            employeeId: employee.id,
-            date: currentDate,
-            clockIn: currentTime,
-            clockOut: '', // 下班時間暫時為空
-            isHoliday: isHoliday,
-            isBarcodeScanned: true
-          });
-          
-          // 這是上班打卡
-          isClockIn = true;
-        }
-      }
-      
-      if (!result) {
-        return res.status(500).json({
-          success: false,
-          message: "打卡失敗，請稍後再試"
-        });
-      }
-      
-      res.json({
+      // 先立即向用戶返回處理中的響應
+      const processingResponse = {
         success: true,
-        attendance: result,
-        message: `${isClockIn ? '上班' : '下班'}打卡成功`,
-        action: isClockIn ? 'clock-in' : 'clock-out',
-        employee: employee
-      });
+        inProgress: true,
+        message: "正在處理打卡請求，請稍候...",
+        timestamp: now.toISOString()
+      };
+      
+      // 發送處理中的響應
+      res.json(processingResponse);
+      
+      // 後台繼續處理
+      (async () => {
+        try {
+          // 等待員工查找完成
+          const employee = await findEmployeePromise;
+          
+          if (!employee) {
+            console.log(`找不到匹配的員工，ID: ${idNumber}`);
+            // 通過 EventBus 通知前端
+            eventBus.emit(EventNames.BARCODE_ERROR, {
+              message: "找不到匹配的員工，請確認條碼資料正確",
+              timestamp: new Date().toISOString()
+            });
+            return;
+          }
+          
+          // 檢查是否為假日 - 使用緩存優化
+          let isHoliday = false;
+          
+          try {
+            // 如果緩存的假日數據不超過 24 小時，優先使用緩存
+            const now24h = Date.now();
+            if (cachedHolidays.length > 0 && (now24h - holidaysCacheTime < 24 * 60 * 60 * 1000)) {
+              console.log("使用假日緩存數據");
+              isHoliday = cachedHolidays.some(holiday => holiday.date === currentDate);
+            } else {
+              // 設置超時 Promise，最多等待 2 秒
+              const holidayPromise = Promise.race([
+                storage.getAllHolidays(),
+                new Promise(resolve => setTimeout(() => resolve([]), 2000))
+              ]);
+              
+              const holidays = await holidayPromise;
+              cachedHolidays = holidays;
+              holidaysCacheTime = Date.now();
+              isHoliday = holidays.some(holiday => holiday.date === currentDate);
+            }
+          } catch (err) {
+            console.error("檢查假日時出錯:", err);
+            // 繼續處理，將假日默認為 false
+          }
+          
+          // 查找今天是否已有該員工打卡記錄
+          let attendanceRecords = [];
+          try {
+            // 設置 Promise，最多等待 3 秒
+            const attendancePromise = Promise.race([
+              db.select()
+                .from(temporaryAttendance)
+                .where(and(
+                  eq(temporaryAttendance.date, currentDate),
+                  eq(temporaryAttendance.employeeId, employee.id)
+                )),
+              new Promise(resolve => setTimeout(() => resolve([]), 3000))
+            ]);
+            
+            attendanceRecords = await attendancePromise;
+          } catch (err) {
+            console.error("查詢考勤記錄時出錯:", err);
+            // 繼續處理，使用空數組
+          }
+          
+          let result;
+          let isClockIn = true;
+          
+          try {
+            // 如果沒有記錄，創建上班打卡記錄
+            if (attendanceRecords.length === 0) {
+              result = await storage.createTemporaryAttendance({
+                employeeId: employee.id,
+                date: currentDate,
+                clockIn: currentTime,
+                clockOut: '', // 下班時間暫時為空
+                isHoliday: isHoliday,
+                isBarcodeScanned: true
+              });
+            } else {
+              // 已有記錄，更新為下班打卡
+              const existingRecord = attendanceRecords[0];
+              
+              // 檢查記錄狀態
+              if (!existingRecord.clockOut || existingRecord.clockOut === '') {
+                // 下班打卡為空，更新為下班打卡
+                result = await storage.updateTemporaryAttendance(
+                  existingRecord.id,
+                  { clockOut: currentTime }
+                );
+                isClockIn = false;
+              } else {
+                // 已經有完整的上下班記錄
+                // 此時我們應該刪除現有記錄，建立新的上班打卡記錄（開始新的打卡週期）
+                await storage.deleteTemporaryAttendance(existingRecord.id);
+                
+                // 創建新的上班打卡記錄
+                result = await storage.createTemporaryAttendance({
+                  employeeId: employee.id,
+                  date: currentDate,
+                  clockIn: currentTime,
+                  clockOut: '', // 下班時間暫時為空
+                  isHoliday: isHoliday,
+                  isBarcodeScanned: true
+                });
+                
+                // 這是上班打卡
+                isClockIn = true;
+              }
+            }
+            
+            // 通知前端更新考勤數據
+            notifyAttendanceUpdate();
+            
+            // 通知打卡成功
+            eventBus.emit(EventNames.BARCODE_SCANNED, {
+              employeeId: employee.id,
+              employeeName: employee.name,
+              action: isClockIn ? 'clock-in' : 'clock-out',
+              attendance: result,
+              success: true,
+              timestamp: new Date().toISOString(),
+              message: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`
+            });
+            
+          } catch (err) {
+            console.error("處理打卡記錄時出錯:", err);
+            
+            // 通知打卡失敗
+            eventBus.emit(EventNames.BARCODE_ERROR, {
+              employeeId: employee?.id,
+              employeeName: employee?.name,
+              error: err.message,
+              timestamp: new Date().toISOString(),
+              message: "處理打卡記錄時出錯，請稍後再試"
+            });
+          }
+        } catch (error) {
+          console.error("打卡後台處理過程中出錯:", error);
+          
+          // 通知打卡失敗
+          eventBus.emit(EventNames.BARCODE_ERROR, {
+            error: error.message,
+            timestamp: new Date().toISOString(),
+            message: "打卡處理失敗，請稍後再試"
+          });
+        }
+      })();
+      
     } catch (err) {
       console.error('條碼掃描打卡錯誤:', err);
-      handleError(err, res);
+      
+      // 如果已經開始響應，則通過 EventBus 通知
+      if (findEmployeePromise) {
+        eventBus.emit(EventNames.BARCODE_ERROR, {
+          error: err.message,
+          timestamp: new Date().toISOString(),
+          message: "打卡處理失敗，請稍後再試"
+        });
+      } else {
+        // 否則直接返回錯誤
+        handleError(err, res);
+      }
     }
   });
 
