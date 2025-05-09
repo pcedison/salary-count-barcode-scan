@@ -1,463 +1,567 @@
 /**
- * 外部雲端備份工具
+ * Google Drive 雲端備份工具
  * 
  * 功能：
- * 1. 自動將備份文件上傳到 Google Drive
- * 2. 實現定期備份排程
- * 3. 管理雲端備份的生命週期
+ * 1. 將系統備份上傳到 Google Drive
+ * 2. 管理多個備份版本
+ * 3. 定期清理舊備份
+ * 
+ * 使用方式:
+ * node server/cloud-backup.js backup    # 執行備份
+ * node server/cloud-backup.js cleanup   # 清理舊備份
+ * node server/cloud-backup.js restore   # 列出可還原的備份
  */
 
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { google } from 'googleapis';
+import zlib from 'zlib';
+import { promisify } from 'util';
 
 // 獲取當前目錄
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.join(__dirname, '..');
+const CONFIG_DIR = path.join(ROOT_DIR, 'config');
+const CREDENTIALS_PATH = path.join(CONFIG_DIR, 'google-credentials.json');
+const TOKEN_PATH = path.join(CONFIG_DIR, 'google-token.json');
 
-// 配置
-const BACKUPS_DIR = path.join(__dirname, '..', 'backups');
-const CREDENTIALS_PATH = path.join(__dirname, '..', 'config', 'google-credentials.json');
-const TOKEN_PATH = path.join(__dirname, '..', 'config', 'google-token.json');
+// 備份配置
+const BACKUP_CONFIG = {
+  maxDailyBackups: 7,
+  maxWeeklyBackups: 4,
+  maxMonthlyBackups: 12,
+  folderName: '系統備份',
+};
 
-// 確保配置目錄存在
-if (!fs.existsSync(path.dirname(CREDENTIALS_PATH))) {
-  fs.mkdirSync(path.dirname(CREDENTIALS_PATH), { recursive: true });
+// 需要的授權範圍
+const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+
+// 日誌路徑
+const LOG_DIR = path.join(ROOT_DIR, 'logs');
+const BACKUP_LOG_PATH = path.join(LOG_DIR, 'cloud-backup.log');
+
+// 確保日誌目錄存在
+if (!fs.existsSync(LOG_DIR)) {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
 }
 
-/**
- * 格式化日期為 YYYY-MM-DD 格式
- * @param {Date} date 日期對象
- * @returns {string} 格式化的日期字串
- */
-function formatDate(date) {
-  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-}
-
-/**
- * 獲取 Google Drive API 客戶端
- * @returns {Promise<google.drive.Drive>} Google Drive API 客戶端
- */
-async function getDriveClient() {
-  // 檢查是否有憑證文件
-  if (!fs.existsSync(CREDENTIALS_PATH)) {
-    throw new Error(`Google Drive 憑證文件不存在: ${CREDENTIALS_PATH}`);
-  }
-
-  // 讀取憑證
-  const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+// 寫入日誌
+function logMessage(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
   
-  // 設置 OAuth2 客戶端
-  const { client_secret, client_id, redirect_uris } = credentials.installed;
-  const oAuth2Client = new google.auth.OAuth2(
-    client_id, client_secret, redirect_uris[0]
-  );
-
-  // 檢查是否有 token
-  if (!fs.existsSync(TOKEN_PATH)) {
-    throw new Error(`Google Drive token 文件不存在，請先執行授權流程`);
-  }
-
-  // 讀取 token
-  const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
-  oAuth2Client.setCredentials(token);
-
-  // 創建 Drive 客戶端
-  return google.drive({ version: 'v3', auth: oAuth2Client });
+  fs.appendFileSync(BACKUP_LOG_PATH, logMessage);
+  console.log(message);
 }
 
 /**
- * 獲取或創建備份資料夾
- * @param {google.drive.Drive} drive Google Drive API 客戶端
- * @param {string} folderName 資料夾名稱
- * @returns {Promise<string>} 資料夾 ID
+ * 獲取授權客戶端
+ * @returns {Promise<google.auth.OAuth2|null>} OAuth2 客戶端
  */
-async function getFolderIdByName(drive, folderName) {
+async function getAuthClient() {
   try {
-    // 查詢是否已存在同名資料夾
-    const response = await drive.files.list({
-      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'files(id, name)',
-      spaces: 'drive'
-    });
-
-    // 如果找到資料夾，返回第一個
-    if (response.data.files.length > 0) {
-      return response.data.files[0].id;
+    // 檢查憑證是否存在
+    if (!fs.existsSync(CREDENTIALS_PATH)) {
+      logMessage(`找不到 Google Drive API 憑證: ${CREDENTIALS_PATH}`);
+      logMessage('請先運行 google-drive-auth.js 設置授權');
+      return null;
     }
-
-    // 如果沒有找到，創建一個新資料夾
-    const fileMetadata = {
-      name: folderName,
-      mimeType: 'application/vnd.google-apps.folder'
-    };
-
-    const file = await drive.files.create({
-      resource: fileMetadata,
-      fields: 'id'
-    });
-
-    return file.data.id;
-  } catch (error) {
-    console.error('獲取或創建資料夾時出錯:', error);
-    throw error;
-  }
-}
-
-/**
- * 上傳文件到 Google Drive
- * @param {google.drive.Drive} drive Google Drive API 客戶端
- * @param {string} filePath 本地文件路徑
- * @param {string} folderId 目標資料夾 ID
- * @returns {Promise<Object>} 上傳結果
- */
-async function uploadFile(drive, filePath, folderId) {
-  try {
-    const fileName = path.basename(filePath);
     
-    // 檢查文件是否已存在
-    const response = await drive.files.list({
-      q: `name='${fileName}' and '${folderId}' in parents and trashed=false`,
-      fields: 'files(id, name, modifiedTime)',
-      spaces: 'drive'
-    });
-
-    // 如果文件已存在
-    if (response.data.files.length > 0) {
-      const existingFile = response.data.files[0];
-      const existingFileTime = new Date(existingFile.modifiedTime);
-      const localFileTime = fs.statSync(filePath).mtime;
-      
-      // 如果本地文件較新，更新雲端文件
-      if (localFileTime > existingFileTime) {
-        await drive.files.update({
-          fileId: existingFile.id,
-          media: {
-            body: fs.createReadStream(filePath)
-          }
-        });
-        
-        return {
-          success: true,
-          fileId: existingFile.id,
-          fileName,
-          updated: true
-        };
-      }
-      
-      // 本地文件不比雲端新，跳過上傳
-      return {
-        success: true,
-        fileId: existingFile.id,
-        fileName,
-        updated: false,
-        skipped: true
-      };
+    // 檢查令牌是否存在
+    if (!fs.existsSync(TOKEN_PATH)) {
+      logMessage(`找不到 Google Drive API 令牌: ${TOKEN_PATH}`);
+      logMessage('請先運行 google-drive-auth.js 進行授權');
+      return null;
     }
+    
+    // 讀取憑證
+    const credentials = JSON.parse(fs.readFileSync(CREDENTIALS_PATH, 'utf8'));
+    const { client_secret, client_id, redirect_uris } = credentials.installed || credentials.web;
+    
+    // 創建 OAuth2 客戶端
+    const oAuth2Client = new google.auth.OAuth2(
+      client_id, client_secret, redirect_uris[0]
+    );
+    
+    // 讀取令牌
+    const token = JSON.parse(fs.readFileSync(TOKEN_PATH, 'utf8'));
+    oAuth2Client.setCredentials(token);
+    
+    return oAuth2Client;
+  } catch (error) {
+    logMessage(`獲取授權客戶端時出錯: ${error.message}`);
+    return null;
+  }
+}
 
-    // 上傳新文件
+/**
+ * 獲取或創建備份文件夾
+ * @param {google.drive_v3.Drive} drive Drive API 客戶端
+ * @returns {Promise<string|null>} 文件夾 ID
+ */
+async function getOrCreateBackupFolder(drive) {
+  try {
+    // 查詢備份文件夾
+    const response = await drive.files.list({
+      q: `name='${BACKUP_CONFIG.folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      spaces: 'drive',
+      fields: 'files(id, name)',
+    });
+    
+    const folders = response.data.files;
+    
+    // 如果存在，返回第一個匹配的文件夾 ID
+    if (folders && folders.length > 0) {
+      logMessage(`找到備份文件夾: ${folders[0].name} (${folders[0].id})`);
+      return folders[0].id;
+    }
+    
+    // 否則創建新文件夾
+    logMessage(`創建新的備份文件夾: ${BACKUP_CONFIG.folderName}`);
+    const fileMetadata = {
+      name: BACKUP_CONFIG.folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+    };
+    
+    const folder = await drive.files.create({
+      resource: fileMetadata,
+      fields: 'id',
+    });
+    
+    logMessage(`成功創建備份文件夾 (${folder.data.id})`);
+    return folder.data.id;
+  } catch (error) {
+    logMessage(`獲取或創建備份文件夾時出錯: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * 壓縮數據
+ * @param {string} data 要壓縮的數據
+ * @returns {Promise<Buffer>} 壓縮後的數據
+ */
+async function compressData(data) {
+  const gzip = promisify(zlib.gzip);
+  return gzip(Buffer.from(data));
+}
+
+/**
+ * 解壓數據
+ * @param {Buffer} data 壓縮的數據
+ * @returns {Promise<string>} 解壓後的數據
+ */
+async function decompressData(data) {
+  const gunzip = promisify(zlib.gunzip);
+  const buffer = await gunzip(data);
+  return buffer.toString();
+}
+
+/**
+ * 上傳備份到 Google Drive
+ * @param {string} backupPath 備份文件路徑
+ * @param {string} backupType 備份類型 (daily, weekly, monthly)
+ * @returns {Promise<boolean>} 是否成功
+ */
+async function uploadBackup(backupPath, backupType = 'daily') {
+  try {
+    // 檢查備份文件是否存在
+    if (!fs.existsSync(backupPath)) {
+      logMessage(`備份文件不存在: ${backupPath}`);
+      return false;
+    }
+    
+    // 獲取授權客戶端
+    const auth = await getAuthClient();
+    if (!auth) {
+      return false;
+    }
+    
+    // 創建 Drive API 客戶端
+    const drive = google.drive({ version: 'v3', auth });
+    
+    // 獲取備份文件夾
+    const folderId = await getOrCreateBackupFolder(drive);
+    if (!folderId) {
+      return false;
+    }
+    
+    // 讀取並壓縮備份文件
+    const backupData = fs.readFileSync(backupPath, 'utf8');
+    const compressedData = await compressData(backupData);
+    
+    // 生成備份文件名
+    const date = new Date();
+    const dateStr = date.toISOString().substring(0, 10);
+    const timeStr = date.toISOString().substring(11, 19).replace(/:/g, '-');
+    const fileName = `${backupType}_backup_${dateStr}_${timeStr}.json.gz`;
+    
+    // 創建上傳任務
+    logMessage(`開始上傳備份: ${fileName}`);
     const fileMetadata = {
       name: fileName,
-      parents: [folderId]
+      parents: [folderId],
+      properties: {
+        backupType,
+        date: dateStr,
+        time: timeStr,
+      },
     };
-
+    
     const media = {
-      body: fs.createReadStream(filePath)
+      mimeType: 'application/gzip',
+      body: fs.createReadStream(backupPath).pipe(zlib.createGzip()),
     };
-
-    const file = await drive.files.create({
-      resource: fileMetadata,
-      media,
-      fields: 'id'
-    });
-
-    return {
-      success: true,
-      fileId: file.data.id,
-      fileName,
-      created: true
-    };
-  } catch (error) {
-    console.error(`上傳文件 ${filePath} 時出錯:`, error);
-    return {
-      success: false,
-      fileName: path.basename(filePath),
-      error: error.message
-    };
-  }
-}
-
-/**
- * 備份文件格式說明
- * 
- * 備份文件是 JSON 格式，包含以下內容：
- * 1. metadata - 備份元數據
- *    - id - 備份ID
- *    - type - 備份類型（daily, weekly, monthly, manual）
- *    - createdAt - 創建時間
- *    - version - 版本號
- * 2. employees - 員工資料數組
- * 3. salaryRecords - 薪資記錄數組
- * 4. attendance - 考勤記錄數組
- * 5. holidays - 假期記錄數組
- * 6. settings - 系統設定
- */
-
-/**
- * 獲取待備份的文件
- * @param {Object} options 選項
- * @param {string} options.type 備份類型 (all, daily, weekly, monthly, manual)
- * @param {number} options.days 最近幾天內創建的備份
- * @returns {Array<string>} 文件路徑數組
- */
-function getBackupFiles(options = {}) {
-  const { type = 'all', days = 7 } = options;
-  
-  // 確保備份目錄存在
-  if (!fs.existsSync(BACKUPS_DIR)) {
-    console.warn(`備份目錄不存在: ${BACKUPS_DIR}`);
-    return [];
-  }
-  
-  // 定義要查找的目錄
-  const directories = [];
-  if (type === 'all') {
-    directories.push('daily', 'weekly', 'monthly', 'manual');
-  } else {
-    directories.push(type);
-  }
-  
-  // 計算日期範圍
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - days);
-  
-  // 收集符合條件的文件
-  const files = [];
-  
-  for (const dir of directories) {
-    const dirPath = path.join(BACKUPS_DIR, dir);
-    
-    if (!fs.existsSync(dirPath)) {
-      continue;
-    }
-    
-    // 獲取目錄中的所有 JSON 文件
-    const dirFiles = fs.readdirSync(dirPath)
-      .filter(file => file.endsWith('.json'))
-      .map(file => {
-        const filePath = path.join(dirPath, file);
-        const stats = fs.statSync(filePath);
-        return { path: filePath, mtime: stats.mtime };
-      })
-      .filter(fileInfo => fileInfo.mtime >= cutoffDate)
-      .map(fileInfo => fileInfo.path);
-    
-    files.push(...dirFiles);
-  }
-  
-  return files;
-}
-
-/**
- * 清理舊的雲端備份
- * @param {google.drive.Drive} drive Google Drive API 客戶端
- * @param {string} folderId 資料夾 ID
- * @param {Object} options 選項
- * @param {number} options.keepDays 保留天數
- * @returns {Promise<Array>} 已刪除的文件
- */
-async function cleanupOldCloudBackups(drive, folderId, options = {}) {
-  const { keepDays = 30 } = options;
-  
-  try {
-    // 計算截止日期
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - keepDays);
-    const cutoffTime = cutoffDate.toISOString();
-    
-    // 查詢舊文件
-    const response = await drive.files.list({
-      q: `'${folderId}' in parents and modifiedTime < '${cutoffTime}' and trashed=false`,
-      fields: 'files(id, name, modifiedTime)',
-      spaces: 'drive'
-    });
-    
-    const oldFiles = response.data.files;
-    const deletedFiles = [];
-    
-    // 刪除舊文件
-    for (const file of oldFiles) {
-      try {
-        await drive.files.delete({
-          fileId: file.id
-        });
-        
-        deletedFiles.push({
-          id: file.id,
-          name: file.name,
-          modifiedTime: file.modifiedTime
-        });
-        
-        console.log(`已刪除舊的雲端備份文件: ${file.name}`);
-      } catch (error) {
-        console.error(`刪除雲端文件 ${file.name} 時出錯:`, error);
-      }
-    }
-    
-    return deletedFiles;
-  } catch (error) {
-    console.error('清理舊的雲端備份時出錯:', error);
-    return [];
-  }
-}
-
-/**
- * 執行雲端備份
- * @param {Object} options 選項
- * @param {string} options.backupType 備份類型 (all, daily, weekly, monthly, manual)
- * @param {number} options.recentDays 最近幾天內創建的備份
- * @param {number} options.keepDays 在雲端保留多少天
- * @param {boolean} options.cleanupOld 是否清理舊備份
- * @returns {Promise<Object>} 備份結果
- */
-export async function runCloudBackup(options = {}) {
-  const {
-    backupType = 'all',
-    recentDays = 7,
-    keepDays = 30,
-    cleanupOld = true
-  } = options;
-  
-  try {
-    console.log(`開始執行雲端備份 (類型: ${backupType}, 最近 ${recentDays} 天)...`);
-    
-    // 獲取備份文件
-    const backupFiles = getBackupFiles({
-      type: backupType,
-      days: recentDays
-    });
-    
-    if (backupFiles.length === 0) {
-      console.log('沒有找到符合條件的備份文件');
-      return { success: false, error: '沒有找到備份文件' };
-    }
-    
-    console.log(`找到 ${backupFiles.length} 個備份文件`);
-    
-    // 獲取 Google Drive 客戶端
-    const drive = await getDriveClient();
-    
-    // 獲取或創建備份資料夾
-    const folderName = `系統備份_${formatDate(new Date())}`;
-    const folderId = await getFolderIdByName(drive, folderName);
-    
-    console.log(`使用雲端資料夾: ${folderName} (ID: ${folderId})`);
     
     // 上傳文件
-    const results = [];
+    const file = await drive.files.create({
+      resource: fileMetadata,
+      media: media,
+      fields: 'id, name',
+    });
     
-    for (const filePath of backupFiles) {
-      console.log(`正在上傳: ${path.basename(filePath)}`);
-      const result = await uploadFile(drive, filePath, folderId);
-      results.push(result);
-    }
-    
-    // 統計結果
-    const stats = {
-      total: results.length,
-      success: results.filter(r => r.success).length,
-      created: results.filter(r => r.created).length,
-      updated: results.filter(r => r.updated).length,
-      skipped: results.filter(r => r.skipped).length,
-      failed: results.filter(r => !r.success).length
-    };
-    
-    console.log(`雲端備份統計: 總計 ${stats.total}, 成功 ${stats.success}, 創建 ${stats.created}, 更新 ${stats.updated}, 跳過 ${stats.skipped}, 失敗 ${stats.failed}`);
+    logMessage(`備份上傳成功: ${fileName} (${file.data.id})`);
     
     // 清理舊備份
-    let cleanupResults = [];
-    if (cleanupOld) {
-      console.log(`清理超過 ${keepDays} 天的舊雲端備份...`);
-      cleanupResults = await cleanupOldCloudBackups(drive, folderId, { keepDays });
-      console.log(`已清理 ${cleanupResults.length} 個舊的雲端備份文件`);
-    }
+    await cleanupOldBackups(drive, folderId, backupType);
     
-    return {
-      success: true,
-      stats,
-      folderId,
-      folderName,
-      results,
-      cleanupResults
-    };
+    return true;
   } catch (error) {
-    console.error('執行雲端備份時出錯:', error);
-    return { success: false, error: error.message };
+    logMessage(`上傳備份時出錯: ${error.message}`);
+    return false;
   }
 }
 
 /**
- * 設置定期雲端備份
- * @param {Object} options 選項
- * @param {number} options.intervalDays 備份間隔（天）
- * @param {string} options.backupType 備份類型 (all, daily, weekly, monthly, manual)
- * @param {number} options.recentDays 最近幾天內創建的備份
- * @param {number} options.keepDays 在雲端保留多少天
- * @param {boolean} options.cleanupOld 是否清理舊備份
- * @returns {NodeJS.Timeout} 定時器ID
+ * 清理舊備份
+ * @param {google.drive_v3.Drive} drive Drive API 客戶端
+ * @param {string} folderId 備份文件夾 ID
+ * @param {string} backupType 備份類型
+ * @returns {Promise<number>} 刪除的文件數量
  */
-export function scheduleCloudBackup(options = {}) {
-  const {
-    intervalDays = 1,
-    backupType = 'all',
-    recentDays = 1,
-    keepDays = 30,
-    cleanupOld = true
-  } = options;
-  
-  console.log(`設置定期雲端備份，每 ${intervalDays} 天執行一次`);
-  
-  // 立即執行一次
-  runCloudBackup({ backupType, recentDays, keepDays, cleanupOld });
-  
-  // 設置定期任務
-  const intervalMs = intervalDays * 24 * 60 * 60 * 1000;
-  return setInterval(() => {
-    runCloudBackup({ backupType, recentDays, keepDays, cleanupOld });
-  }, intervalMs);
+async function cleanupOldBackups(drive, folderId, backupType) {
+  try {
+    // 確定最大保留數量
+    let maxBackups;
+    switch (backupType) {
+      case 'daily':
+        maxBackups = BACKUP_CONFIG.maxDailyBackups;
+        break;
+      case 'weekly':
+        maxBackups = BACKUP_CONFIG.maxWeeklyBackups;
+        break;
+      case 'monthly':
+        maxBackups = BACKUP_CONFIG.maxMonthlyBackups;
+        break;
+      default:
+        maxBackups = 5; // 默認值
+    }
+    
+    // 獲取特定類型的備份列表
+    const query = `'${folderId}' in parents and properties.backupType='${backupType}' and trashed=false`;
+    const response = await drive.files.list({
+      q: query,
+      spaces: 'drive',
+      orderBy: 'createdTime desc',
+      fields: 'files(id, name, createdTime)',
+    });
+    
+    const backups = response.data.files;
+    
+    // 如果備份數量超過最大值，刪除最舊的備份
+    if (backups.length > maxBackups) {
+      logMessage(`清理舊的 ${backupType} 備份，保留 ${maxBackups} 個，當前有 ${backups.length} 個`);
+      
+      // 對備份按創建時間排序
+      backups.sort((a, b) => {
+        return new Date(b.createdTime) - new Date(a.createdTime);
+      });
+      
+      // 刪除最舊的備份
+      const toDelete = backups.slice(maxBackups);
+      
+      for (const file of toDelete) {
+        await drive.files.delete({ fileId: file.id });
+        logMessage(`已刪除舊備份: ${file.name} (${file.id})`);
+      }
+      
+      return toDelete.length;
+    }
+    
+    return 0;
+  } catch (error) {
+    logMessage(`清理舊備份時出錯: ${error.message}`);
+    return 0;
+  }
 }
 
 /**
- * Google Drive 授權指南
- * 
- * 要使用 Google Drive API，您需要：
- * 1. 創建 Google Cloud 專案
- * 2. 啟用 Google Drive API
- * 3. 創建 OAuth 2.0 憑證
- * 4. 下載憑證並保存為 config/google-credentials.json
- * 5. 執行授權流程獲取 token
- * 
- * 詳細請參考 Google Drive API 文檔：
- * https://developers.google.com/drive/api/v3/quickstart/nodejs
+ * 列出可用的備份
+ * @returns {Promise<Array|null>} 備份列表
  */
+async function listBackups() {
+  try {
+    // 獲取授權客戶端
+    const auth = await getAuthClient();
+    if (!auth) {
+      return null;
+    }
+    
+    // 創建 Drive API 客戶端
+    const drive = google.drive({ version: 'v3', auth });
+    
+    // 獲取備份文件夾
+    const folderId = await getOrCreateBackupFolder(drive);
+    if (!folderId) {
+      return null;
+    }
+    
+    // 獲取備份列表
+    const query = `'${folderId}' in parents and trashed=false`;
+    const response = await drive.files.list({
+      q: query,
+      spaces: 'drive',
+      orderBy: 'createdTime desc',
+      fields: 'files(id, name, createdTime, properties)',
+    });
+    
+    const backups = response.data.files;
+    
+    if (backups.length === 0) {
+      logMessage('沒有找到可用的備份');
+      return [];
+    }
+    
+    // 格式化備份信息
+    const formatted = backups.map(backup => {
+      const createdTime = new Date(backup.createdTime).toLocaleString();
+      const type = backup.properties?.backupType || '未知';
+      
+      return {
+        id: backup.id,
+        name: backup.name,
+        type: type,
+        createdTime: createdTime,
+        properties: backup.properties
+      };
+    });
+    
+    // 按類型和時間分組
+    const grouped = {
+      daily: formatted.filter(b => b.type === 'daily'),
+      weekly: formatted.filter(b => b.type === 'weekly'),
+      monthly: formatted.filter(b => b.type === 'monthly'),
+      other: formatted.filter(b => !['daily', 'weekly', 'monthly'].includes(b.type))
+    };
+    
+    // 打印備份信息
+    logMessage(`找到 ${backups.length} 個備份:`);
+    logMessage(`- 每日備份: ${grouped.daily.length} 個`);
+    logMessage(`- 每週備份: ${grouped.weekly.length} 個`);
+    logMessage(`- 每月備份: ${grouped.monthly.length} 個`);
+    logMessage(`- 其他備份: ${grouped.other.length} 個`);
+    
+    return grouped;
+  } catch (error) {
+    logMessage(`列出備份時出錯: ${error.message}`);
+    return null;
+  }
+}
 
-// 如果直接運行腳本，執行一次備份
-if (process.argv[1].endsWith('cloud-backup.js')) {
-  const backupType = process.argv[2] || 'all';
-  const recentDays = process.argv[3] ? parseInt(process.argv[3]) : 7;
+/**
+ * 下載備份
+ * @param {string} fileId 備份文件 ID
+ * @param {string} outputPath 輸出路徑
+ * @returns {Promise<boolean>} 是否成功
+ */
+async function downloadBackup(fileId, outputPath) {
+  try {
+    // 獲取授權客戶端
+    const auth = await getAuthClient();
+    if (!auth) {
+      return false;
+    }
+    
+    // 創建 Drive API 客戶端
+    const drive = google.drive({ version: 'v3', auth });
+    
+    // 獲取文件信息
+    const file = await drive.files.get({
+      fileId: fileId,
+      fields: 'name',
+    });
+    
+    logMessage(`開始下載備份: ${file.data.name}`);
+    
+    // 下載文件
+    const response = await drive.files.get({
+      fileId: fileId,
+      alt: 'media',
+    }, { responseType: 'stream' });
+    
+    // 創建輸出流
+    const destPath = outputPath || path.join(ROOT_DIR, 'restore', file.data.name);
+    const destDir = path.dirname(destPath);
+    
+    // 確保目標目錄存在
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true });
+    }
+    
+    // 如果檔案名以 .gz 結尾，則解壓縮
+    if (destPath.endsWith('.gz')) {
+      const uncompressedPath = destPath.slice(0, -3); // 移除 .gz
+      const dest = fs.createWriteStream(uncompressedPath);
+      const gunzip = zlib.createGunzip();
+      
+      response.data
+        .pipe(gunzip)
+        .pipe(dest);
+      
+      return new Promise((resolve, reject) => {
+        dest.on('finish', () => {
+          logMessage(`備份已下載並解壓縮到: ${uncompressedPath}`);
+          resolve(true);
+        });
+        
+        dest.on('error', (error) => {
+          logMessage(`下載備份時出錯: ${error.message}`);
+          reject(error);
+        });
+      });
+    } else {
+      // 直接保存
+      const dest = fs.createWriteStream(destPath);
+      
+      response.data.pipe(dest);
+      
+      return new Promise((resolve, reject) => {
+        dest.on('finish', () => {
+          logMessage(`備份已下載到: ${destPath}`);
+          resolve(true);
+        });
+        
+        dest.on('error', (error) => {
+          logMessage(`下載備份時出錯: ${error.message}`);
+          reject(error);
+        });
+      });
+    }
+  } catch (error) {
+    logMessage(`下載備份時出錯: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * 主函數
+ */
+async function main() {
+  const action = process.argv[2] || 'help';
   
-  runCloudBackup({ backupType, recentDays })
-    .then(result => {
-      if (result.success) {
-        console.log('雲端備份完成');
-      } else {
-        console.error('雲端備份失敗:', result.error);
+  switch (action) {
+    case 'backup': {
+      // 獲取備份路徑和類型
+      const backupPath = process.argv[3] || path.join(ROOT_DIR, 'backup.json');
+      const backupType = process.argv[4] || 'daily';
+      
+      if (!['daily', 'weekly', 'monthly'].includes(backupType)) {
+        logMessage('無效的備份類型，有效值為: daily, weekly, monthly');
+        return;
       }
-      process.exit(0);
-    })
+      
+      // 執行備份
+      const success = await uploadBackup(backupPath, backupType);
+      if (success) {
+        logMessage(`${backupType} 備份已成功上傳到 Google Drive`);
+      } else {
+        logMessage(`${backupType} 備份上傳失敗`);
+      }
+      break;
+    }
+    
+    case 'cleanup':
+      // 列出備份
+      const backups = await listBackups();
+      
+      if (!backups) {
+        logMessage('無法獲取備份列表');
+        return;
+      }
+      
+      // 獲取授權客戶端
+      const auth = await getAuthClient();
+      if (!auth) {
+        return;
+      }
+      
+      // 創建 Drive API 客戶端
+      const drive = google.drive({ version: 'v3', auth });
+      
+      // 獲取備份文件夾
+      const folderId = await getOrCreateBackupFolder(drive);
+      if (!folderId) {
+        return;
+      }
+      
+      // 清理每種類型的備份
+      for (const type of ['daily', 'weekly', 'monthly']) {
+        const deleted = await cleanupOldBackups(drive, folderId, type);
+        logMessage(`清理了 ${deleted} 個舊的 ${type} 備份`);
+      }
+      break;
+    
+    case 'restore':
+      // 列出備份
+      await listBackups();
+      
+      // 說明如何使用
+      logMessage('\n如何還原備份:');
+      logMessage('1. 選擇要還原的備份 ID');
+      logMessage('2. 運行命令: node server/cloud-backup.js download <backup_id> [output_path]');
+      logMessage('3. 使用下載的備份文件運行還原腳本');
+      break;
+    
+    case 'download': {
+      // 獲取備份 ID 和輸出路徑
+      const fileId = process.argv[3];
+      const outputPath = process.argv[4];
+      
+      if (!fileId) {
+        logMessage('缺少備份 ID，請指定要下載的備份 ID');
+        return;
+      }
+      
+      // 下載備份
+      const success = await downloadBackup(fileId, outputPath);
+      if (success) {
+        logMessage('備份下載成功');
+      } else {
+        logMessage('備份下載失敗');
+      }
+      break;
+    }
+    
+    case 'help':
+    default:
+      logMessage('Google Drive 雲端備份工具');
+      logMessage('用法:');
+      logMessage('  node server/cloud-backup.js backup [backup_path] [backup_type]  # 上傳備份到 Google Drive');
+      logMessage('  node server/cloud-backup.js cleanup                            # 清理舊備份');
+      logMessage('  node server/cloud-backup.js restore                           # 列出可還原的備份');
+      logMessage('  node server/cloud-backup.js download <backup_id> [output_path] # 下載備份');
+      logMessage('  node server/cloud-backup.js help                              # 顯示幫助信息');
+      break;
+  }
+}
+
+// 如果直接運行腳本，執行主函數
+if (process.argv[1].endsWith('cloud-backup.js')) {
+  main()
     .catch(error => {
-      console.error('執行雲端備份時發生錯誤:', error);
+      console.error('執行過程中發生錯誤:', error);
       process.exit(1);
     });
 }

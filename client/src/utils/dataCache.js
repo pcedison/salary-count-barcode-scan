@@ -1,179 +1,158 @@
 /**
  * 數據緩存工具
  * 
- * 功能：
- * 1. 在本地存儲保存關鍵數據的副本
- * 2. 當API請求失敗時提供備用數據
- * 3. 自動同步本地和服務器數據
+ * 提供客戶端數據緩存功能，用於在網絡故障時提供離線數據訪問
+ * 1. 保存API響應到localStorage
+ * 2. 在網絡故障時提供緩存數據
+ * 3. 自動管理緩存過期
  */
 
 // 緩存鍵
 const CACHE_KEYS = {
-  EMPLOYEES: 'cached_employees',
-  SETTINGS: 'cached_settings',
-  SALARY_RECORDS: 'cached_salary_records',
-  LAST_SYNC: 'last_cache_sync'
+  EMPLOYEES: 'cache_employees',
+  SALARY_RECORDS: 'cache_salary_records',
+  SETTINGS: 'cache_settings',
+  ATTENDANCE: 'cache_attendance',
+  HOLIDAYS: 'cache_holidays'
 };
 
-// 緩存TTL（時間到期限制，單位：毫秒）
-const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7天
+// 緩存有效期（毫秒）
+const CACHE_TTL = {
+  SHORT: 5 * 60 * 1000,    // 5分鐘
+  MEDIUM: 30 * 60 * 1000,  // 30分鐘
+  LONG: 24 * 60 * 60 * 1000 // 24小時
+};
 
 /**
  * 保存數據到緩存
  * @param {string} key 緩存鍵
- * @param {any} data 要緩存的數據
+ * @param {any} data 數據
+ * @param {number} ttl 過期時間（毫秒）
  */
-export function saveToCache(key, data) {
+function saveToCache(key, data, ttl = CACHE_TTL.MEDIUM) {
+  if (!data) return;
+  
   try {
-    const cacheData = {
+    const cacheItem = {
       data,
-      timestamp: Date.now()
+      expires: Date.now() + ttl
     };
     
-    localStorage.setItem(key, JSON.stringify(cacheData));
-    console.log(`數據已緩存: ${key}`);
-    
-    // 更新上次同步時間
-    localStorage.setItem(CACHE_KEYS.LAST_SYNC, Date.now().toString());
+    localStorage.setItem(key, JSON.stringify(cacheItem));
   } catch (error) {
-    console.error(`緩存數據時出錯: ${error.message}`);
+    console.error(`保存到緩存時出錯 (${key}):`, error);
   }
 }
 
 /**
- * 從緩存讀取數據
+ * 從緩存獲取數據
  * @param {string} key 緩存鍵
- * @param {boolean} checkExpiry 是否檢查過期
- * @returns {any|null} 緩存的數據，如果不存在或已過期則返回null
+ * @returns {any|null} 緩存的數據，如果過期則返回null
  */
-export function getFromCache(key, checkExpiry = true) {
+function getFromCache(key) {
   try {
-    const cachedString = localStorage.getItem(key);
+    const cacheJson = localStorage.getItem(key);
     
-    if (!cachedString) {
-      return null;
-    }
+    if (!cacheJson) return null;
     
-    const cached = JSON.parse(cachedString);
+    const cache = JSON.parse(cacheJson);
     
     // 檢查是否過期
-    if (checkExpiry && Date.now() - cached.timestamp > CACHE_TTL) {
-      console.log(`緩存已過期: ${key}`);
+    if (cache.expires < Date.now()) {
       localStorage.removeItem(key);
       return null;
     }
     
-    return cached.data;
+    return cache.data;
   } catch (error) {
-    console.error(`讀取緩存時出錯: ${error.message}`);
+    console.error(`從緩存獲取數據時出錯 (${key}):`, error);
     return null;
   }
-}
-
-/**
- * 緩存員工數據
- * @param {Array} employees 員工數據
- */
-export function cacheEmployees(employees) {
-  if (employees && Array.isArray(employees) && employees.length > 0) {
-    saveToCache(CACHE_KEYS.EMPLOYEES, employees);
-  }
-}
-
-/**
- * 獲取緩存的員工數據
- * @returns {Array|null} 員工數據
- */
-export function getCachedEmployees() {
-  return getFromCache(CACHE_KEYS.EMPLOYEES);
-}
-
-/**
- * 緩存設定數據
- * @param {Object} settings 設定數據
- */
-export function cacheSettings(settings) {
-  if (settings) {
-    saveToCache(CACHE_KEYS.SETTINGS, settings);
-  }
-}
-
-/**
- * 獲取緩存的設定數據
- * @returns {Object|null} 設定數據
- */
-export function getCachedSettings() {
-  return getFromCache(CACHE_KEYS.SETTINGS);
-}
-
-/**
- * 緩存薪資記錄
- * @param {Array} records 薪資記錄
- */
-export function cacheSalaryRecords(records) {
-  if (records && Array.isArray(records) && records.length > 0) {
-    saveToCache(CACHE_KEYS.SALARY_RECORDS, records);
-  }
-}
-
-/**
- * 獲取緩存的薪資記錄
- * @returns {Array|null} 薪資記錄
- */
-export function getCachedSalaryRecords() {
-  return getFromCache(CACHE_KEYS.SALARY_RECORDS);
 }
 
 /**
  * 清除特定緩存
  * @param {string} key 緩存鍵
  */
-export function clearCache(key) {
+function clearCache(key) {
   localStorage.removeItem(key);
-  console.log(`緩存已清除: ${key}`);
 }
 
 /**
  * 清除所有緩存
  */
-export function clearAllCache() {
-  for (const key of Object.values(CACHE_KEYS)) {
+function clearAllCache() {
+  Object.values(CACHE_KEYS).forEach(key => {
     localStorage.removeItem(key);
-  }
-  console.log('所有緩存已清除');
+  });
 }
 
 /**
- * 檢查緩存是否過期
- * @returns {boolean} 緩存是否過期
+ * 員工數據緩存
  */
-export function isCacheExpired() {
-  const lastSync = localStorage.getItem(CACHE_KEYS.LAST_SYNC);
-  
-  if (!lastSync) {
-    return true;
-  }
-  
-  return Date.now() - parseInt(lastSync) > CACHE_TTL;
+export function cacheEmployees(employees) {
+  saveToCache(CACHE_KEYS.EMPLOYEES, employees, CACHE_TTL.LONG);
+}
+
+export function getCachedEmployees() {
+  return getFromCache(CACHE_KEYS.EMPLOYEES);
 }
 
 /**
- * 獲取緩存狀態
- * @returns {Object} 緩存狀態
+ * 薪資記錄緩存
  */
-export function getCacheStatus() {
-  const employees = getFromCache(CACHE_KEYS.EMPLOYEES, false);
-  const settings = getFromCache(CACHE_KEYS.SETTINGS, false);
-  const salaryRecords = getFromCache(CACHE_KEYS.SALARY_RECORDS, false);
-  const lastSync = localStorage.getItem(CACHE_KEYS.LAST_SYNC);
-  
-  return {
-    hasEmployees: !!employees,
-    employeesCount: employees ? employees.length : 0,
-    hasSettings: !!settings,
-    hasSalaryRecords: !!salaryRecords,
-    salaryRecordsCount: salaryRecords ? salaryRecords.length : 0,
-    lastSync: lastSync ? new Date(parseInt(lastSync)) : null,
-    isExpired: isCacheExpired()
-  };
+export function cacheSalaryRecords(records) {
+  saveToCache(CACHE_KEYS.SALARY_RECORDS, records, CACHE_TTL.MEDIUM);
 }
+
+export function getCachedSalaryRecords() {
+  return getFromCache(CACHE_KEYS.SALARY_RECORDS);
+}
+
+/**
+ * 系統設定緩存
+ */
+export function cacheSettings(settings) {
+  saveToCache(CACHE_KEYS.SETTINGS, settings, CACHE_TTL.LONG);
+}
+
+export function getCachedSettings() {
+  return getFromCache(CACHE_KEYS.SETTINGS);
+}
+
+/**
+ * 考勤數據緩存
+ */
+export function cacheAttendance(attendance) {
+  saveToCache(CACHE_KEYS.ATTENDANCE, attendance, CACHE_TTL.SHORT);
+}
+
+export function getCachedAttendance() {
+  return getFromCache(CACHE_KEYS.ATTENDANCE);
+}
+
+/**
+ * 假日數據緩存
+ */
+export function cacheHolidays(holidays) {
+  saveToCache(CACHE_KEYS.HOLIDAYS, holidays, CACHE_TTL.LONG);
+}
+
+export function getCachedHolidays() {
+  return getFromCache(CACHE_KEYS.HOLIDAYS);
+}
+
+export default {
+  cacheEmployees,
+  getCachedEmployees,
+  cacheSalaryRecords,
+  getCachedSalaryRecords,
+  cacheSettings,
+  getCachedSettings,
+  cacheAttendance,
+  getCachedAttendance,
+  cacheHolidays,
+  getCachedHolidays,
+  clearCache,
+  clearAllCache
+};
