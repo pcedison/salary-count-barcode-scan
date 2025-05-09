@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useHistoryData } from '@/hooks/useHistoryData';
 import { useAdmin } from '@/hooks/useAdmin';
-import { useEmployees, Employee } from '@/hooks/useEmployees';
+import { useEmployees } from '@/hooks/useEmployees';
+import type { Employee } from '@/hooks/useEmployees';
 import { useLocation } from 'wouter';
 import HistoryTable from '@/components/HistoryTable';
 import ConfirmationModal from '@/components/ConfirmationModal';
@@ -413,9 +414,13 @@ export default function HistoryPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">所有員工</SelectItem>
-              {!isLoadingEmployees && activeEmployees.map(employee => (
-                <SelectItem key={employee.id} value={employee.id.toString()}>{employee.name}</SelectItem>
-              ))}
+              {!isLoadingEmployees && activeEmployees && activeEmployees.length > 0 ? (
+                activeEmployees.map(employee => (
+                  <SelectItem key={employee.id} value={employee.id.toString()}>{employee.name}</SelectItem>
+                ))
+              ) : (
+                <SelectItem value="loading" disabled>載入員工資料中...</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>

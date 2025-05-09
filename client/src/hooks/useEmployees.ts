@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { cacheEmployees, getCachedEmployees, Employee } from '../utils/dataCache';
 
+export type { Employee };
+
 // 從 API 獲取員工數據的函數，支持緩存
 async function fetchEmployees(): Promise<Employee[]> {
   try {
