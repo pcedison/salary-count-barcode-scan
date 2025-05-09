@@ -981,11 +981,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (!employee) {
             console.log(`找不到匹配的員工，ID: ${idNumber}`);
-            // 通過 EventBus 通知前端
-            eventBus.emit(EventNames.BARCODE_ERROR, {
-              message: "找不到匹配的員工，請確認條碼資料正確",
-              timestamp: new Date().toISOString()
-            });
+            // 在伺服器端記錄錯誤
+            console.error("找不到匹配的員工，請確認條碼資料正確");
             return;
           }
           
