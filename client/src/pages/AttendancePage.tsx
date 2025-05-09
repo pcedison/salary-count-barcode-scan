@@ -315,11 +315,17 @@ export default function AttendancePage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部員工</SelectItem>
-              {activeEmployees.map((employee) => (
-                <SelectItem key={employee.id} value={employee.id.toString()}>
-                  {employee.name} {employee.department ? `(${employee.department})` : ''}
+              {activeEmployees && activeEmployees.length > 0 ? (
+                activeEmployees.map((employee) => (
+                  <SelectItem key={employee.id} value={employee.id.toString()}>
+                    {employee.name} {employee.department ? `(${employee.department})` : ''}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="loading" disabled>
+                  載入員工資料中...
                 </SelectItem>
-              ))}
+              )}
             </SelectContent>
           </Select>
           
