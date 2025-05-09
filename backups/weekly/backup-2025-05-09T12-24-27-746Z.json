@@ -1,68 +1,33 @@
 {
   "metadata": {
-    "timestamp": "2025-05-02T12:34:53.889Z",
-    "type": "daily",
-    "description": "初始每日備份 5/2/2025, 12:34:53 PM",
+    "timestamp": "2025-05-09T12:24:27.747Z",
+    "type": "weekly",
+    "description": "自動每週備份 5/9/2025, 12:24:27 PM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
-  "employees": [
-    {
-      "id": 3,
-      "name": "王小文",
-      "idNumber": "K011133456",
-      "isEncrypted": true,
-      "position": "約聘",
-      "department": "行政部",
-      "email": "",
-      "phone": "",
-      "active": true,
-      "createdAt": "2025-04-25T09:15:10.190Z"
-    },
-    {
-      "id": 1,
-      "name": "陳文山",
-      "idNumber": "N90728491",
-      "isEncrypted": true,
-      "position": "產線人員",
-      "department": "生產部",
-      "email": "",
-      "phone": "",
-      "active": true,
-      "createdAt": "2025-04-25T01:52:25.322Z"
-    }
-  ],
+  "employees": [],
   "settings": {
     "id": 1,
     "baseHourlyRate": 119,
     "ot1Multiplier": 1.34,
     "ot2Multiplier": 1.67,
     "baseMonthSalary": 28590,
-    "welfareAllowance": 2500,
+    "welfareAllowance": 0,
     "deductions": [
       {
         "name": "勞保費",
-        "amount": 658,
+        "amount": 525,
         "description": "勞工保險費用"
       },
       {
         "name": "健保費",
-        "amount": 443,
+        "amount": 372,
         "description": "全民健康保險費用"
-      },
-      {
-        "name": "服務費",
-        "amount": 1800,
-        "description": "仲介公司服務費"
-      },
-      {
-        "name": "宿舍費",
-        "amount": 2500,
-        "description": "外勞宿舍費"
       }
     ],
-    "adminPin": "010329",
-    "updatedAt": "2025-04-25T01:51:54.838Z"
+    "adminPin": "123456",
+    "updatedAt": "2025-05-09T11:19:04.192Z"
   },
   "holidays": [],
   "salaryRecords": [
@@ -344,14 +309,14 @@
           "_employeeDepartment": "生產部"
         }
       ],
-      "createdAt": "2025-04-30T11:25:49.273Z"
+      "createdAt": "2025-05-09T11:26:01.873Z"
     },
     {
       "id": 1,
       "salaryYear": 2025,
       "salaryMonth": 3,
       "employeeId": null,
-      "employeeName": null,
+      "employeeName": "陳文山",
       "baseSalary": 28590,
       "housingAllowance": 0,
       "welfareAllowance": 2500,
@@ -636,7 +601,7 @@
           "_employeeDepartment": "生產部"
         }
       ],
-      "createdAt": "2025-04-25T06:23:36.348Z"
+      "createdAt": "2025-05-09T11:26:01.874Z"
     }
   ],
   "temporaryAttendance": []
