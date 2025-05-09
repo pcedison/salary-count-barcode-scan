@@ -820,21 +820,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   let cachedHolidays = [];
   let holidaysCacheTime = 0;
   
-  // EventBus 通知前端的函數
-  const notifyAttendanceUpdate = (data = {}) => {
-    eventBus.emit(EventNames.ATTENDANCE_UPDATED, { 
-      timestamp: new Date().toISOString(),
-      ...data
-    });
-    
-    // 發送完整更新事件
-    setTimeout(() => {
-      eventBus.emit(EventNames.ATTENDANCE_UPDATED, { 
-        complete: true, 
-        timestamp: new Date().toISOString()
-      });
-    }, 500);
+  // 定義用於服務器內部通知的變數，替代前端的 EventBus
+  const ServerEvents = {
+    ATTENDANCE_UPDATED: 'attendance_updated',
+    BARCODE_SCANNED: 'barcode_scanned',
+    BARCODE_ERROR: 'barcode_error'
   };
+  
+  // 伺服器端的員工緩存，替代 localStorage
+  const employeeCache = new Map();
   
   // 條碼掃描打卡路由 - 優化版本
   app.post("/api/barcode-scan", async (req, res) => {
@@ -865,9 +859,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log("員工查找超時，使用緩存數據");
             // 檢查是否有緩存的結果
             try {
-              const cachedResult = localStorage.getItem(cacheKey);
+              const cachedResult = employeeCache.get(cacheKey);
               if (cachedResult) {
-                resolve(JSON.parse(cachedResult));
+                console.log("使用服務器緩存的員工數據");
+                resolve(cachedResult);
                 return;
               }
             } catch (e) {
@@ -940,7 +935,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (employee) {
                 // 找到員工時緩存結果
                 try {
-                  localStorage.setItem(cacheKey, JSON.stringify(employee));
+                  // 使用服務器端的Map緩存員工數據
+                  employeeCache.set(cacheKey, employee);
+                  console.log(`員工數據已緩存: ${employee.name}`);
                 } catch (e) {
                   console.error("緩存員工數據時出錯", e);
                 }
