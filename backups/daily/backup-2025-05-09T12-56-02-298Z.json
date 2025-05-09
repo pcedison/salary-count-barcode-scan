@@ -1,37 +1,12 @@
 {
   "metadata": {
-    "timestamp": "2025-05-02T12:36:58.029Z",
+    "timestamp": "2025-05-09T12:56:02.299Z",
     "type": "daily",
-    "description": "初始每日備份 5/2/2025, 12:36:58 PM",
+    "description": "初始每日備份 5/9/2025, 12:56:02 PM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
-  "employees": [
-    {
-      "id": 3,
-      "name": "王小文",
-      "idNumber": "K011133456",
-      "isEncrypted": true,
-      "position": "約聘",
-      "department": "行政部",
-      "email": "",
-      "phone": "",
-      "active": true,
-      "createdAt": "2025-04-25T09:15:10.190Z"
-    },
-    {
-      "id": 1,
-      "name": "陳文山",
-      "idNumber": "N90728491",
-      "isEncrypted": true,
-      "position": "產線人員",
-      "department": "生產部",
-      "email": "",
-      "phone": "",
-      "active": true,
-      "createdAt": "2025-04-25T01:52:25.322Z"
-    }
-  ],
+  "employees": [],
   "settings": {
     "id": 1,
     "baseHourlyRate": 119,
@@ -49,20 +24,10 @@
         "name": "健保費",
         "amount": 443,
         "description": "全民健康保險費用"
-      },
-      {
-        "name": "服務費",
-        "amount": 1800,
-        "description": "仲介公司服務費"
-      },
-      {
-        "name": "宿舍費",
-        "amount": 2500,
-        "description": "外勞宿舍費"
       }
     ],
     "adminPin": "010329",
-    "updatedAt": "2025-04-25T01:51:54.838Z"
+    "updatedAt": "2025-05-09T12:31:40.449Z"
   },
   "holidays": [],
   "salaryRecords": [
@@ -344,14 +309,14 @@
           "_employeeDepartment": "生產部"
         }
       ],
-      "createdAt": "2025-04-30T11:25:49.273Z"
+      "createdAt": "2025-05-09T11:26:01.873Z"
     },
     {
       "id": 1,
       "salaryYear": 2025,
       "salaryMonth": 3,
       "employeeId": null,
-      "employeeName": null,
+      "employeeName": "陳文山",
       "baseSalary": 28590,
       "housingAllowance": 0,
       "welfareAllowance": 2500,
@@ -636,7 +601,7 @@
           "_employeeDepartment": "生產部"
         }
       ],
-      "createdAt": "2025-04-25T06:23:36.348Z"
+      "createdAt": "2025-05-09T11:26:01.874Z"
     }
   ],
   "temporaryAttendance": []

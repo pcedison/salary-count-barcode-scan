@@ -1,0 +1,22 @@
+{
+  "primaryDatabase": "supabase",
+  "fallbackDatabase": "postgres",
+  "autoFailover": true,
+  "monitoring": {
+    "enabled": true,
+    "intervalMinutes": 15,
+    "maxRetries": 3,
+    "retryDelaySeconds": 60
+  },
+  "backup": {
+    "daily": true,
+    "weekly": true,
+    "monthly": true,
+    "retentionPolicy": {
+      "daily": 7,
+      "weekly": 4,
+      "monthly": 12,
+      "manual": 30
+    }
+  }
+}
