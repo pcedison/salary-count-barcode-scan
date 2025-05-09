@@ -50,6 +50,18 @@ export async function initializeSystem() {
     console.log('設置定期維護任務...');
     setupMaintenanceTasks();
     
+    // 5. 檢查並修復員工數據
+    console.log('檢查員工數據完整性...');
+    try {
+      const { schedulePeriodicCheck } = await import('./employee-integrity.js');
+      // 設置每24小時檢查一次
+      schedulePeriodicCheck(24);
+      console.log('員工數據完整性檢查已設置');
+    } catch (error) {
+      console.error('設置員工數據完整性檢查時出錯:', error);
+      // 繼續啟動，不要因為設置失敗而阻止系統啟動
+    }
+    
     console.log('系統初始化完成');
     return true;
   } catch (error) {
