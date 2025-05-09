@@ -39,13 +39,38 @@ function saveLastScan(scanData: any) {
   }
 }
 
+function getTodayDateFormatted() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getLastScan() {
   const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
   if (storedScan) {
     try {
-      return JSON.parse(storedScan);
+      const savedScan = JSON.parse(storedScan);
+      
+      // 檢查是否是今天的記錄
+      if (savedScan && savedScan.timestamp) {
+        const today = getTodayDateFormatted();
+        const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
+        
+        // 只有當是今天的記錄時才返回
+        if (scanDate === today) {
+          return savedScan;
+        } else {
+          // 不是今天的記錄，清除緩存
+          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+          return null;
+        }
+      }
+      return savedScan;
     } catch (e) {
       console.error('Error parsing stored scan data:', e);
+      localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
       return null;
     }
   }
@@ -54,17 +79,40 @@ function getLastScan() {
 
 function saveRecentScans(scans: any[]) {
   if (scans && scans.length > 0) {
-    localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify(scans));
+    localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify({
+      date: getTodayDateFormatted(),
+      scans: scans
+    }));
   }
 }
 
 function getRecentScans() {
-  const storedScans = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
-  if (storedScans) {
+  const storedData = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
+  if (storedData) {
     try {
-      return JSON.parse(storedScans);
+      const data = JSON.parse(storedData);
+      
+      // 檢查是否包含日期信息並且是今天的記錄
+      if (data && data.date && data.scans) {
+        const today = getTodayDateFormatted();
+        
+        // 只有當是今天的記錄時才返回
+        if (data.date === today) {
+          return data.scans;
+        } else {
+          // 不是今天的記錄，清除緩存
+          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+          return [];
+        }
+      } else if (Array.isArray(data)) {
+        // 舊格式兼容（無日期）
+        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+        return [];
+      }
+      return [];
     } catch (e) {
       console.error('Error parsing stored scans data:', e);
+      localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
       return [];
     }
   }
@@ -171,6 +219,15 @@ export default function BarcodeScanPage() {
       const newScans = [data, ...recentScans].slice(0, 10);
       setRecentScans(newScans);
       saveRecentScans(newScans);
+      
+      // 上班打卡也需要清除狀態，但時間設置為較長（10秒）
+      setTimeout(() => {
+        setLastScan(null);
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        
+        // 保留今日打卡記錄，但清除顯示的最近打卡結果
+        queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+      }, 10000);
     }
     
     // 顯示成功通知
