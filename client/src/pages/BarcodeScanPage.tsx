@@ -203,41 +203,87 @@ export default function BarcodeScanPage() {
     setIdNumber('');
   };
   
-  // 設置 WebSocket 事件處理
+  // 獲取考勤數據
+  const { data: attendanceRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 5000 // 每 5 秒刷新一次
+  });
+  
+  // 監聽考勤數據變化，自動更新打卡狀態
   useEffect(() => {
-    // 訂閱打卡成功事件
-    const successUnsubscribe = eventBus.on(EventNames.BARCODE_SCANNED, handleBarcodeSuccess);
+    // 如果當前正在處理中狀態或數據為空，不更新，等待處理完成
+    if (isPending || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
+      return;
+    }
     
-    // 訂閱打卡錯誤事件
-    const errorUnsubscribe = eventBus.on(EventNames.BARCODE_ERROR, handleBarcodeError);
+    // 檢查是否有新的打卡記錄
+    const todayDate = getTodayDate();
+    const today = attendanceRecords.filter((record: any) => record.date === todayDate);
     
-    // 訂閱資料庫錯誤事件
-    const dbErrorUnsubscribe = eventBus.on(EventNames.DATABASE_ERROR, (data) => {
-      console.log('資料庫連接錯誤:', data);
-      toast({
-        title: "資料庫連接問題",
-        description: "系統遇到資料庫連接問題，請稍後再試",
-        variant: "destructive"
-      });
-    });
-    
-    // 訂閱資料庫恢復事件
-    const dbRecoveredUnsubscribe = eventBus.on(EventNames.DATABASE_RECOVERED, (data) => {
-      console.log('資料庫連接已恢復:', data);
-      toast({
-        title: "資料庫連接已恢復",
-        description: "系統已恢復連接，可以繼續使用",
-      });
-    });
-    
-    // 組件卸載時清理訂閱
-    return () => {
-      successUnsubscribe();
-      errorUnsubscribe();
-      dbErrorUnsubscribe();
-      dbRecoveredUnsubscribe();
-    };
-  }, [toast, recentScans, queryClient]);
+    if (today.length > 0) {
+      // 找到最新的記錄（假設ID越大越新）
+      const latestRecord = today.reduce((latest: any, current: any) => {
+        return !latest || current.id > latest.id ? current : latest;
+      }, null);
+      
+      if (latestRecord) {
+        // 檢查這個記錄是否有完整的上下班時間
+        const hasClockIn = latestRecord.clockIn && latestRecord.clockIn !== '';
+        const hasClockOut = latestRecord.clockOut && latestRecord.clockOut !== '';
+        
+        if (hasClockIn && hasClockOut) {
+          // 找到完整的下班打卡記錄，生成一個模擬的打卡事件
+          const lastScanData = {
+            employeeName: latestRecord._employeeName,
+            employee: {
+              name: latestRecord._employeeName,
+              department: latestRecord._employeeDepartment || '未指定部門'
+            },
+            action: 'clock-out',
+            attendance: latestRecord,
+            success: true,
+            timestamp: new Date().toISOString()
+          };
+          
+          // 更新最後打卡顯示
+          setLastScan(lastScanData);
+          
+          // 更新打卡記錄列表
+          const newScans = [lastScanData, ...recentScans].filter((scan, index, arr) => {
+            // 過濾掉重複的記錄
+            if (index === 0) return true;
+            return arr[0].attendance?.id !== scan.attendance?.id;
+          }).slice(0, 10);
+          
+          setRecentScans(newScans);
+          saveRecentScans(newScans);
+        } else if (hasClockIn && !lastScan) {
+          // 只有上班打卡，沒有下班打卡，顯示上班打卡
+          const lastScanData = {
+            employeeName: latestRecord._employeeName,
+            employee: {
+              name: latestRecord._employeeName,
+              department: latestRecord._employeeDepartment || '未指定部門'
+            },
+            action: 'clock-in',
+            attendance: latestRecord,
+            success: true,
+            timestamp: new Date().toISOString()
+          };
+          
+          // 更新最後打卡顯示
+          setLastScan(lastScanData);
+          
+          // 更新打卡記錄列表
+          if (recentScans.length === 0) {
+            const newScans = [lastScanData];
+            setRecentScans(newScans);
+            saveRecentScans(newScans);
+          }
+        }
+      }
+    }
+  }, [attendanceRecords, isPending, recentScans, lastScan]);
   
   // 處理條碼掃描表單提交
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
@@ -283,7 +329,26 @@ export default function BarcodeScanPage() {
           setPendingEmployee(data.employee.name);
         }
         
-        // 由 WebSocket 事件處理程序處理最終結果
+        // 設置定時器，5秒後刷新考勤數據並自動清除處理中狀態
+        setTimeout(() => {
+          // 刷新考勤數據
+          queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+          
+          // 2秒後再次檢查結果
+          setTimeout(() => {
+            setIsPending(false);
+            setPendingEmployee('');
+            
+            // 再次刷新考勤數據
+            queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+            
+            // 通知用戶處理已完成
+            toast({
+              title: "處理完成",
+              description: "打卡處理已完成，請查看考勤記錄",
+            });
+          }, 2000);
+        }, 5000);
       } else if (data.success) {
         // 立即處理成功情況
         handleBarcodeSuccess({
