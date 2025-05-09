@@ -203,10 +203,11 @@ export default function BarcodeScanPage() {
     setIdNumber('');
   };
   
-  // 獲取考勤數據
+  // 獲取考勤數據，提高獲取頻率
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 5000 // 每 5 秒刷新一次
+    refetchInterval: 2000, // 每 2 秒刷新一次
+    staleTime: 1000 // 數據 1 秒後就認為過期，更容易觸發重新獲取
   });
   
   // 監聽考勤數據變化，自動更新打卡狀態
@@ -329,17 +330,70 @@ export default function BarcodeScanPage() {
           setPendingEmployee(data.employee.name);
         }
         
-        // 設置定時器，5秒後刷新考勤數據並自動清除處理中狀態
-        setTimeout(() => {
+        // 立即開始檢查結果，並在更短的時間間隔內重複檢查
+        let checkAttempts = 0;
+        const maxAttempts = 10; // 最多檢查10次，每次間隔0.3秒
+        
+        // 記錄處理開始時間
+        const processStartTime = new Date();
+        
+        // 記錄目前考勤記錄的最大ID，用於檢測新記錄
+        let initialMaxId = 0;
+        if (Array.isArray(attendanceRecords) && attendanceRecords.length > 0) {
+          initialMaxId = attendanceRecords.reduce((maxId, record) => {
+            return Math.max(maxId, record.id || 0);
+          }, 0);
+        }
+        
+        // 設置一個變量，用於記錄處理狀態
+        const intervalId = setInterval(async () => {
+          // 主動獲取最新考勤數據，而不是依賴React Query輪詢
+          try {
+            const response = await fetch('/api/attendance');
+            const latestRecords = await response.json();
+            
+            // 檢查是否有新記錄
+            if (Array.isArray(latestRecords) && latestRecords.length > 0) {
+              const newMaxId = latestRecords.reduce((maxId, record) => {
+                return Math.max(maxId, record.id || 0);
+              }, 0);
+              
+              // 如果有新記錄，立即結束等待
+              if (newMaxId > initialMaxId) {
+                clearInterval(intervalId);
+                
+                // 立即更新 React Query 緩存
+                queryClient.setQueryData(['/api/attendance'], latestRecords);
+                
+                // 清除處理中狀態
+                setIsPending(false);
+                setPendingEmployee('');
+                
+                // 通知用戶處理已完成
+                toast({
+                  title: "處理完成",
+                  description: "打卡處理已完成，請查看考勤記錄",
+                });
+                
+                return;
+              }
+            }
+          } catch (e) {
+            console.log('檢查新記錄時出錯', e);
+          }
+          
           // 刷新考勤數據
           queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
           
-          // 2秒後再次檢查結果
-          setTimeout(() => {
+          checkAttempts++;
+          
+          // 如果檢查次數達到最大值，清除處理中狀態
+          if (checkAttempts >= maxAttempts) {
+            clearInterval(intervalId);
             setIsPending(false);
             setPendingEmployee('');
             
-            // 再次刷新考勤數據
+            // 最後再次刷新考勤數據
             queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
             
             // 通知用戶處理已完成
@@ -347,8 +401,8 @@ export default function BarcodeScanPage() {
               title: "處理完成",
               description: "打卡處理已完成，請查看考勤記錄",
             });
-          }, 2000);
-        }, 5000);
+          }
+        }, 300); // 每0.3秒檢查一次結果，更快地獲取更新
       } else if (data.success) {
         // 立即處理成功情況
         handleBarcodeSuccess({
@@ -458,11 +512,22 @@ export default function BarcodeScanPage() {
               <div className="space-y-1">
                 <div className="text-sm text-muted-foreground">後台處理中，請稍等</div>
                 <div className="font-medium">
-                  系統正在處理{pendingEmployee ? ` ${pendingEmployee} ` : ''}打卡請求，由於資料庫連接暫時變慢，處理可能需要幾秒鐘...
+                  系統正在處理{pendingEmployee ? ` ${pendingEmployee} ` : ''}打卡請求...
+                </div>
+                <div className="relative pt-1">
+                  <div className="overflow-hidden h-2 mb-1 text-xs flex rounded bg-orange-200">
+                    <div className="w-full animate-pulse bg-orange-500 h-full"></div>
+                  </div>
+                  <p className="text-xs text-orange-600 text-right">處理中...</p>
                 </div>
               </div>
               <div className="bg-orange-50 p-3 rounded-md border border-orange-200 mt-2">
-                <p className="text-orange-800 text-sm">
+                <p className="text-orange-800 text-sm flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 8v4"></path>
+                    <path d="M12 16h.01"></path>
+                  </svg>
                   處理完成後將自動顯示結果，無需重新掃描。請勿重複掃描同一條碼。
                 </p>
               </div>
