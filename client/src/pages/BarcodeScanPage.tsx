@@ -77,6 +77,8 @@ export default function BarcodeScanPage() {
   const queryClient = useQueryClient(); // 獲取 react-query 客戶端實例
   const [idNumber, setIdNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isPending, setIsPending] = useState<boolean>(false); // 後台處理中狀態
+  const [pendingEmployee, setPendingEmployee] = useState<string>(''); // 正在處理的員工姓名
   const [lastScan, setLastScan] = useState<any>(getLastScan());
   const [recentScans, setRecentScans] = useState<any[]>(getRecentScans());
   const [currentTime, setCurrentTime] = useState<string>(getCurrentTime());
@@ -98,6 +100,7 @@ export default function BarcodeScanPage() {
               name: record._employeeName,
               department: record._employeeDepartment || '未指定部門'
             },
+            employeeName: record._employeeName, // 添加 employeeName 屬性以兼容新的事件格式
             action: 'clock-in',
             success: true
           };
@@ -127,7 +130,116 @@ export default function BarcodeScanPage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 處理條碼掃描
+  // 處理打卡成功事件
+  const handleBarcodeSuccess = (data: any) => {
+    console.log('打卡成功事件:', data);
+    
+    // 清除處理中狀態
+    setIsPending(false);
+    setPendingEmployee('');
+    
+    // 立即刷新所有考勤數據的查詢緩存
+    queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+    
+    // 如果是下班打卡，設置計時器在3秒後清空狀態
+    if (data.action === 'clock-out') {
+      setLastScan(data);
+      
+      // 添加到最近掃描記錄
+      const newScans = [data, ...recentScans].slice(0, 10); // 只保留最近10筆
+      setRecentScans(newScans);
+      saveRecentScans(newScans); // 儲存到 localStorage
+      
+      // 3秒後清空打卡狀態
+      setTimeout(() => {
+        setLastScan(null);
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        
+        // 也清空今日打卡記錄區塊
+        setRecentScans([]);
+        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+        
+        // 再次刷新考勤數據
+        queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+      }, 3000);
+    } else {
+      // 上班打卡，正常保存狀態
+      setLastScan(data);
+      saveLastScan(data); // 儲存到 localStorage
+      
+      // 添加到最近掃描記錄
+      const newScans = [data, ...recentScans].slice(0, 10);
+      setRecentScans(newScans);
+      saveRecentScans(newScans);
+    }
+    
+    // 顯示成功通知
+    toast({
+      title: data.action === 'clock-in' ? "上班打卡成功" : "下班打卡成功",
+      description: `${data.employeeName || '員工'} 已${data.action === 'clock-in' ? '上班' : '下班'}打卡`,
+    });
+    
+    // 清空表單狀態
+    setIsSubmitting(false);
+    setIdNumber('');
+  };
+  
+  // 處理打卡錯誤事件
+  const handleBarcodeError = (data: any) => {
+    console.log('打卡錯誤事件:', data);
+    
+    // 清除處理中狀態
+    setIsPending(false);
+    setPendingEmployee('');
+    
+    toast({
+      title: "打卡失敗",
+      description: data.message || "處理打卡請求時出錯，請稍後再試",
+      variant: "destructive"
+    });
+    
+    // 清空表單狀態
+    setIsSubmitting(false);
+    setIdNumber('');
+  };
+  
+  // 設置 WebSocket 事件處理
+  useEffect(() => {
+    // 訂閱打卡成功事件
+    const successUnsubscribe = eventBus.on(EventNames.BARCODE_SCANNED, handleBarcodeSuccess);
+    
+    // 訂閱打卡錯誤事件
+    const errorUnsubscribe = eventBus.on(EventNames.BARCODE_ERROR, handleBarcodeError);
+    
+    // 訂閱資料庫錯誤事件
+    const dbErrorUnsubscribe = eventBus.on(EventNames.DATABASE_ERROR, (data) => {
+      console.log('資料庫連接錯誤:', data);
+      toast({
+        title: "資料庫連接問題",
+        description: "系統遇到資料庫連接問題，請稍後再試",
+        variant: "destructive"
+      });
+    });
+    
+    // 訂閱資料庫恢復事件
+    const dbRecoveredUnsubscribe = eventBus.on(EventNames.DATABASE_RECOVERED, (data) => {
+      console.log('資料庫連接已恢復:', data);
+      toast({
+        title: "資料庫連接已恢復",
+        description: "系統已恢復連接，可以繼續使用",
+      });
+    });
+    
+    // 組件卸載時清理訂閱
+    return () => {
+      successUnsubscribe();
+      errorUnsubscribe();
+      dbErrorUnsubscribe();
+      dbRecoveredUnsubscribe();
+    };
+  }, [toast, recentScans, queryClient]);
+  
+  // 處理條碼掃描表單提交
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -142,7 +254,14 @@ export default function BarcodeScanPage() {
     
     setIsSubmitting(true);
     
+    // 顯示處理中提示
+    toast({
+      title: "處理中",
+      description: "正在處理打卡請求...",
+    });
+    
     try {
+      // 發送打卡請求
       const response = await fetch('/api/barcode-scan', {
         method: 'POST',
         headers: {
@@ -153,66 +272,35 @@ export default function BarcodeScanPage() {
       
       const data = await response.json();
       
-      if (data.success) {
-        // 立即刷新所有考勤數據的查詢緩存，這樣其他頁面就能看到最新的打卡記錄
-        queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+      // 如果是處理中狀態，則顯示等待信息並由WebSocket事件處理最終結果
+      if (data.inProgress) {
+        console.log('打卡請求已接收，等待後台處理結果...');
+        // 設置處理中狀態
+        setIsPending(true);
         
-        // 發布打卡事件，通知其他頁面（如考勤登記頁面）進行刷新
-        eventBus.emit(EventNames.BARCODE_SCANNED, {
-          action: data.action,
+        // 如果響應中包含員工信息，顯示正在處理的員工
+        if (data.employee?.name) {
+          setPendingEmployee(data.employee.name);
+        }
+        
+        // 由 WebSocket 事件處理程序處理最終結果
+      } else if (data.success) {
+        // 立即處理成功情況
+        handleBarcodeSuccess({
+          ...data,
+          action: data.action || 'clock-in',
           employeeName: data.employee?.name,
           timestamp: new Date().toISOString()
         });
-        
-        // 成功處理
-        // 如果是下班打卡，我們先顯示下班打卡成功，然後設置一個計時器在3秒後清空狀態
-        if (data.action === 'clock-out') {
-          setLastScan(data);
-          
-          // 添加到最近掃描記錄
-          const newScans = [data, ...recentScans].slice(0, 10); // 只保留最近10筆
-          setRecentScans(newScans);
-          saveRecentScans(newScans); // 儲存到 localStorage
-          
-          // 3秒後清空打卡狀態以及今日打卡記錄
-          setTimeout(() => {
-            setLastScan(null);
-            localStorage.removeItem(LAST_SCAN_STORAGE_KEY); // 清空localStorage中的記錄
-            
-            // 也清空今日打卡記錄區塊
-            setRecentScans([]);
-            localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-            
-            // 再次刷新考勤數據
-            queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
-            
-            // 發布結束打卡循環事件
-            eventBus.emit(EventNames.ATTENDANCE_UPDATED, { 
-              complete: true,
-              timestamp: new Date().toISOString()
-            });
-          }, 3000);
-        } else {
-          // 上班打卡，正常保存狀態
-          setLastScan(data);
-          saveLastScan(data); // 儲存到 localStorage
-          
-          // 添加到最近掃描記錄
-          const newScans = [data, ...recentScans].slice(0, 10); // 只保留最近10筆
-          setRecentScans(newScans);
-          saveRecentScans(newScans); // 儲存到 localStorage
-        }
-        
-        toast({
-          title: data.action === 'clock-in' ? "上班打卡成功" : "下班打卡成功",
-          description: `${data.employee?.name || '員工'} 已於 ${data.action === 'clock-in' ? data.attendance.clockIn : data.attendance.clockOut} 打卡`,
-        });
       } else {
+        // 直接處理錯誤情況
         toast({
           title: "處理失敗",
           description: data.message || "掃描處理失敗，請重試",
           variant: "destructive"
         });
+        setIsSubmitting(false);
+        setIdNumber('');
       }
     } catch (error: any) {
       console.error('掃描處理錯誤:', error);
@@ -221,9 +309,8 @@ export default function BarcodeScanPage() {
         description: error.message || "無法處理掃描，請確認網絡連接",
         variant: "destructive"
       });
-    } finally {
       setIsSubmitting(false);
-      setIdNumber(''); // 清空輸入
+      setIdNumber('');
     }
   };
 
@@ -288,8 +375,39 @@ export default function BarcodeScanPage() {
         </CardContent>
       </Card>
 
+      {/* 處理中狀態顯示 */}
+      {isPending && (
+        <Card className="w-full border-l-4 border-l-orange-500">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center">
+              <div className="mr-2 h-6 w-6 animate-spin text-orange-500">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+              </div>
+              處理中...
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">後台處理中，請稍等</div>
+                <div className="font-medium">
+                  系統正在處理{pendingEmployee ? ` ${pendingEmployee} ` : ''}打卡請求，由於資料庫連接暫時變慢，處理可能需要幾秒鐘...
+                </div>
+              </div>
+              <div className="bg-orange-50 p-3 rounded-md border border-orange-200 mt-2">
+                <p className="text-orange-800 text-sm">
+                  處理完成後將自動顯示結果，無需重新掃描。請勿重複掃描同一條碼。
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* 最近掃描結果 */}
-      {lastScan && (
+      {!isPending && lastScan && (
         <Card className={`w-full border-l-4 ${lastScan.action === 'clock-in' ? 'border-l-green-500' : 'border-l-blue-500'}`}>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center">
