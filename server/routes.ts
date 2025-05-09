@@ -1081,11 +1081,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             
-            // 通知前端更新考勤數據
-            notifyAttendanceUpdate();
+            // 在伺服器端記錄打卡成功
+            console.log(`打卡成功: ${employee.name} ${isClockIn ? '上班' : '下班'}打卡`);
             
-            // 通知打卡成功
-            eventBus.emit(EventNames.BARCODE_SCANNED, {
+            // 在伺服器端追蹤打卡狀態 (替代前端的 EventBus)
+            const successResult = {
               employeeId: employee.id,
               employeeName: employee.name,
               action: isClockIn ? 'clock-in' : 'clock-out',
@@ -1093,42 +1093,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
               success: true,
               timestamp: new Date().toISOString(),
               message: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`
-            });
+            };
             
           } catch (err) {
             console.error("處理打卡記錄時出錯:", err);
             
-            // 通知打卡失敗
-            eventBus.emit(EventNames.BARCODE_ERROR, {
-              employeeId: employee?.id,
-              employeeName: employee?.name,
-              error: err.message,
-              timestamp: new Date().toISOString(),
-              message: "處理打卡記錄時出錯，請稍後再試"
-            });
+            // 在伺服器端記錄打卡失敗
+            console.error(`打卡失敗: ${employee?.name || '未知員工'}, 錯誤: ${err.message}`);
           }
         } catch (error) {
           console.error("打卡後台處理過程中出錯:", error);
           
-          // 通知打卡失敗
-          eventBus.emit(EventNames.BARCODE_ERROR, {
-            error: error.message,
-            timestamp: new Date().toISOString(),
-            message: "打卡處理失敗，請稍後再試"
-          });
+          // 在伺服器端記錄處理錯誤
+          console.error(`打卡處理過程中錯誤: ${error.message}`);
         }
       })();
       
     } catch (err) {
       console.error('條碼掃描打卡錯誤:', err);
       
-      // 如果已經開始響應，則通過 EventBus 通知
+      // 如果已經開始響應，則記錄錯誤
       if (findEmployeePromise) {
-        eventBus.emit(EventNames.BARCODE_ERROR, {
-          error: err.message,
-          timestamp: new Date().toISOString(),
-          message: "打卡處理失敗，請稍後再試"
-        });
+        console.error(`打卡處理失敗: ${err.message}`);
       } else {
         // 否則直接返回錯誤
         handleError(err, res);
