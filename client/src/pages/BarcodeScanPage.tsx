@@ -264,7 +264,9 @@ export default function BarcodeScanPage() {
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
     refetchInterval: 2000, // 每 2 秒刷新一次
-    staleTime: 1000 // 數據 1 秒後就認為過期，更容易觸發重新獲取
+    staleTime: 1000, // 數據 1 秒後就認為過期，更容易觸發重新獲取
+    // 防止反复觸發通知
+    refetchOnWindowFocus: false
   });
   
   // 監聽考勤數據變化，自動更新打卡狀態
@@ -403,6 +405,9 @@ export default function BarcodeScanPage() {
         }
         
         // 設置一個變量，用於記錄處理狀態
+        // 創建一個標誌，標記已顯示通知
+        let hasNotified = false;
+        
         const intervalId = setInterval(async () => {
           // 主動獲取最新考勤數據，而不是依賴React Query輪詢
           try {
@@ -426,12 +431,13 @@ export default function BarcodeScanPage() {
                 setIsPending(false);
                 setPendingEmployee('');
                 
-                // 只在第一次檢測到新記錄時顯示通知
-                if (checkAttempts <= 1) {
+                // 只在第一次檢測到新記錄且尚未通知時顯示通知
+                if (checkAttempts <= 1 && !hasNotified) {
                   toast({
                     title: "處理完成",
                     description: "打卡處理已完成，請查看考勤記錄",
                   });
+                  hasNotified = true;
                 }
                 
                 return;
@@ -441,8 +447,12 @@ export default function BarcodeScanPage() {
             console.log('檢查新記錄時出錯', e);
           }
           
-          // 刷新考勤數據
-          queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+          // 安靜地刷新考勤數據，但不會觸發通知
+          queryClient.invalidateQueries({ 
+            queryKey: ['/api/attendance'],
+            // 只更新內部數據，不會導致UI重新渲染
+            exact: true
+          });
           
           checkAttempts++;
           
@@ -455,12 +465,13 @@ export default function BarcodeScanPage() {
             // 最後再次刷新考勤數據
             queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
             
-            // 僅當達到最大嘗試次數時才顯示通知，避免多次提示
-            if (checkAttempts === maxAttempts) {
+            // 僅當達到最大嘗試次數時且尚未通知時才顯示通知
+            if (checkAttempts === maxAttempts && !hasNotified) {
               toast({
                 title: "處理完成",
                 description: "打卡處理已完成，請查看考勤記錄",
               });
+              hasNotified = true;
             }
           }
         }, 300); // 每0.3秒檢查一次結果，更快地獲取更新
