@@ -276,59 +276,57 @@ export default function BarcodeScanPage() {
       return;
     }
     
-    // 檢查是否有今天的打卡記錄
+    // 檢查是否有新的打卡記錄
     const todayDate = getTodayDate();
-    const todayRecords = attendanceRecords.filter((record: any) => record.date === todayDate);
+    const today = attendanceRecords.filter((record: any) => record.date === todayDate);
     
-    if (todayRecords.length > 0) {
-      // 找到最新的記錄（依據ID排序）
-      const latestRecord = todayRecords.reduce((latest: any, current: any) => {
+    if (today.length > 0) {
+      // 找到最新的記錄（假設ID越大越新）
+      const latestRecord = today.reduce((latest: any, current: any) => {
         return !latest || current.id > latest.id ? current : latest;
       }, null);
       
       if (latestRecord) {
-        // 確定是上班還是下班打卡
+        // 檢查這個記錄是否有完整的上下班時間
         const hasClockIn = latestRecord.clockIn && latestRecord.clockIn !== '';
         const hasClockOut = latestRecord.clockOut && latestRecord.clockOut !== '';
         
-        // 如果有下班時間則顯示為下班打卡，否則為上班打卡
-        const actionType = hasClockOut ? 'clock-out' : 'clock-in';
+        // 確定正確的打卡動作
+        const action = hasClockOut ? 'clock-out' : 'clock-in';
         
-        // 創建統一格式的打卡事件數據
-        const scanData = {
+        // 創建一致的打卡事件數據
+        const lastScanData = {
           employeeName: latestRecord._employeeName,
           employee: {
             name: latestRecord._employeeName,
             department: latestRecord._employeeDepartment || '未指定部門'
           },
-          action: actionType,
+          action: action, // 使用判斷的動作
           attendance: latestRecord,
           success: true,
           timestamp: new Date().toISOString()
         };
         
-        // 更新最後打卡狀態顯示
-        setLastScan(scanData);
+        // 更新最後打卡顯示
+        setLastScan(lastScanData);
         
-        // 檢查記錄列表中是否已有此記錄
-        const existingIndex = recentScans.findIndex(
+        // 更新打卡記錄列表 - 保證上班/下班狀態的一致性
+        const existingRecordIndex = recentScans.findIndex(
           scan => scan.attendance?.id === latestRecord.id
         );
         
-        // 更新打卡記錄列表
-        let updatedScans;
-        if (existingIndex >= 0) {
-          // 若已存在，則更新該記錄的狀態
-          updatedScans = [...recentScans];
-          updatedScans[existingIndex] = scanData;
+        let newScans;
+        if (existingRecordIndex >= 0) {
+          // 更新現有記錄的打卡狀態
+          newScans = [...recentScans];
+          newScans[existingRecordIndex] = lastScanData;
         } else {
-          // 若不存在，則添加到列表頂部
-          updatedScans = [scanData, ...recentScans].slice(0, 10);
+          // 添加新的打卡記錄
+          newScans = [lastScanData, ...recentScans].slice(0, 10);
         }
         
-        // 保存更新後的列表
-        setRecentScans(updatedScans);
-        saveRecentScans(updatedScans);
+        setRecentScans(newScans);
+        saveRecentScans(newScans);
       }
     }
   }, [attendanceRecords, isPending, recentScans, lastScan]);
