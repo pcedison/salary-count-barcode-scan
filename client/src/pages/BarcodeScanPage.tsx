@@ -291,57 +291,45 @@ export default function BarcodeScanPage() {
         const hasClockIn = latestRecord.clockIn && latestRecord.clockIn !== '';
         const hasClockOut = latestRecord.clockOut && latestRecord.clockOut !== '';
         
-        if (hasClockIn && hasClockOut) {
-          // 找到完整的下班打卡記錄，生成一個模擬的打卡事件
-          const lastScanData = {
-            employeeName: latestRecord._employeeName,
-            employee: {
-              name: latestRecord._employeeName,
-              department: latestRecord._employeeDepartment || '未指定部門'
-            },
-            action: 'clock-out',
-            attendance: latestRecord,
-            success: true,
-            timestamp: new Date().toISOString()
-          };
-          
-          // 更新最後打卡顯示
-          setLastScan(lastScanData);
-          
-          // 更新打卡記錄列表
-          const newScans = [lastScanData, ...recentScans].filter((scan, index, arr) => {
-            // 過濾掉重複的記錄
-            if (index === 0) return true;
-            return arr[0].attendance?.id !== scan.attendance?.id;
-          }).slice(0, 10);
-          
-          setRecentScans(newScans);
-          saveRecentScans(newScans);
-        } else if (hasClockIn && !lastScan) {
-          // 只有上班打卡，沒有下班打卡，顯示上班打卡
-          const lastScanData = {
-            employeeName: latestRecord._employeeName,
-            employee: {
-              name: latestRecord._employeeName,
-              department: latestRecord._employeeDepartment || '未指定部門'
-            },
-            action: 'clock-in',
-            attendance: latestRecord,
-            success: true,
-            timestamp: new Date().toISOString()
-          };
-          
-          // 更新最後打卡顯示
-          setLastScan(lastScanData);
-          
-          // 更新打卡記錄列表
-          if (recentScans.length === 0) {
-            const newScans = [lastScanData];
-            setRecentScans(newScans);
-            saveRecentScans(newScans);
-          }
+        // 確定正確的打卡動作
+        const action = hasClockOut ? 'clock-out' : 'clock-in';
+        
+        // 創建一致的打卡事件數據
+        const lastScanData = {
+          employeeName: latestRecord._employeeName,
+          employee: {
+            name: latestRecord._employeeName,
+            department: latestRecord._employeeDepartment || '未指定部門'
+          },
+          action: action, // 使用判斷的動作
+          attendance: latestRecord,
+          success: true,
+          timestamp: new Date().toISOString()
+        };
+        
+        // 更新最後打卡顯示
+        setLastScan(lastScanData);
+        
+        // 更新打卡記錄列表 - 保證上班/下班狀態的一致性
+        const existingRecordIndex = recentScans.findIndex(
+          scan => scan.attendance?.id === latestRecord.id
+        );
+        
+        let newScans;
+        if (existingRecordIndex >= 0) {
+          // 更新現有記錄的打卡狀態
+          newScans = [...recentScans];
+          newScans[existingRecordIndex] = lastScanData;
+        } else {
+          // 添加新的打卡記錄
+          newScans = [lastScanData, ...recentScans].slice(0, 10);
         }
+        
+        setRecentScans(newScans);
+        saveRecentScans(newScans);
       }
+    }
+  }
     }
   }, [attendanceRecords, isPending, recentScans, lastScan]);
   
