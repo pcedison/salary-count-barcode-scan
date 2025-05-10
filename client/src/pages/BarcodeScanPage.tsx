@@ -426,11 +426,13 @@ export default function BarcodeScanPage() {
                 setIsPending(false);
                 setPendingEmployee('');
                 
-                // 通知用戶處理已完成
-                toast({
-                  title: "處理完成",
-                  description: "打卡處理已完成，請查看考勤記錄",
-                });
+                // 只在第一次檢測到新記錄時顯示通知
+                if (checkAttempts <= 1) {
+                  toast({
+                    title: "處理完成",
+                    description: "打卡處理已完成，請查看考勤記錄",
+                  });
+                }
                 
                 return;
               }
@@ -453,11 +455,13 @@ export default function BarcodeScanPage() {
             // 最後再次刷新考勤數據
             queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
             
-            // 通知用戶處理已完成
-            toast({
-              title: "處理完成",
-              description: "打卡處理已完成，請查看考勤記錄",
-            });
+            // 僅當達到最大嘗試次數時才顯示通知，避免多次提示
+            if (checkAttempts === maxAttempts) {
+              toast({
+                title: "處理完成",
+                description: "打卡處理已完成，請查看考勤記錄",
+              });
+            }
           }
         }, 300); // 每0.3秒檢查一次結果，更快地獲取更新
       } else if (data.success) {
