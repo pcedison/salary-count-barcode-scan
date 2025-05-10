@@ -169,7 +169,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                         className="w-full"
                       />
                     ) : (
-                      record.clockOut
+                      record.clockOut ? record.clockOut : <span className="text-amber-500 font-medium">尚未下班</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
