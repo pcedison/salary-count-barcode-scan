@@ -878,16 +878,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (latestScanResult) {
         console.log("找到最近掃描結果，時間戳:", new Date(latestTimestamp).toLocaleTimeString());
         
-        // 確保打卡類型正確
-        const isClockInAction = latestScanResult.action === 'clock-in' || latestScanResult.isClockIn === true;
+        // 保留原始打卡類型，不進行二次判斷
+        const isClockIn = latestScanResult.isClockIn;
+        const action = latestScanResult.action;
+        
+        // 確保這些值存在，否則使用合理的默認值
+        const actualIsClockIn = isClockIn !== undefined ? 
+                                isClockIn : 
+                                (action === 'clock-in');
+                                
+        console.log(`掃描結果詳情: 員工=${latestScanResult.employeeName}, 方向=${actualIsClockIn ? '上班' : '下班'}`);
         
         // 完善掃描結果對象
         const enhancedResult = {
           ...latestScanResult,
-          // 添加方向明確的字段
-          action: isClockInAction ? 'clock-in' : 'clock-out',
-          isClockIn: isClockInAction,
-          message: `${latestScanResult.employeeName} ${isClockInAction ? '上班' : '下班'}打卡成功` // 確保訊息一致
+          // 確保方向字段保持一致
+          action: actualIsClockIn ? 'clock-in' : 'clock-out',
+          isClockIn: actualIsClockIn,
+          message: `${latestScanResult.employeeName} ${actualIsClockIn ? '上班' : '下班'}打卡成功` // 確保訊息一致
         };
         
         // 保存到專用緩存

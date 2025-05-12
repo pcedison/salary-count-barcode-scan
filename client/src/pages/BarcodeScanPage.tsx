@@ -354,12 +354,14 @@ export default function BarcodeScanPage() {
               console.log('獲取到的掃描結果:', scanResult);
               
               if (scanResult && scanResult.employeeId && scanResult.employeeName) {
-                // 根據服務器返回的數據確定打卡類型
-                const isClockIn = scanResult.isClockIn === true;
+                // 從伺服器直接獲取打卡類型，確保一致性
+                const isClockIn = scanResult.isClockIn;
                 const actionType = isClockIn ? 'clock-in' : 'clock-out';
                 const actionText = isClockIn ? '上班' : '下班';
                 
-                // 更新狀態顯示
+                console.log(`伺服器返回的打卡方向: ${isClockIn ? '上班' : '下班'}`);
+                
+                // 更新狀態顯示，確保與伺服器返回的一致
                 setLastScan({
                   timestamp: scanResult.timestamp || new Date().toISOString(),
                   success: true,
@@ -377,9 +379,9 @@ export default function BarcodeScanPage() {
                   statusMessage: `${scanResult.employeeName} ${actionText}打卡成功`
                 });
                 
-                // 顯示成功提示
+                // 顯示成功提示，確保顯示正確的打卡類型
                 toast({
-                  title: '打卡成功',
+                  title: `${actionText}打卡成功`,
                   description: `${scanResult.employeeName} ${actionText}打卡成功`,
                   variant: 'default'
                 });
