@@ -860,6 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 獲取當前日期（使用台灣時區 UTC+8）
       const taiwanTime = new Date(now + 8 * 60 * 60 * 1000);
       const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
+      const currentTimeStr = `${String(taiwanTime.getUTCHours()).padStart(2, '0')}:${String(taiwanTime.getUTCMinutes()).padStart(2, '0')}`;
       
       // 1. 從數據庫獲取今天最新的考勤記錄（優先）
       console.log(`[最後掃描結果] 嘗試從數據庫獲取今日 (${currentDate}) 最新考勤記錄`);
@@ -873,23 +874,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // 獲取最新的一條記錄（按創建時間降序排列）
           const latestRecord = todayAttendance.sort((a, b) => {
-            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+            const timeA = new Date(b.createdAt || b.updatedAt || 0).getTime();
+            const timeB = new Date(a.createdAt || a.updatedAt || 0).getTime();
+            return timeA - timeB;
           })[0];
           
           // 獲取對應的員工信息
           const employee = await storage.getEmployee(latestRecord.employeeId);
           if (employee) {
-            // 判斷打卡類型 - 如果沒有下班時間，就是上班打卡；如果有下班時間，就是下班打卡
-            const isClockIn = !latestRecord.clockOut || latestRecord.clockOut === '';
+            // 判斷打卡類型 - 如果沒有下班時間或剛更新了下班時間，就是下班打卡；否則是上班打卡
+            const justUpdatedClockOut = latestRecord.clockOut && latestRecord.clockOut !== '' && 
+                                       (new Date().getTime() - new Date(latestRecord.updatedAt || 0).getTime() < 10000);
+            
+            const isClockIn = !justUpdatedClockOut && (!latestRecord.clockOut || latestRecord.clockOut === '');
             const currentTime = isClockIn ? latestRecord.clockIn : latestRecord.clockOut;
             
             console.log(`[最後掃描結果] 最新記錄: 員工=${employee.name}, 類型=${isClockIn ? '上班' : '下班'}, 上班=${latestRecord.clockIn}, 下班=${latestRecord.clockOut || '未打卡'}`);
             
-            // 構建結果對象，使用實際的打卡時間
+            // 構建更完整的結果對象，包含所有前端需要的信息
             const result = {
               employeeId: latestRecord.employeeId,
               employeeName: employee.name,
-              department: employee.department || '未知部門',
+              department: employee.department || '生產部',
               idNumber: employee.idNumber || '',
               action: isClockIn ? 'clock-in' : 'clock-out',
               isClockIn: isClockIn,
@@ -897,7 +903,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
               success: true,
               timestamp: new Date().toISOString(), // 使用當前時間作為時間戳
               message: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`,
-              clockTime: currentTime
+              statusMessage: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`,
+              clockTime: currentTime,
+              time: currentTime,
+              // 添加員工對象，使返回格式與前端期望的一致
+              employee: {
+                id: employee.id,
+                name: employee.name,
+                department: employee.department || '生產部',
+                idNumber: employee.idNumber
+              }
             };
             
             // 更新全局緩存（但總是優先使用數據庫記錄）
