@@ -135,40 +135,32 @@ export default function BarcodeScanPage() {
   // 獲取未完成打卡的記錄
   const incompleteRecords = useIncompleteAttendanceRecords();
   
-  // 當發現有未完成打卡記錄時，更新最近掃描狀態 - 修復無限循環問題
+  // 當發現有未完成打卡記錄時，更新最近掃描狀態
   useEffect(() => {
-    // 避免無限循環：只在沒有上次掃描記錄時才執行
-    const shouldProcessIncompleteRecords = incompleteRecords.length > 0 && !lastScan;
-    
-    if (shouldProcessIncompleteRecords) {
+    if (incompleteRecords.length > 0 && !lastScan) {
       // 發現尚未下班打卡的記錄，設置為最後一次掃描
-      const recordsWithEmployees = [];
-      
-      // 優化循環，避免不必要的映射
-      for (const record of incompleteRecords) {
+      const recordsWithEmployees = incompleteRecords.map((record: any) => {
+        // 如果記錄中已有員工資訊，直接使用
         if (record._employeeName) {
-          recordsWithEmployees.push({
+          return {
             attendance: record,
             employee: {
               name: record._employeeName,
               department: record._employeeDepartment || '未指定部門'
             },
-            employeeName: record._employeeName,
+            employeeName: record._employeeName, // 添加 employeeName 屬性以兼容新的事件格式
             action: 'clock-in',
             success: true
-          });
-          // 找到一個有效記錄後即可停止循環
-          break;
+          };
         }
-      }
+        return null;
+      }).filter(Boolean);
       
-      // 使用函數式更新，避免依賴 lastScan
       if (recordsWithEmployees.length > 0) {
-        const firstRecord = recordsWithEmployees[0];
-        setLastScan(() => firstRecord);
+        setLastScan(recordsWithEmployees[0]);
       }
     }
-  }, [incompleteRecords]); // 從依賴項中移除 lastScan
+  }, [incompleteRecords, lastScan]);
 
   // 自動聚焦到輸入框
   useEffect(() => {
@@ -190,7 +182,7 @@ export default function BarcodeScanPage() {
   const handleBarcodeSuccess = (data: any) => {
     console.log('打卡成功事件:', data);
     
-    // 立即清除處理中狀態和輸入框，允許繼續掃描
+    // 立即清除處理中狀態和輸入欄位
     setIsPending(false);
     setPendingEmployee('');
     setIdNumber('');
@@ -201,16 +193,16 @@ export default function BarcodeScanPage() {
     
     // 根據打卡類型顯示不同的消息
     const actionType = data.action === 'clock-out' ? '下班打卡' : '上班打卡';
-    const employeeName = data.employeeName || data.employee?.name || '';
+    const employeeName = data.employeeName || data.employee?.name || '員工';
     
     // 顯示打卡成功消息
     toast({
       title: `${actionType}成功`,
-      description: employeeName ? `${employeeName} ${actionType}成功` : `${actionType}已記錄`,
+      description: `${employeeName} ${actionType}成功`,
       variant: 'default',
     });
     
-    // 設置最後掃描結果
+    // 保存最後一次掃描結果
     setLastScan(data);
     
     // 添加到最近掃描記錄
@@ -218,26 +210,26 @@ export default function BarcodeScanPage() {
     setRecentScans(newScans);
     saveRecentScans(newScans); // 儲存到 localStorage
     
-    // 根據打卡類型設置不同的自動清除時間
+    // 根據打卡類型設置不同的清除時間
     if (data.action === 'clock-out') {
-      // 下班打卡 - 3秒後清空
+      // 下班打卡，3秒後清空顯示
       setTimeout(() => {
         setLastScan(null);
         localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
         
-        // 再次刷新考勤數據，但保留記錄顯示
+        // 再次刷新考勤數據，但保留最近打卡記錄
         queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       }, 3000);
     } else {
-      // 上班打卡，設定較長時間清除狀態（10秒）
+      // 上班打卡，設置為較長時間(10秒)
       saveLastScan(data); // 儲存到 localStorage
       
-      // 上班打卡也需要清除狀態，但時間設置為較長（10秒）
+      // 上班打卡也需要清除狀態，但時間較長
       setTimeout(() => {
         setLastScan(null);
         localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
         
-        // 保留今日打卡記錄，但清除顯示的最近打卡結果
+        // 再次刷新考勤數據
         queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       }, 10000);
     }
@@ -267,19 +259,13 @@ export default function BarcodeScanPage() {
     setIdNumber('');
   };
   
-  // 獲取考勤數據 - 大幅優化為更高效查詢策略
+  // 獲取考勤數據，提高獲取頻率
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    // 條碼掃描頁面使用更智能的查詢策略
-    refetchInterval: undefined, // 不設置自動重複獲取，改為主動觸發
-    staleTime: 5000, // 增加數據有效期至5秒
-    refetchOnWindowFocus: false, // 防止窗口焦點變化觸發查詢
-    refetchOnMount: true, // 組件掛載時獲取
-    // 移除 gcTime 設置，使用默認值
-    // 優化請求錯誤處理
-    retry: false, // 失敗不自動重試，透過業務邏輯處理重試
-    // 實現高效緩存使用
-    select: (data) => data // 確保數據格式處理一致
+    refetchInterval: 2000, // 每 2 秒刷新一次
+    staleTime: 1000, // 數據 1 秒後就認為過期，更容易觸發重新獲取
+    // 防止反复觸發通知
+    refetchOnWindowFocus: false
   });
   
   // 監聽考勤數據變化，自動更新打卡狀態
@@ -289,59 +275,57 @@ export default function BarcodeScanPage() {
       return;
     }
     
-    // 檢查是否有今天的打卡記錄
+    // 檢查是否有新的打卡記錄
     const todayDate = getTodayDate();
-    const todayRecords = attendanceRecords.filter((record: any) => record.date === todayDate);
+    const today = attendanceRecords.filter((record: any) => record.date === todayDate);
     
-    if (todayRecords.length > 0) {
-      // 找到最新的記錄（依據ID排序）
-      const latestRecord = todayRecords.reduce((latest: any, current: any) => {
+    if (today.length > 0) {
+      // 找到最新的記錄（假設ID越大越新）
+      const latestRecord = today.reduce((latest: any, current: any) => {
         return !latest || current.id > latest.id ? current : latest;
       }, null);
       
       if (latestRecord) {
-        // 確定是上班還是下班打卡
+        // 檢查這個記錄是否有完整的上下班時間
         const hasClockIn = latestRecord.clockIn && latestRecord.clockIn !== '';
         const hasClockOut = latestRecord.clockOut && latestRecord.clockOut !== '';
         
-        // 如果有下班時間則顯示為下班打卡，否則為上班打卡
-        const actionType = hasClockOut ? 'clock-out' : 'clock-in';
+        // 確定正確的打卡動作
+        const action = hasClockOut ? 'clock-out' : 'clock-in';
         
-        // 創建統一格式的打卡事件數據
-        const scanData = {
+        // 創建一致的打卡事件數據
+        const lastScanData = {
           employeeName: latestRecord._employeeName,
           employee: {
             name: latestRecord._employeeName,
             department: latestRecord._employeeDepartment || '未指定部門'
           },
-          action: actionType,
+          action: action, // 使用判斷的動作
           attendance: latestRecord,
           success: true,
           timestamp: new Date().toISOString()
         };
         
-        // 更新最後打卡狀態顯示
-        setLastScan(scanData);
+        // 更新最後打卡顯示
+        setLastScan(lastScanData);
         
-        // 檢查記錄列表中是否已有此記錄
-        const existingIndex = recentScans.findIndex(
+        // 更新打卡記錄列表 - 保證上班/下班狀態的一致性
+        const existingRecordIndex = recentScans.findIndex(
           scan => scan.attendance?.id === latestRecord.id
         );
         
-        // 更新打卡記錄列表
-        let updatedScans;
-        if (existingIndex >= 0) {
-          // 若已存在，則更新該記錄的狀態
-          updatedScans = [...recentScans];
-          updatedScans[existingIndex] = scanData;
+        let newScans;
+        if (existingRecordIndex >= 0) {
+          // 更新現有記錄的打卡狀態
+          newScans = [...recentScans];
+          newScans[existingRecordIndex] = lastScanData;
         } else {
-          // 若不存在，則添加到列表頂部
-          updatedScans = [scanData, ...recentScans].slice(0, 10);
+          // 添加新的打卡記錄
+          newScans = [lastScanData, ...recentScans].slice(0, 10);
         }
         
-        // 保存更新後的列表
-        setRecentScans(updatedScans);
-        saveRecentScans(updatedScans);
+        setRecentScans(newScans);
+        saveRecentScans(newScans);
       }
     }
   }, [attendanceRecords, isPending, recentScans, lastScan]);
@@ -400,71 +384,43 @@ export default function BarcodeScanPage() {
         // 記錄目前考勤記錄的最大ID，用於檢測新記錄
         let initialMaxId = 0;
         if (Array.isArray(attendanceRecords) && attendanceRecords.length > 0) {
-          initialMaxId = attendanceRecords.reduce((maxId, record: any) => {
-            return Math.max(maxId, record?.id || 0);
+          initialMaxId = attendanceRecords.reduce((maxId, record) => {
+            return Math.max(maxId, record.id || 0);
           }, 0);
         }
         
-        // 使用變量控制顯示處理時間和動畫
-        let processingStartTime = Date.now();
-        let hasNotified = false; // 標記已顯示通知
-        let processingFeedbackShown = false; // 是否已經顯示處理中反饋
+        // 設置一個變量，用於記錄處理狀態
+        // 創建一個標誌，標記已顯示通知
+        let hasNotified = false;
         
         const intervalId = setInterval(async () => {
-          // 計算已處理時間，用於改善用戶體驗
-          const processingTime = Date.now() - processingStartTime;
-          
-          // 處理時間超過3秒顯示處理中訊息提示
-          if (processingTime > 3000 && !processingFeedbackShown) {
-            toast({
-              title: "處理中",
-              description: "系統正在處理您的打卡記錄...",
-              duration: 3000
-            });
-            processingFeedbackShown = true;
-          }
-          
-          // 主動獲取最新考勤數據，使用優化的請求策略
+          // 主動獲取最新考勤數據，而不是依賴React Query輪詢
           try {
-            // 使用帶超時控制的請求方式
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 3000);
-            
-            const response = await fetch('/api/attendance', {
-              signal: controller.signal,
-              cache: 'no-store' // 確保最新數據
-            }).finally(() => clearTimeout(timeoutId));
-            
+            const response = await fetch('/api/attendance');
             const latestRecords = await response.json();
             
-            // 智能檢查是否有新記錄 - 添加類型註解避免錯誤
+            // 檢查是否有新記錄
             if (Array.isArray(latestRecords) && latestRecords.length > 0) {
-              const newMaxId = latestRecords.reduce((maxId, record: any) => {
-                return Math.max(maxId, record?.id || 0);
+              const newMaxId = latestRecords.reduce((maxId, record) => {
+                return Math.max(maxId, record.id || 0);
               }, 0);
               
-              // 如果有新記錄，更新UI狀態
+              // 如果有新記錄，立即結束等待
               if (newMaxId > initialMaxId) {
                 clearInterval(intervalId);
                 
                 // 立即更新 React Query 緩存
                 queryClient.setQueryData(['/api/attendance'], latestRecords);
                 
-                // 使用動畫過渡清除處理中狀態
+                // 清除處理中狀態
                 setIsPending(false);
+                setPendingEmployee('');
                 
-                // 短暫延遲清除員工名稱，提供更好的視覺過渡
-                setTimeout(() => setPendingEmployee(''), 800);
-                
-                // 根據處理時間優化通知內容
-                if (!hasNotified) {
-                  const successMessage = processingTime < 2000 
-                    ? "打卡處理完成！處理速度較快" 
-                    : "打卡處理已完成，請查看考勤記錄";
-                  
+                // 只在第一次檢測到新記錄且尚未通知時顯示通知
+                if (checkAttempts <= 1 && !hasNotified) {
                   toast({
                     title: "處理完成",
-                    description: successMessage,
+                    description: "打卡處理已完成，請查看考勤記錄",
                   });
                   hasNotified = true;
                 }
@@ -503,7 +459,7 @@ export default function BarcodeScanPage() {
               hasNotified = true;
             }
           }
-        }, 500); // 每0.5秒檢查一次結果，平衡響應速度和伺服器負載
+        }, 300); // 每0.3秒檢查一次結果，更快地獲取更新
       } else if (data.success) {
         // 立即處理成功情況
         handleBarcodeSuccess({
