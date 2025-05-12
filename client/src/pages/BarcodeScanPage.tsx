@@ -197,9 +197,14 @@ export default function BarcodeScanPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   // 自動清除計時器引用
   const statusClearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 今日打卡記錄自動隱藏計時器
+  const recordsVisibilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   // 狀態顯示的自動清除時間（毫秒）
   const STATUS_AUTO_CLEAR_DELAY = 6000; // 6秒
+  // 設置顯示今日打卡記錄的狀態
+  const [showTodayRecords, setShowTodayRecords] = useState<boolean>(true);
   
+  // 處理上下班打卡自動清除
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
@@ -228,6 +233,40 @@ export default function BarcodeScanPage() {
       }
     };
   }, [lastScan]);
+  
+  // 監視打卡記錄變化，在條件滿足時隱藏今日打卡記錄
+  useEffect(() => {
+    // 檢查是否有員工已經完成上班和下班打卡
+    const hasCompletedAttendance = todayAttendanceRecords.some(record => 
+      record.clockIn && record.clockOut && record.clockOut !== ''
+    );
+    
+    // 如果有新的掃描成功，且存在完整的打卡記錄，則準備隱藏打卡記錄
+    if (lastScan && lastScan.success && hasCompletedAttendance) {
+      // 清除之前的計時器（如果有）
+      if (recordsVisibilityTimerRef.current) {
+        clearTimeout(recordsVisibilityTimerRef.current);
+        recordsVisibilityTimerRef.current = null;
+      }
+      
+      // 設置新的計時器，6秒後隱藏今日打卡記錄
+      recordsVisibilityTimerRef.current = setTimeout(() => {
+        console.log('自動隱藏今日打卡記錄');
+        setShowTodayRecords(false);
+      }, STATUS_AUTO_CLEAR_DELAY);
+    } else {
+      // 如果沒有完整記錄，確保始終顯示
+      setShowTodayRecords(true);
+    }
+    
+    // 組件卸載時清除計時器
+    return () => {
+      if (recordsVisibilityTimerRef.current) {
+        clearTimeout(recordsVisibilityTimerRef.current);
+        recordsVisibilityTimerRef.current = null;
+      }
+    };
+  }, [lastScan, todayAttendanceRecords]);
   
   // 處理掃描條碼
   const handleSubmit = async (e: React.FormEvent) => {
@@ -488,11 +527,19 @@ export default function BarcodeScanPage() {
         </Card>
       )}
       
-      {/* 今日打卡記錄 */}
-      {sortedScanRecords.length > 0 && (
+      {/* 今日打卡記錄 - 根據條件自動隱藏 */}
+      {sortedScanRecords.length > 0 && showTodayRecords && (
         <Card className="w-full">
-          <CardHeader>
+          <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle>今日打卡記錄</CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowTodayRecords(false)}
+              className="h-8 px-2"
+            >
+              隱藏
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -533,11 +580,19 @@ export default function BarcodeScanPage() {
         </Card>
       )}
       
-      {/* 尚未打下班卡的記錄 */}
-      {incompleteRecords.length > 0 && (
+      {/* 尚未打下班卡的記錄 - 也根據條件自動隱藏 */}
+      {incompleteRecords.length > 0 && showTodayRecords && (
         <Card className="w-full border-orange-200">
-          <CardHeader className="pb-2">
+          <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle className="text-orange-800">尚未打下班卡的員工</CardTitle>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowTodayRecords(false)}
+              className="h-8 px-2 border-orange-200 text-orange-800 hover:bg-orange-50"
+            >
+              隱藏
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
