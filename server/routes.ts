@@ -1274,6 +1274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           let result;
           let isClockIn = true; // 默認是上班打卡
+          let actionType = 'clock-in'; // 預設動作類型，與 isClockIn 同步
           
           try {
             // 詳細的日誌信息
@@ -1348,6 +1349,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 { clockOut: currentTime }
               );
               isClockIn = false; // 確保狀態是下班打卡
+              actionType = 'clock-out'; // 更新動作類型
             }
             
             // 在伺服器端記錄打卡成功，保留具體上班/下班資訊僅用於後端伺服器日誌
