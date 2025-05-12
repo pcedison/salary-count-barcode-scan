@@ -398,8 +398,13 @@ export default function BarcodeScanPage() {
               
               if (scanResult && scanResult.employeeId && scanResult.employeeName) {
                 // 確保從伺服器獲取正確的打卡類型
-                // 直接檢查 isClockIn 是否為布爾值，確保始終使用正確的值
-                const isClockIn = typeof scanResult.isClockIn === 'boolean' ? scanResult.isClockIn : (scanResult.action === 'clock-in');
+                // 優先使用 isClockIn (布爾值)，其次使用 action 轉換
+                // 這個邏輯改進優先信任服務器發送的 isClockIn 布爾值，而不是通過推斷得出
+                const isClockIn = typeof scanResult.isClockIn === 'boolean' 
+                  ? scanResult.isClockIn 
+                  : (scanResult.action === 'clock-in');
+                
+                // 確保 action 與 isClockIn 同步 - 這樣在 UI 顯示和內部狀態中保持一致
                 const actionType = isClockIn ? 'clock-in' : 'clock-out';
                 const actionText = isClockIn ? '上班' : '下班';
                 
@@ -518,11 +523,7 @@ export default function BarcodeScanPage() {
       // 網絡錯誤或其他異常
       console.error('條碼掃描請求異常:', error);
       
-      setLastScan({
-        timestamp: new Date().toISOString(),
-        success: false,
-        statusMessage: '網絡錯誤，請檢查連接並重試'
-      });
+      setLastScan(createErrorScanResult('網絡錯誤，請檢查連接並重試'));
       
       toast({
         title: '網絡錯誤',
@@ -594,14 +595,20 @@ export default function BarcodeScanPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡狀態</span>
-                    <span className={`font-medium ${
-                      lastScan.isClockIn
-                        ? 'text-green-600 font-bold' 
-                        : 'text-blue-600 font-bold'
-                    }`}>
-                      {/* 確保完全依據 isClockIn 欄位 */}
-                      {lastScan.isClockIn ? '【上班打卡】' : '【下班打卡】'}
-                    </span>
+                    {lastScan.success && lastScan.isClockIn !== undefined ? (
+                      <span className={`font-medium ${
+                        lastScan.isClockIn
+                          ? 'text-green-600 font-bold' 
+                          : 'text-blue-600 font-bold'
+                      }`}>
+                        {/* 確保完全依據 isClockIn 欄位 */}
+                        {lastScan.isClockIn ? '【上班打卡】' : '【下班打卡】'}
+                      </span>
+                    ) : (
+                      <span className="font-medium text-red-600 font-bold">
+                        【未知】
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡時間</span>
