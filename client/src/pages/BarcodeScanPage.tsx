@@ -236,108 +236,64 @@ export default function BarcodeScanPage() {
     };
   }, [lastScan]);
   
-  // 監視打卡記錄變化，在條件滿足時隱藏今日打卡記錄
+  // 監視打卡記錄變化，在條件滿足時隱藏今日打卡記錄（簡化版本）
   useEffect(() => {
-    // 如果沒有掃描數據或沒有完整的員工信息，不進行處理
+    // 如果沒有掃描數據或沒有員工信息，不進行處理
     if (!lastScan || !lastScan.employee) return;
     
-    // 獲取當前打卡的員工ID
+    // 獲取當前打卡的員工ID和姓名
     const currentEmployeeId = lastScan.employee.id;
     const employeeName = lastScan.employee.name;
-    
-    // 記錄當前掃描數據，便於調試
-    console.log('當前掃描數據:', {
-      employee: lastScan.employee,
-      action: lastScan.action,
-      isClockIn: lastScan.isClockIn,
-      success: lastScan.success
-    });
     
     // 檢查是否是下班打卡
     const isClockOutAction = lastScan.action === 'clock-out' || lastScan.isClockIn === false;
     
-    // 如果是下班打卡，則尋找對應的今日記錄
+    // 僅在成功的下班打卡後檢查是否完成今日考勤
     if (lastScan.success && isClockOutAction) {
-      console.log(`${employeeName} 下班打卡成功，檢查完整記錄...`);
+      console.log(`${employeeName} 下班打卡成功，檢查是否有完整上下班記錄...`);
       
-      // 查找今天該員工的考勤記錄
+      // 獲取今天的日期
       const todayDate = getTodayDate();
-      console.log(`今日日期: ${todayDate}, 檢查員工ID: ${currentEmployeeId} 的記錄`);
       
-      // 確保進行嚴格的日期格式比較 - 標準化日期格式
-      const standardizeDate = (dateStr: string): string => {
-        try {
-          // 從日期字符串中提取年、月、日
-          const parts = dateStr.split('/');
-          if (parts.length !== 3) return dateStr;
-          
-          const year = parts[0];
-          const month = parts[1].padStart(2, '0'); // 確保月份是兩位數
-          const day = parts[2].padStart(2, '0');   // 確保日期是兩位數
-          
-          return `${year}/${month}/${day}`;
-        } catch (e) {
-          console.error('日期標準化失敗:', e);
-          return dateStr;
-        }
+      // 標準化日期格式，以便比較
+      const formatDate = (dateStr: string): string => {
+        const parts = dateStr.split('/');
+        if (parts.length !== 3) return dateStr;
+        
+        return `${parts[0]}/${parts[1].padStart(2, '0')}/${parts[2].padStart(2, '0')}`;
       };
       
-      // 標準化今天日期
-      const standardizedTodayDate = standardizeDate(todayDate);
-      
-      // 過濾今天該員工的記錄
-      const todayRecords = todayAttendanceRecords.filter(record => {
-        // 標準化記錄日期
-        const standardizedRecordDate = standardizeDate(record.date);
-        
-        console.log(`比較: 記錄日期 "${record.date}" => "${standardizedRecordDate}" vs 今日 "${todayDate}" => "${standardizedTodayDate}", 員工ID: ${record.employeeId} vs ${currentEmployeeId}`);
-        
-        return record.employeeId === currentEmployeeId && standardizedRecordDate === standardizedTodayDate;
-      });
-      console.log(`找到該員工今日記錄 ${todayRecords.length} 筆:`, todayRecords);
-      
-      // 找到有上下班記錄的考勤數據
-      const completedRecords = todayRecords.filter(record => 
-        record.clockIn && record.clockOut && record.clockOut !== ''
+      // 找出該員工今日的完整考勤記錄（含上班和下班時間）
+      const completeRecords = todayAttendanceRecords.filter(record => 
+        record.employeeId === currentEmployeeId && 
+        formatDate(record.date) === formatDate(todayDate) &&
+        record.clockIn && 
+        record.clockOut && 
+        record.clockOut !== ''
       );
-      console.log(`其中完整記錄 ${completedRecords.length} 筆:`, completedRecords);
       
-      if (completedRecords.length > 0) {
-        // 詳細記錄完整記錄的資訊，以便更好地調試
-        completedRecords.forEach((record, index) => {
-          console.log(`完整記錄 #${index+1}:`, {
-            id: record.id,
-            employeeId: record.employeeId,
-            date: record.date,
-            clockIn: record.clockIn,
-            clockOut: record.clockOut,
-            _employeeName: record._employeeName
-          });
-        });
-      
-        console.log(`${employeeName} 已完成今日上下班打卡，將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後隱藏記錄`);
+      if (completeRecords.length > 0) {
+        console.log(`找到 ${employeeName} 今日完整打卡記錄 ${completeRecords.length} 筆`);
         
-        // 清除之前的計時器（如果有）
+        // 清除可能存在的舊計時器
         if (recordsVisibilityTimerRef.current) {
           clearTimeout(recordsVisibilityTimerRef.current);
           recordsVisibilityTimerRef.current = null;
         }
         
-        // 設置新的計時器，6秒後隱藏記錄
+        // 設置計時器，延遲後隱藏打卡記錄
+        console.log(`將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後自動隱藏打卡記錄`);
         recordsVisibilityTimerRef.current = setTimeout(() => {
           console.log('執行自動隱藏今日打卡記錄');
-          
-          // 簡單直接地設置狀態，避免DOM操作可能出現的問題
-          console.log('設置隱藏狀態');
           setShowTodayRecords(false);
         }, STATUS_AUTO_CLEAR_DELAY);
       } else {
-        console.log(`無法找到 ${employeeName} 的完整上下班記錄，保持顯示`);
+        console.log(`未找到 ${employeeName} 的完整上下班記錄，保持顯示狀態`);
         setShowTodayRecords(true);
       }
     } else if (lastScan.success) {
-      // 上班打卡時確保顯示記錄
-      console.log(`${employeeName} 上班打卡，顯示今日記錄`);
+      // 上班打卡成功時顯示記錄
+      console.log(`${employeeName} 上班打卡成功，顯示打卡記錄`);
       setShowTodayRecords(true);
     }
     
