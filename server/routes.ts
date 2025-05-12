@@ -1086,33 +1086,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // 準備並行查詢 - 同時執行多個可能的查詢方式
               console.log(`[並行查詢] 同時執行多策略查詢`);
               
-              // 使用 Promise.race 加上超時保護，確保查詢不會花太多時間
-              const queryWithTimeout = (promise, timeoutMs = 400) => {
-                return Promise.race([
-                  promise,
-                  new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
-                ]);
-              };
-              
+              // 並行查詢，恢復到原始實現，確保穩定性
               const [directResult, decryptedResult, employeesList] = await Promise.allSettled([
-                // 直接查詢 - 最優先，減少超時到200毫秒
-                queryWithTimeout(storage.getEmployeeByIdNumber(idNumber).catch(() => null), 200),
-                // 解密後查詢 - 其次優先，減少超時到300毫秒
-                queryWithTimeout(storage.getEmployeeByIdNumber(decrypted).catch(() => null), 300),
-                // 獲取所有員工列表（同時進行，避免串行等待）- 最低優先級，可以稍微等久一點
-                queryWithTimeout(storage.getAllEmployees().catch(() => []), 400)
+                // 直接查詢
+                storage.getEmployeeByIdNumber(idNumber).catch(() => null),
+                // 解密後查詢
+                storage.getEmployeeByIdNumber(decrypted).catch(() => null),
+                // 獲取所有員工列表
+                storage.getAllEmployees().catch(() => [])
               ]);
               
               // 3. 按優先級處理結果
               let employee = null;
               
               // 檢查直接查詢結果 - 最常見最快的情況
-              if (directResult.status === 'fulfilled' && directResult.value && typeof directResult.value === 'object') {
+              if (directResult.status === 'fulfilled' && directResult.value) {
                 employee = directResult.value;
                 console.log(`[優化] 直接查詢成功: ${employee.name}`);
               }
               // 檢查解密查詢結果 - 次常見的情況
-              else if (decryptedResult.status === 'fulfilled' && decryptedResult.value && typeof decryptedResult.value === 'object') {
+              else if (decryptedResult.status === 'fulfilled' && decryptedResult.value) {
                 employee = decryptedResult.value;
                 console.log(`[優化] 解密後查詢成功: ${employee.name}`);
               }
@@ -1372,16 +1365,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // 獲取更詳細的員工信息
             let employeeWithDetails = employee;
             try {
-              // 嘗試獲取完整的員工信息，增加穩定性檢查
+              // 嘗試獲取完整的員工信息
               if (employee && employee.id) {
-                const fullEmployeeInfo = await Promise.race([
-                  storage.getEmployeeById(employee.id),
-                  new Promise((resolve) => setTimeout(() => resolve(employee), 300)) // 超時直接使用已有信息
-                ]);
-                
-                if (fullEmployeeInfo && typeof fullEmployeeInfo === 'object' && fullEmployeeInfo.name) {
-                  employeeWithDetails = fullEmployeeInfo;
-                  console.log(`[詳細信息] 成功獲取員工完整資料: ${employeeWithDetails.name}, 部門: ${employeeWithDetails.department || '未指定'}`);
+                try {
+                  const fullEmployeeInfo = await storage.getEmployeeById(employee.id);
+                  if (fullEmployeeInfo) {
+                    employeeWithDetails = fullEmployeeInfo;
+                    console.log(`[詳細信息] 成功獲取員工完整資料: ${employeeWithDetails.name}, 部門: ${employeeWithDetails.department || '未指定'}`);
+                  }
+                } catch (detailError) {
+                  console.error("[詳細信息] 查詢錯誤，使用基本信息:", detailError.message);
                 }
               } else {
                 console.error("[詳細信息] 員工ID無效，無法獲取詳細信息");
