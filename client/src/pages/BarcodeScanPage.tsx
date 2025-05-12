@@ -378,7 +378,15 @@ export default function BarcodeScanPage() {
                 // 記錄最終顯示的訊息
                 console.log(`最終顯示訊息: ${statusMessage}`);
                 
-                // 更新狀態顯示，確保所有顯示與實際打卡類型一致
+                // 使用服務器提供的時間，或者（如果有的話）使用實際打卡時間
+                const clockTime = scanResult.clockTime || 
+                                (scanResult.attendance && isClockIn ? 
+                                  scanResult.attendance.clockIn : scanResult.attendance.clockOut) || 
+                                new Date().toLocaleTimeString().slice(0, 5);
+                
+                console.log(`顯示的打卡時間: ${clockTime}, 來源: ${scanResult.clockTime ? '服務器指定' : '考勤記錄'}`);
+                
+                // 更新狀態顯示，確保所有顯示與實際打卡類型和時間一致
                 setLastScan({
                   timestamp: scanResult.timestamp || new Date().toISOString(),
                   success: true,
@@ -393,7 +401,8 @@ export default function BarcodeScanPage() {
                   attendance: scanResult.attendance,
                   action: actionType,
                   isClockIn: isClockIn,
-                  statusMessage: statusMessage
+                  statusMessage: statusMessage,
+                  clockTime: clockTime
                 });
                 
                 // 顯示成功提示，確保顯示與狀態訊息一致

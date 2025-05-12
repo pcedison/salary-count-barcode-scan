@@ -841,32 +841,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/last-scan-result", async (_req, res) => {
     try {
-      // 如果已經有最新緩存且在5秒內，直接返回結果，顯著提高響應速度
       const now = Date.now();
-      if (lastScanResultCache && now - lastScanTimestamp < 5000) {
-        console.log("[性能優化] 使用最近5秒內的掃描結果緩存");
-        return res.json(lastScanResultCache);
-      }
+      console.log(`[最後掃描結果] 請求時間: ${new Date().toLocaleTimeString()}`);
       
       // 獲取當前日期（使用台灣時區 UTC+8）
       const taiwanTime = new Date(now + 8 * 60 * 60 * 1000);
       const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
       
-      // 先檢查最新掃描結果緩存（從時間最近的開始）
+      // 1. 從數據庫獲取今天最新的考勤記錄（優先）
+      console.log(`[最後掃描結果] 嘗試從數據庫獲取今日 (${currentDate}) 最新考勤記錄`);
+      try {
+        // 直接從數據庫獲取當天的所有考勤記錄
+        const todayAttendance = await storage.getAttendanceByDate(currentDate);
+        
+        // 如果找到考勤記錄，返回最新的一條
+        if (todayAttendance && todayAttendance.length > 0) {
+          console.log(`[最後掃描結果] 找到 ${todayAttendance.length} 條今日考勤記錄`);
+          
+          // 獲取最新的一條記錄（按創建時間降序排列）
+          const latestRecord = todayAttendance.sort((a, b) => {
+            return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+          })[0];
+          
+          // 獲取對應的員工信息
+          const employee = await storage.getEmployee(latestRecord.employeeId);
+          if (employee) {
+            // 判斷打卡類型 - 如果沒有下班時間，就是上班打卡；如果有下班時間，就是下班打卡
+            const isClockIn = !latestRecord.clockOut || latestRecord.clockOut === '';
+            const currentTime = isClockIn ? latestRecord.clockIn : latestRecord.clockOut;
+            
+            console.log(`[最後掃描結果] 最新記錄: 員工=${employee.name}, 類型=${isClockIn ? '上班' : '下班'}, 上班=${latestRecord.clockIn}, 下班=${latestRecord.clockOut || '未打卡'}`);
+            
+            // 構建結果對象，使用實際的打卡時間
+            const result = {
+              employeeId: latestRecord.employeeId,
+              employeeName: employee.name,
+              department: employee.department || '未知部門',
+              idNumber: employee.idNumber || '',
+              action: isClockIn ? 'clock-in' : 'clock-out',
+              isClockIn: isClockIn,
+              attendance: latestRecord,
+              success: true,
+              timestamp: new Date().toISOString(), // 使用當前時間作為時間戳
+              message: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`,
+              clockTime: currentTime
+            };
+            
+            // 更新全局緩存（但總是優先使用數據庫記錄）
+            lastScanResultCache = result;
+            lastScanTimestamp = now;
+            
+            console.log(`[最後掃描結果] 返回數據庫查詢結果: 員工=${result.employeeName}, 類型=${result.isClockIn ? '上班' : '下班'}, 打卡時間=${currentTime}`);
+            return res.json(result);
+          }
+        } else {
+          console.log(`[最後掃描結果] 數據庫中未找到今日考勤記錄`);
+        }
+      } catch (dbErr) {
+        console.error(`[最後掃描結果] 查詢數據庫出錯:`, dbErr);
+      }
+      
+      // 2. 如果全局緩存足夠新鮮，使用全局緩存（但不信任緩存的打卡類型，重新從最新考勤記錄確認）
+      if (lastScanResultCache && lastScanTimestamp) {
+        const cacheAge = now - lastScanTimestamp;
+        
+        console.log(`[最後掃描結果] 檢查全局緩存，緩存年齡: ${cacheAge}ms`);
+        console.log(`[最後掃描結果] 緩存內容: ${lastScanResultCache.employeeName}, 打卡類型: ${lastScanResultCache.isClockIn ? '上班' : '下班'}`);
+        
+        try {
+          // 嘗試獲取該員工的最新考勤記錄，以確認真實的打卡狀態
+          const employeeAttendance = await storage.getAttendanceByEmployeeId(lastScanResultCache.employeeId, currentDate);
+          
+          if (employeeAttendance && employeeAttendance.length > 0) {
+            // 獲取最新記錄
+            const latestRecord = employeeAttendance[0];
+            // 判斷真實打卡類型
+            const actualIsClockIn = !latestRecord.clockOut || latestRecord.clockOut === '';
+            const currentTime = actualIsClockIn ? latestRecord.clockIn : latestRecord.clockOut;
+            
+            console.log(`[最後掃描結果] 從數據庫確認的打卡類型: ${actualIsClockIn ? '上班' : '下班'}, 打卡時間: ${currentTime}`);
+            
+            // 使用最新的打卡狀態更新緩存
+            const updatedResult = {
+              ...lastScanResultCache,
+              isClockIn: actualIsClockIn,
+              action: actualIsClockIn ? 'clock-in' : 'clock-out',
+              message: `${lastScanResultCache.employeeName} ${actualIsClockIn ? '上班' : '下班'}打卡成功`,
+              clockTime: currentTime,
+              timestamp: new Date().toISOString()
+            };
+            
+            // 更新全局緩存
+            lastScanResultCache = updatedResult;
+            lastScanTimestamp = now;
+            
+            console.log(`[最後掃描結果] 返回更新的緩存: ${updatedResult.employeeName}, 類型: ${updatedResult.isClockIn ? '上班' : '下班'}`);
+            return res.json(updatedResult);
+          }
+        } catch (empErr) {
+          console.error(`[最後掃描結果] 獲取員工考勤記錄出錯:`, empErr);
+        }
+        
+        // 如果無法從數據庫獲取最新狀態，但緩存足夠新鮮，仍然返回緩存
+        if (cacheAge < 60 * 1000) { // 1分鐘內
+          console.log(`[最後掃描結果] 使用全局緩存: ${lastScanResultCache.employeeName}`);
+          return res.json(lastScanResultCache);
+        }
+      }
+      
+      // 3. 從所有緩存中尋找最新的掃描結果
+      console.log(`[最後掃描結果] 從所有緩存中尋找最新掃描結果`);
       let latestScanResult = null;
       let latestTimestamp = 0;
       
-      // 只查找最近添加的緩存項，提高檢索效率
-      const recentKeys = Array.from(attendanceCache.keys())
-        .filter(key => key.startsWith('scan_result_') && key.endsWith(currentDate))
-        .sort()
-        .reverse()
-        .slice(0, 5); // 只查看最近的5個項目
-      
-      for (const key of recentKeys) {
-        const value = attendanceCache.get(key);
-        if (value && value.timestamp) {
-          const timestamp = new Date(value.timestamp).getTime();
+      // 遍歷所有緩存項目，找出最新的掃描結果
+      for (const [key, value] of attendanceCache.entries()) {
+        if (key.startsWith('scan_result_') && key.includes(currentDate)) {
+          // 從緩存中提取時間戳
+          const timestamp = value.timestamp ? 
+                          (typeof value.timestamp === 'string' ? 
+                            new Date(value.timestamp).getTime() : value.timestamp) : 0;
+          
           if (timestamp > latestTimestamp) {
             latestScanResult = value;
             latestTimestamp = timestamp;
@@ -874,47 +969,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // 如果找到了掃描結果
+      // 如果找到了緩存結果
       if (latestScanResult) {
-        console.log("找到最近掃描結果，時間戳:", new Date(latestTimestamp).toLocaleTimeString());
+        console.log(`[最後掃描結果] 找到緩存的掃描結果: 員工=${latestScanResult.employeeName}`);
         
-        // 保留原始打卡類型，不進行二次判斷
-        const isClockIn = latestScanResult.isClockIn;
-        const action = latestScanResult.action;
+        // 不盲目信任緩存的打卡類型，嘗試從數據庫再次確認
+        try {
+          const employeeAttendance = await storage.getAttendanceByEmployeeId(latestScanResult.employeeId, currentDate);
+          
+          if (employeeAttendance && employeeAttendance.length > 0) {
+            const latestRecord = employeeAttendance[0];
+            const actualIsClockIn = !latestRecord.clockOut || latestRecord.clockOut === '';
+            const currentTime = actualIsClockIn ? latestRecord.clockIn : latestRecord.clockOut;
+            
+            // 使用最新的打卡狀態更新緩存
+            latestScanResult = {
+              ...latestScanResult,
+              isClockIn: actualIsClockIn,
+              action: actualIsClockIn ? 'clock-in' : 'clock-out',
+              message: `${latestScanResult.employeeName} ${actualIsClockIn ? '上班' : '下班'}打卡成功`,
+              clockTime: currentTime
+            };
+          }
+        } catch (error) {
+          console.error(`[最後掃描結果] 再次確認打卡類型時出錯:`, error);
+        }
         
-        // 確保這些值存在，否則使用合理的默認值
-        const actualIsClockIn = isClockIn !== undefined ? 
-                                isClockIn : 
-                                (action === 'clock-in');
-                                
-        console.log(`掃描結果詳情: 員工=${latestScanResult.employeeName}, 方向=${actualIsClockIn ? '上班' : '下班'}`);
-        
-        // 完善掃描結果對象
-        const enhancedResult = {
-          ...latestScanResult,
-          // 確保方向字段保持一致
-          action: actualIsClockIn ? 'clock-in' : 'clock-out',
-          isClockIn: actualIsClockIn,
-          message: `${latestScanResult.employeeName} ${actualIsClockIn ? '上班' : '下班'}打卡成功` // 確保訊息一致
-        };
-        
-        // 保存到專用緩存
-        lastScanResultCache = enhancedResult;
+        // 保存到全局緩存
+        lastScanResultCache = {...latestScanResult};
         lastScanTimestamp = now;
         
-        return res.json(enhancedResult);
+        return res.json(latestScanResult);
       }
       
-      // 如果沒有找到任何掃描結果但有緩存，仍然返回舊緩存
+      // 4. 如果緩存和數據庫都沒有找到結果，但有全局緩存，返回全局緩存
       if (lastScanResultCache) {
-        console.log("[性能優化] 沒有找到新掃描結果，但使用最近的緩存");
+        console.log(`[最後掃描結果] 使用過期全局緩存: ${lastScanResultCache.employeeName}`);
         return res.json(lastScanResultCache);
       }
       
-      // 如果完全沒有找到任何掃描結果
+      // 如果所有方法都沒有找到結果
+      console.log(`[最後掃描結果] 未找到任何掃描記錄`);
       return res.status(404).json({ error: "今日尚無掃描記錄" });
     } catch (error) {
-      console.error("獲取最後掃描結果時出錯:", error);
+      console.error("[最後掃描結果] 出錯:", error);
       res.status(500).json({ error: "獲取最後掃描結果時出錯" });
     }
   });
