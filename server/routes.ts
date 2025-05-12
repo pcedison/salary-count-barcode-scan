@@ -1303,6 +1303,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const attendanceCacheKey = `attendance_${employee.id}_${currentDate}`;
             attendanceCache.delete(attendanceCacheKey);
             
+            // 清除所有與此員工相關的緩存，確保下次讀取始終是最新的
+            // 遍歷所有緩存條目，刪除所有與此員工相關的緩存
+            for (const key of attendanceCache.keys()) {
+              // 清除所有與此員工ID相關的緩存
+              if (key.includes(`${employee.id}_`)) {
+                console.log(`[緩存清理] 刪除舊緩存: ${key}`);
+                attendanceCache.delete(key);
+              }
+            }
+            
           } catch (err) {
             console.error("處理打卡記錄時出錯:", err);
             
