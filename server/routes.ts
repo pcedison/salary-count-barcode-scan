@@ -1149,6 +1149,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               message: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`
             };
             
+            // 將結果儲存在全域快取中，讓前端能取得最新的打卡狀態
+            const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
+            attendanceCache.set(scanResultKey, successResult);
+            
+            // 更新考勤緩存，確保下次讀取是最新的
+            const attendanceCacheKey = `attendance_${employee.id}_${currentDate}`;
+            attendanceCache.delete(attendanceCacheKey);
+            
           } catch (err) {
             console.error("處理打卡記錄時出錯:", err);
             
