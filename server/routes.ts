@@ -850,7 +850,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const scanResult = attendanceCache.get(scanResultKey);
           if (scanResult) {
             console.log("找到最近掃描結果:", scanResult);
-            return res.json(scanResult);
+            
+            // 完善掃描結果對象，確保包含完整的員工信息
+            const enhancedResult = {
+              ...scanResult,
+              employeeId: employee.id,
+              employeeName: employee.name,
+              department: employee.department || '生產部',
+              // 添加方向明確的字段
+              action: scanResult.action || (scanResult.isClockIn ? 'clock-in' : 'clock-out'),
+              isClockIn: scanResult.action === 'clock-in' || scanResult.isClockIn === true,
+            };
+            
+            return res.json(enhancedResult);
           }
         }
       }
@@ -1119,33 +1131,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const attendanceRecords = attendanceData;
           
           let result;
-          let isClockIn = true;
+          let isClockIn = true; // 默認是上班打卡
           
           try {
+            // 詳細的日誌信息
             console.log(`[打卡處理] 開始處理打卡記錄，員工: ${employee.name}, 日期: ${currentDate}, 時間: ${currentTime}`);
+            console.log(`[打卡處理] 員工ID: ${employee.id}, 員工部門: ${employee.department || '生產部'}`);  
             console.log(`[打卡處理] 共找到 ${attendanceRecords.length} 筆今日考勤記錄`);
             
-            // 如果需要詳細日誌，可以輸出所有記錄
+            // 輸出所有記錄的詳細信息
             if (attendanceRecords.length > 0) {
               console.log('[打卡處理] 今日考勤記錄詳情:');
               attendanceRecords.forEach((record, idx) => {
-                console.log(`  [${idx}] ID: ${record.id}, 上班: ${record.clockIn}, 下班: ${record.clockOut || '尚未打卡'}`);
+                console.log(`  [${idx}] ID: ${record.id}, 日期: ${record.date}, 上班: ${record.clockIn}, 下班: ${record.clockOut || '尚未打卡'}`);
               });
             }
             
-            // 檢查是否有今日未完成的打卡記錄（沒有下班時間）
-            const incompleteRecords = attendanceRecords.filter(
+            // 確保僅過濾今天的記錄
+            const todayRecords = attendanceRecords.filter(record => record.date === currentDate);
+            console.log(`[打卡處理] 過濾後的今日記錄數: ${todayRecords.length}`);
+            
+            // 檢查今日是否有未完成打卡記錄（沒有下班時間）
+            const incompleteRecords = todayRecords.filter(
               record => !record.clockOut || record.clockOut === ''
             );
             
             console.log(`[打卡處理] 找到 ${incompleteRecords.length} 筆未完成打卡記錄`);
             
-            // 如果沒有記錄或所有記錄都已經有完整的上下班時間，則創建新的上班打卡記錄
-            if (attendanceRecords.length === 0 || incompleteRecords.length === 0) {
+            // 如果沒有今日記錄或所有今日記錄都已經有完整的上下班時間，則創建新的上班打卡記錄
+            if (todayRecords.length === 0 || incompleteRecords.length === 0) {
               console.log(`[打卡處理] 未找到未完成打卡記錄或無記錄，創建新的上班打卡`);
               
               // 避免在同一分鐘創建多條記錄
-              const existingRecordInSameMinute = attendanceRecords.find(record => 
+              const existingRecordInSameMinute = todayRecords.find(record => 
                 record.clockIn === currentTime && record.date === currentDate
               );
               
@@ -1172,10 +1190,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   isBarcodeScanned: true
                 });
               }
-              isClockIn = true;
+              isClockIn = true; // 確保狀態是上班打卡
             } else {
               // 已有未完成的打卡記錄，更新為下班打卡（使用最近的一筆記錄）
-              // 按照創建日期排序，獲取最新的未完成記錄
+              // 按上班時間排序，獲取最新的未完成記錄
               const latestIncompleteRecord = incompleteRecords.sort((a, b) => {
                 const timeA = a.clockIn ? a.clockIn.split(':').map(Number) : [0, 0];
                 const timeB = b.clockIn ? b.clockIn.split(':').map(Number) : [0, 0];
@@ -1187,23 +1205,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 latestIncompleteRecord.id,
                 { clockOut: currentTime }
               );
-              isClockIn = false;
+              isClockIn = false; // 確保狀態是下班打卡
             }
             
             // 在伺服器端記錄打卡成功
             console.log(`打卡成功: ${employee.name} ${isClockIn ? '上班' : '下班'}打卡`);
             
+            // 獲取更詳細的員工信息
+            let employeeWithDetails = employee;
+            try {
+              // 嘗試獲取完整的員工信息
+              const fullEmployeeInfo = await storage.getEmployeeById(employee.id);
+              if (fullEmployeeInfo) {
+                employeeWithDetails = fullEmployeeInfo;
+              }
+            } catch (err) {
+              console.error("獲取詳細員工信息時出錯:", err);
+              // 繼續使用現有的員工信息
+            }
+            
             // 在伺服器端追蹤打卡狀態 (替代前端的 EventBus)
             const successResult = {
-              employeeId: employee.id,
-              employeeName: employee.name,
-              department: employee.department || '生產部', // 使用員工部門或預設值
-              idNumber: employee.idNumber, // 員工ID號碼
+              employeeId: employeeWithDetails.id,
+              employeeName: employeeWithDetails.name,
+              department: employeeWithDetails.department || '生產部',
+              idNumber: employeeWithDetails.idNumber,
               action: isClockIn ? 'clock-in' : 'clock-out',
+              isClockIn: isClockIn, // 添加明確的布爾類型字段
               attendance: result,
               success: true,
               timestamp: new Date().toISOString(),
-              message: `${employee.name} ${isClockIn ? '上班' : '下班'}打卡成功`
+              message: `${employeeWithDetails.name} ${isClockIn ? '上班' : '下班'}打卡成功`
             };
             
             // 將結果儲存在全域快取中，讓前端能取得最新的打卡狀態
