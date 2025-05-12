@@ -238,48 +238,73 @@ export default function BarcodeScanPage() {
   
   // 監視打卡記錄變化，在條件滿足時隱藏今日打卡記錄
   useEffect(() => {
-    if (!lastScan || !lastScan.employee) return;
+    // 如果沒有掃描數據或沒有完整的員工信息，不進行處理
+    if (!lastScan || !lastScan.employeeId || !lastScan.employeeName) return;
     
     // 獲取當前打卡的員工ID
-    const currentEmployeeId = lastScan.employee.id;
+    const currentEmployeeId = lastScan.employeeId;
+    const employeeName = lastScan.employeeName;
     
-    // 檢查此員工是否已完成上下班打卡
-    const employeeAttendanceRecords = todayAttendanceRecords.filter(record => 
-      record.employeeId === currentEmployeeId
-    );
+    // 檢查是否是下班打卡
+    const isClockOutAction = lastScan.action === 'clock-out' || lastScan.isClockIn === false;
     
-    // 檢查是否有該員工今天的完整打卡記錄（上班和下班都有）
-    const hasCompletedAttendance = employeeAttendanceRecords.some(record => 
-      record.clockIn && record.clockOut && record.clockOut !== ''
-    );
-    
-    // 如果最後的掃描操作成功，且此員工已完成今天的打卡
-    if (lastScan.success && hasCompletedAttendance) {
-      console.log(`員工 ${lastScan.employee.name} 已完成今日打卡，準備自動隱藏`);
+    // 如果是下班打卡，則尋找對應的今日記錄
+    if (lastScan.success && isClockOutAction) {
+      console.log(`${employeeName} 下班打卡成功，檢查完整記錄...`);
       
-      // 清除之前的計時器（如果有）
-      if (recordsVisibilityTimerRef.current) {
-        clearTimeout(recordsVisibilityTimerRef.current);
-        recordsVisibilityTimerRef.current = null;
-      }
+      // 查找今天該員工的考勤記錄
+      const todayRecords = todayAttendanceRecords.filter(record => 
+        record.employeeId === currentEmployeeId && record.date === getTodayDate()
+      );
       
-      // 設置新的計時器，6秒後隱藏今日打卡記錄（留給動畫足夠時間）
-      recordsVisibilityTimerRef.current = setTimeout(() => {
-        console.log('自動隱藏今日打卡記錄');
-        // 使用動畫淡出效果
-        document.querySelectorAll('.attendance-record-card').forEach(card => {
-          (card as HTMLElement).style.opacity = '0';
-          (card as HTMLElement).style.transform = 'translateY(10px)';
-        });
+      // 找到有上下班記錄的考勤數據
+      const completedRecords = todayRecords.filter(record => 
+        record.clockIn && record.clockOut && record.clockOut !== ''
+      );
+      
+      if (completedRecords.length > 0) {
+        console.log(`${employeeName} 已完成今日上下班打卡，將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後隱藏記錄`);
         
-        // 等待動畫完成後再隱藏
-        setTimeout(() => {
-          setShowTodayRecords(false);
-        }, ANIMATION_DURATION);
-      }, STATUS_AUTO_CLEAR_DELAY);
-    } else if (lastScan.success && !hasCompletedAttendance) {
-      // 如果打卡成功，但該員工尚未完成完整打卡，確保記錄顯示
-      console.log(`員工 ${lastScan.employee.name} 尚未完成今日打卡，保持記錄顯示`);
+        // 清除之前的計時器（如果有）
+        if (recordsVisibilityTimerRef.current) {
+          clearTimeout(recordsVisibilityTimerRef.current);
+          recordsVisibilityTimerRef.current = null;
+        }
+        
+        // 設置新的計時器，延遲後隱藏記錄
+        recordsVisibilityTimerRef.current = setTimeout(() => {
+          console.log('執行自動隱藏今日打卡記錄');
+          
+          // 先使用動畫效果（使用更精確的選擇器）
+          const todayCards = document.querySelectorAll('.today-records');
+          const incompleteCards = document.querySelectorAll('.incomplete-records');
+          const allCards = [...Array.from(todayCards), ...Array.from(incompleteCards)];
+          
+          if (allCards.length > 0) {
+            console.log(`找到 ${allCards.length} 個記錄卡片，開始執行淡出動畫`);
+            allCards.forEach(card => {
+              (card as HTMLElement).style.opacity = '0';
+              (card as HTMLElement).style.transform = 'translateY(10px)';
+            });
+            
+            // 動畫完成後再隱藏
+            setTimeout(() => {
+              console.log('動畫完成，設置隱藏狀態');
+              setShowTodayRecords(false);
+            }, ANIMATION_DURATION);
+          } else {
+            // 如果沒有找到卡片元素，直接隱藏
+            console.log('找不到記錄卡片元素，直接設置隱藏狀態');
+            setShowTodayRecords(false);
+          }
+        }, STATUS_AUTO_CLEAR_DELAY);
+      } else {
+        console.log(`無法找到 ${employeeName} 的完整上下班記錄，保持顯示`);
+        setShowTodayRecords(true);
+      }
+    } else if (lastScan.success) {
+      // 上班打卡時確保顯示記錄
+      console.log(`${employeeName} 上班打卡，顯示今日記錄`);
       setShowTodayRecords(true);
     }
     
@@ -565,7 +590,7 @@ export default function BarcodeScanPage() {
       
       {/* 今日打卡記錄 - 根據條件自動隱藏 */}
       {sortedScanRecords.length > 0 && showTodayRecords && (
-        <Card className="w-full animate-in fade-in-0 slide-in-from-bottom-5 duration-300 attendance-record-card"
+        <Card className="w-full animate-in fade-in-0 slide-in-from-bottom-5 duration-300 attendance-record-card today-records"
           style={{transition: `opacity ${ANIMATION_DURATION}ms, transform ${ANIMATION_DURATION}ms`}}>
           <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle>今日打卡記錄</CardTitle>
@@ -619,7 +644,7 @@ export default function BarcodeScanPage() {
       
       {/* 尚未打下班卡的記錄 - 也根據條件自動隱藏 */}
       {incompleteRecords.length > 0 && showTodayRecords && (
-        <Card className="w-full border-orange-200 animate-in fade-in-0 slide-in-from-bottom-5 duration-300 attendance-record-card"
+        <Card className="w-full border-orange-200 animate-in fade-in-0 slide-in-from-bottom-5 duration-300 attendance-record-card incomplete-records"
           style={{transition: `opacity ${ANIMATION_DURATION}ms, transform ${ANIMATION_DURATION}ms`}}>
           <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle className="text-orange-800">尚未打下班卡的員工</CardTitle>
