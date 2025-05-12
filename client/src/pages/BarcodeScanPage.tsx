@@ -189,6 +189,9 @@ export default function BarcodeScanPage() {
     // 立即刷新所有考勤數據的查詢緩存
     queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
     
+    // 清除條碼輸入框，立即允許下一次掃描
+    setIdNumber('');
+    
     // 如果是下班打卡，設置計時器在3秒後清空狀態
     if (data.action === 'clock-out') {
       setLastScan(data);
