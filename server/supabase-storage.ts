@@ -246,6 +246,15 @@ export class SupabaseStorage implements IStorage {
 
   // Temporary attendance methods
   async getTemporaryAttendance(): Promise<TemporaryAttendance[]> {
+    // 嘗試從緩存中獲取數據
+    const cachedData = queryCache.get('temporary_attendance:all');
+    if (cachedData) {
+      console.log('[緩存] 使用緩存的考勤記錄數據，跳過資料庫查詢');
+      return cachedData as TemporaryAttendance[];
+    }
+    
+    console.log('[緩存] 未找到緩存數據，從資料庫獲取考勤記錄');
+    const startTime = Date.now();
     const client = await getSupabaseClient();
     
     // 首先獲取所有臨時考勤記錄
@@ -260,30 +269,47 @@ export class SupabaseStorage implements IStorage {
     
     // 如果沒有考勤記錄，則返回空數組
     if (!attendanceData || attendanceData.length === 0) {
+      // 緩存空結果（60秒）
+      queryCache.set('temporary_attendance:all', [], 60 * 1000);
       return [];
     }
     
-    // 獲取所有員工，用於將員工資訊添加到考勤記錄中
-    const { data: employeesData, error: employeesError } = await client
-      .from('employees')
-      .select('*');
+    // 使用緩存的員工數據
+    let employeeMap = new Map<number, Employee>();
+    const cachedEmployees = queryCache.get('employees:all');
     
-    if (employeesError) {
-      console.error('Error fetching employees:', employeesError);
-      throw employeesError;
-    }
-    
-    // 創建員工ID到員工資訊的映射
-    const employeeMap = new Map<number, Employee>();
-    if (employeesData) {
-      employeesData.forEach((employee: Employee) => {
+    if (cachedEmployees) {
+      console.log('[緩存] 使用緩存的員工數據');
+      cachedEmployees.forEach((employee: Employee) => {
         employeeMap.set(employee.id, employee);
       });
+    } else {
+      console.log('[緩存] 未找到緩存的員工數據，從資料庫獲取');
+      
+      // 獲取所有員工，用於將員工資訊添加到考勤記錄中
+      const { data: employeesData, error: employeesError } = await client
+        .from('employees')
+        .select('*');
+      
+      if (employeesError) {
+        console.error('Error fetching employees:', employeesError);
+        throw employeesError;
+      }
+      
+      // 創建員工ID到員工資訊的映射
+      if (employeesData) {
+        employeesData.forEach((employee: Employee) => {
+          employeeMap.set(employee.id, employee);
+        });
+        
+        // 緩存員工數據（5分鐘）
+        queryCache.set('employees:all', employeesData, 5 * 60 * 1000);
+      }
     }
     
     // 將員工資訊添加到考勤記錄中
     const enrichedAttendance = attendanceData.map((record: any) => {
-      const employee = record.employee_id ? employeeMap.get(record.employee_id) : undefined;
+      const employee = record.employeeId ? employeeMap.get(record.employeeId) : undefined;
       
       return {
         ...record,
@@ -292,25 +318,118 @@ export class SupabaseStorage implements IStorage {
       };
     });
     
-    return enrichedAttendance as TemporaryAttendance[];
+    const result = enrichedAttendance as TemporaryAttendance[];
+    
+    // 緩存結果（30秒）
+    queryCache.set('temporary_attendance:all', result, 30 * 1000);
+    
+    const endTime = Date.now();
+    console.log(`[緩存] 資料庫查詢耗時: ${endTime - startTime}ms，已緩存結果`);
+    
+    return result;
+  }
+
+  // 高效獲取今日考勤記錄
+  async getTodayAttendance(): Promise<TemporaryAttendance[]> {
+    // 獲取今日日期格式 (YYYY/MM/DD)
+    const todayDate = new Date().toLocaleDateString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '/');
+    
+    // 緩存鍵
+    const cacheKey = `temporary_attendance:today:${todayDate}`;
+    
+    // 先嘗試從緩存取得
+    const cachedData = queryCache.get(cacheKey);
+    if (cachedData) {
+      console.log('[緩存] 使用緩存的今日考勤數據');
+      return cachedData as TemporaryAttendance[];
+    }
+    
+    console.log('[緩存] 未找到今日考勤緩存，從所有考勤記錄中篩選');
+    const startTime = Date.now();
+    
+    // 獲取所有考勤記錄
+    const allRecords = await this.getTemporaryAttendance();
+    
+    // 篩選今日記錄
+    const todayRecords = allRecords.filter(record => record.date === todayDate);
+    
+    // 緩存結果（10秒 - 因為今日記錄變動頻繁）
+    queryCache.set(cacheKey, todayRecords, 10 * 1000);
+    
+    const endTime = Date.now();
+    console.log(`[緩存] 今日考勤篩選耗時: ${endTime - startTime}ms，找到 ${todayRecords.length} 筆記錄`);
+    
+    return todayRecords;
   }
 
   async getTemporaryAttendanceById(id: number): Promise<TemporaryAttendance | undefined> {
+    // 優先從緩存獲取
+    const cacheKey = `temporary_attendance:id:${id}`;
+    const cachedRecord = queryCache.get(cacheKey);
+    if (cachedRecord) {
+      console.log(`[緩存] 使用緩存的考勤記錄 ID:${id}`);
+      return cachedRecord as TemporaryAttendance;
+    }
+    
     const attendance = await supabaseHelpers.getById<TemporaryAttendance>('temporary_attendance', id);
+    
+    // 緩存結果（30秒）
+    if (attendance) {
+      queryCache.set(cacheKey, attendance, 30 * 1000);
+    }
+    
     return attendance || undefined;
   }
 
   async createTemporaryAttendance(attendance: InsertTemporaryAttendance): Promise<TemporaryAttendance> {
-    return supabaseHelpers.create<TemporaryAttendance>('temporary_attendance', attendance);
+    const result = await supabaseHelpers.create<TemporaryAttendance>('temporary_attendance', attendance);
+    
+    // 創建新記錄後使相關緩存失效
+    this.invalidateAttendanceCache();
+    
+    return result;
   }
 
   async updateTemporaryAttendance(id: number, attendance: Partial<InsertTemporaryAttendance>): Promise<TemporaryAttendance | undefined> {
     const result = await supabaseHelpers.update<TemporaryAttendance>('temporary_attendance', id, attendance);
+    
+    // 更新記錄後使相關緩存失效
+    this.invalidateAttendanceCache();
+    if (result) {
+      queryCache.invalidate(`temporary_attendance:id:${id}`);
+    }
+    
     return result || undefined;
+  }
+  
+  // 使所有考勤相關緩存失效的輔助方法
+  private invalidateAttendanceCache(): void {
+    console.log('[緩存] 使所有考勤緩存失效');
+    queryCache.invalidate('temporary_attendance:all');
+    
+    // 使今日記錄緩存失效
+    const todayDate = new Date().toLocaleDateString('zh-TW', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '/');
+    queryCache.invalidate(`temporary_attendance:today:${todayDate}`);
   }
 
   async deleteTemporaryAttendance(id: number): Promise<boolean> {
-    return supabaseHelpers.delete('temporary_attendance', id);
+    const result = await supabaseHelpers.delete('temporary_attendance', id);
+    
+    // 刪除考勤記錄後使緩存失效
+    if (result) {
+      this.invalidateAttendanceCache();
+      queryCache.invalidate(`temporary_attendance:id:${id}`);
+    }
+    
+    return result;
   }
 
   async deleteAllTemporaryAttendance(): Promise<boolean> {
@@ -321,6 +440,9 @@ export class SupabaseStorage implements IStorage {
       console.error('Error deleting all temporary attendance records:', error);
       throw error;
     }
+    
+    // 刪除所有記錄後，使相關緩存全部失效
+    this.invalidateAttendanceCache();
     
     return true;
   }
@@ -338,6 +460,9 @@ export class SupabaseStorage implements IStorage {
       console.error(`Error deleting attendance records for employee ${employeeId}:`, error);
       throw error;
     }
+    
+    // 刪除員工相關記錄後使緩存失效
+    this.invalidateAttendanceCache();
     
     console.log(`成功刪除員工ID為 ${employeeId} 的所有考勤記錄`);
   }

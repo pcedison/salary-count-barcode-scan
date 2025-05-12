@@ -132,54 +132,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // 新增：專門用於獲取今日考勤記錄的API
+  // 專門用於獲取今日考勤記錄的高效API
   app.get("/api/attendance/today", async (_req, res) => {
     try {
-      // 獲取今天的日期格式 (YYYY/MM/DD)
-      const todayDate = new Date().toLocaleDateString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\//g, '/');
+      const startTime = Date.now();
+      console.log(`[查詢考勤] 使用優化API獲取今日考勤記錄`);
       
-      console.log(`[查詢考勤] 獲取今日 (${todayDate}) 考勤記錄`);
+      // 使用專門的高效緩存方法
+      const todayRecords = await storage.getTodayAttendance();
       
-      // 直接從儲存層獲取考勤記錄
-      const allAttendanceRecords = await storage.getTemporaryAttendance();
-      
-      // 篩選今天的記錄
-      const todayRecords = allAttendanceRecords.filter(record => record.date === todayDate);
-      console.log(`[查詢考勤] 找到 ${todayRecords.length} 筆今日考勤記錄`);
-      
-      // 為了更高效地獲取員工信息，僅獲取今日記錄所需的員工
-      if (todayRecords.length > 0) {
-        // 獲取不重複的員工ID列表
-        const employeeIds = [...new Set(todayRecords.map(record => record.employeeId).filter(Boolean))];
-        
-        if (employeeIds.length > 0) {
-          console.log(`[查詢考勤] 需要查詢 ${employeeIds.length} 位員工的信息`);
-          
-          // 獲取相關員工信息
-          const employees = await Promise.all(
-            employeeIds.map(id => storage.getEmployeeById(id))
-          );
-          
-          // 創建員工ID到信息的映射
-          const employeeMap = new Map();
-          employees.forEach(emp => {
-            if (emp) employeeMap.set(emp.id, emp);
-          });
-          
-          // 將員工信息添加到考勤記錄中
-          todayRecords.forEach(record => {
-            if (record.employeeId && employeeMap.has(record.employeeId)) {
-              const employee = employeeMap.get(record.employeeId);
-              record._employeeName = employee.name;
-              record._employeeDepartment = employee.department;
-            }
-          });
-        }
-      }
+      const endTime = Date.now();
+      console.log(`[查詢考勤] 今日考勤API響應時間: ${endTime - startTime}ms`);
       
       res.json(todayRecords);
     } catch (err) {
