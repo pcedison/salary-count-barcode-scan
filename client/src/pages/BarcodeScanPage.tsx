@@ -15,17 +15,25 @@ function useIncompleteAttendanceRecords() {
   // 從 localStorage 讀取未完成的打卡記錄
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 30000 // 每 30 秒刷新一次
+    refetchInterval: 30000, // 每 30 秒刷新一次
+    refetchOnWindowFocus: false // 避免重複觸發通知
   });
 
-  // 篩選出今天的且尚未完成下班打卡的記錄
+  // 嚴格篩選出今天的且尚未完成下班打卡的記錄
   const todayDate = getTodayDate();
+  const currentDateYMD = new Date().toISOString().split('T')[0].replace(/-/g, '/'); // YYYY/MM/DD 格式
+  
+  // 確保數據為數組，如果是空或錯誤則返回空數組
   const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
-    return record.date === todayDate && 
+    // 檢查日期格式是否匹配今天日期，包括可能的不同格式
+    const isToday = record.date === todayDate || record.date === currentDateYMD;
+    
+    return isToday && 
            (!record.clockOut || record.clockOut === '') &&
            record.isBarcodeScanned === true;
   });
   
+  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，目前日期: ${todayDate}`);
   return incompleteRecords;
 }
 
@@ -35,7 +43,12 @@ const RECENT_SCANS_STORAGE_KEY = 'recent_barcode_scans';
 
 function saveLastScan(scanData: any) {
   if (scanData) {
-    localStorage.setItem(LAST_SCAN_STORAGE_KEY, JSON.stringify(scanData));
+    // 確保掃描數據包含時間戳
+    const scanWithTimestamp = {
+      ...scanData,
+      timestamp: scanData.timestamp || new Date().toISOString()
+    };
+    localStorage.setItem(LAST_SCAN_STORAGE_KEY, JSON.stringify(scanWithTimestamp));
   }
 }
 
@@ -79,9 +92,17 @@ function getLastScan() {
 
 function saveRecentScans(scans: any[]) {
   if (scans && scans.length > 0) {
+    // 確保每個掃描記錄都有時間戳和日期
+    const scansWithDate = scans.map(scan => ({
+      ...scan,
+      timestamp: scan.timestamp || new Date().toISOString(),
+      date: scan.date || getTodayDateFormatted()
+    }));
+    
     localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify({
       date: getTodayDateFormatted(),
-      scans: scans
+      lastUpdated: new Date().toISOString(), // 添加最後更新時間
+      scans: scansWithDate
     }));
   }
 }
@@ -223,6 +244,40 @@ export default function BarcodeScanPage() {
     
     return () => clearInterval(timer);
   }, []);
+  
+  // 每分鐘檢查是否有陳舊的掃描記錄需要清理
+  useEffect(() => {
+    const cleanupTimer = setInterval(() => {
+      // 獲取當天日期
+      const today = getTodayDateFormatted();
+      
+      // 檢查最後掃描記錄是否過期
+      const lastScanData = getLastScan();
+      if (lastScanData && lastScanData.timestamp) {
+        const scanDate = new Date(lastScanData.timestamp).toISOString().split('T')[0];
+        if (scanDate !== today.replace(/-/g, '-')) {
+          console.log('定期檢查: 清理過時的掃描記錄');
+          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+          setLastScan(null);
+        }
+      }
+      
+      // 檢查顯示超過10分鐘的打卡記錄是否應該清除
+      if (lastScan && lastScan.timestamp) {
+        const scanTime = new Date(lastScan.timestamp).getTime();
+        const currentTime = new Date().getTime();
+        const timeDiffMinutes = (currentTime - scanTime) / (1000 * 60);
+        
+        // 如果打卡記錄顯示超過10分鐘，自動清除
+        if (timeDiffMinutes > 10) {
+          console.log('定期檢查: 清理顯示時間過長的掃描記錄');
+          setLastScan(null);
+        }
+      }
+    }, 60000); // 每分鐘執行一次
+    
+    return () => clearInterval(cleanupTimer);
+  }, [lastScan]);
 
   // 處理打卡成功事件
   const handleBarcodeSuccess = (data: any) => {
@@ -346,7 +401,8 @@ export default function BarcodeScanPage() {
         // 確定正確的打卡動作
         const action = hasClockOut ? 'clock-out' : 'clock-in';
         
-        // 創建一致的打卡事件數據
+        // 創建一致的打卡事件數據，包含必要的時間戳
+        const currentTimestamp = new Date().toISOString();
         const lastScanData = {
           employeeName: latestRecord._employeeName,
           employee: {
@@ -356,7 +412,8 @@ export default function BarcodeScanPage() {
           action: action, // 使用判斷的動作
           attendance: latestRecord,
           success: true,
-          timestamp: new Date().toISOString()
+          timestamp: currentTimestamp,
+          date: getTodayDateFormatted() // 添加格式化的日期，確保日期檢查可以正常工作
         };
         
         // 更新最後打卡顯示
