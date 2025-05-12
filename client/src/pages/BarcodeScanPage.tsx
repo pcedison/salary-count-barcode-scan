@@ -40,8 +40,9 @@ function useTodayIncompleteRecords() {
   // 直接從 API 獲取考勤記錄
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 10000, // 每 10 秒刷新一次
-    refetchOnWindowFocus: false
+    refetchInterval: 30000, // 每 30 秒刷新一次（降低頻率，減輕伺服器負擔）
+    refetchOnWindowFocus: false,
+    staleTime: 20000 // 數據 20 秒內不會被視為過期，減少不必要的請求
   });
   
   // 篩選出今天的且尚未完成下班打卡的記錄
@@ -63,7 +64,9 @@ function useTodayIncompleteRecords() {
 function useTodayAttendanceRecords() {
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 5000 // 每 5 秒刷新一次
+    refetchInterval: 30000, // 每 30 秒刷新一次（與另一個查詢保持一致）
+    staleTime: 20000, // 數據 20 秒內不會被視為過期
+    refetchOnWindowFocus: false // 避免窗口獲得焦點時重新獲取
   });
   
   // 篩選出今天的記錄
@@ -240,8 +243,8 @@ export default function BarcodeScanPage() {
                 },
                 attendance: scanResult.attendance,
                 action: scanResult.action,
-                isClockIn: scanResult.action === 'clock-in',
-                statusMessage: scanResult.message
+                isClockIn: scanResult.isClockIn === true || scanResult.action === 'clock-in',
+                statusMessage: scanResult.message || `${scanResult.employeeName} ${scanResult.isClockIn ? '上班' : '下班'}打卡成功`
               });
               
               // 顯示成功提示
@@ -308,13 +311,13 @@ export default function BarcodeScanPage() {
               <div>
                 <div className="flex items-center mb-4 space-x-2">
                   {lastScan.success ? (
-                    <CheckCircle2 className={lastScan.action === 'clock-in' ? 'text-green-500' : 'text-blue-500'} />
+                    <CheckCircle2 className={lastScan.isClockIn ? 'text-green-500' : 'text-blue-500'} />
                   ) : (
                     <XCircle className="text-red-500" />
                   )}
                   <h2 className="text-xl font-bold">
                     {lastScan.success ? (
-                      lastScan.action === 'clock-in' ? '上班打卡成功' : '下班打卡成功'
+                      lastScan.isClockIn ? '上班打卡成功' : '下班打卡成功'
                     ) : '打卡失敗'}
                   </h2>
                 </div>
