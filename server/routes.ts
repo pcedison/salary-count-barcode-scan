@@ -1040,7 +1040,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 創建快速查找員工的函數
       const findEmployeeWithTimeout = () => {
         return new Promise((resolve, reject) => {
-          // 設置 800 毫秒超時 - 顯著降低超時時間提高響應速度
+          // 設置 500 毫秒超時 - 顯著降低超時時間提高響應速度
           const timeout = setTimeout(() => {
             console.log("員工查找超時優化，嘗試使用緩存");
             // 優先檢查緩存
@@ -1085,13 +1085,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // 準備並行查詢 - 同時執行多個可能的查詢方式
               console.log(`[並行查詢] 同時執行多策略查詢`);
+              
+              // 使用 Promise.race 加上超時保護，確保查詢不會花太多時間
+              const queryWithTimeout = (promise, timeoutMs = 400) => {
+                return Promise.race([
+                  promise,
+                  new Promise((resolve) => setTimeout(() => resolve({ status: 'timeout' }), timeoutMs))
+                ]);
+              };
+              
               const [directResult, decryptedResult, employeesList] = await Promise.allSettled([
-                // 直接查詢
-                storage.getEmployeeByIdNumber(idNumber).catch(() => null),
-                // 解密後查詢
-                storage.getEmployeeByIdNumber(decrypted).catch(() => null),
-                // 獲取所有員工列表（同時進行，避免串行等待）
-                storage.getAllEmployees().catch(() => [])
+                // 直接查詢 - 最優先，減少超時到200毫秒
+                queryWithTimeout(storage.getEmployeeByIdNumber(idNumber).catch(() => null), 200),
+                // 解密後查詢 - 其次優先，減少超時到300毫秒
+                queryWithTimeout(storage.getEmployeeByIdNumber(decrypted).catch(() => null), 300),
+                // 獲取所有員工列表（同時進行，避免串行等待）- 最低優先級，可以稍微等久一點
+                queryWithTimeout(storage.getAllEmployees().catch(() => []), 400)
               ]);
               
               // 3. 按優先級處理結果
@@ -1152,9 +1161,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (employee) {
                 // 找到員工時緩存結果
                 try {
-                  // 使用服務器端的Map緩存員工數據
-                  employeeCache.set(cacheKey, employee);
-                  console.log(`員工數據已緩存: ${employee.name}`);
+                  // 使用服務器端的Map緩存員工數據，加長有效期到4小時，提高快取效率
+                  employeeCache.set(cacheKey, employee, 4 * 60 * 60 * 1000);
+                  // 同時保存到最後掃描記錄
+                  employeeCache.set('last_scanned_employee', employee);
+                  console.log(`員工數據已緩存: ${employee.name} (4小時有效期)`);
                 } catch (e) {
                   console.error("緩存員工數據時出錯", e);
                 }
@@ -1218,10 +1229,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   return cachedHolidays.some(holiday => holiday.date === currentDate);
                 }
                 
-                // 設置超時 Promise，減少等待時間到 900ms
+                // 設置超時 Promise，減少等待時間到 300ms - 提高掃碼速度
                 const holidayPromise = Promise.race([
                   storage.getAllHolidays(),
-                  new Promise(resolve => setTimeout(() => resolve([]), 900))
+                  new Promise(resolve => setTimeout(() => resolve([]), 300))
                 ]);
                 
                 const holidays = await holidayPromise;
