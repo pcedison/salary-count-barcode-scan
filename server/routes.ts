@@ -830,6 +830,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 伺服器端的員工緩存，替代 localStorage
   const employeeCache = new Map();
   
+  // 考勤記錄緩存，減少重複查詢
+  const attendanceCache = new Map();
+  
   // 條碼掃描打卡路由 - 優化版本
   app.post("/api/barcode-scan", async (req, res) => {
     let findEmployeePromise;
@@ -1072,8 +1075,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ]);
                 
                 const records = await attendancePromise;
-                // 設置緩存
-                attendanceCache.set(cacheKey, records, 60000); // 一分鐘有效期
+                // 設置緩存（Map只接受key和value兩個參數）
+                attendanceCache.set(cacheKey, records);
                 return records;
               } catch (err) {
                 console.error("[並行] 查詢考勤記錄時出錯:", err);

@@ -398,38 +398,66 @@ export default function BarcodeScanPage() {
           }, 0);
         }
         
-        // 設置一個變量，用於記錄處理狀態
-        // 創建一個標誌，標記已顯示通知
-        let hasNotified = false;
+        // 使用變量控制顯示處理時間和動畫
+        let processingStartTime = Date.now();
+        let hasNotified = false; // 標記已顯示通知
+        let processingFeedbackShown = false; // 是否已經顯示處理中反饋
         
         const intervalId = setInterval(async () => {
-          // 主動獲取最新考勤數據，而不是依賴React Query輪詢
+          // 計算已處理時間，用於改善用戶體驗
+          const processingTime = Date.now() - processingStartTime;
+          
+          // 處理時間超過3秒顯示處理中訊息提示
+          if (processingTime > 3000 && !processingFeedbackShown) {
+            toast({
+              title: "處理中",
+              description: "系統正在處理您的打卡記錄...",
+              duration: 3000
+            });
+            processingFeedbackShown = true;
+          }
+          
+          // 主動獲取最新考勤數據，使用優化的請求策略
           try {
-            const response = await fetch('/api/attendance');
+            // 使用帶超時控制的請求方式
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            
+            const response = await fetch('/api/attendance', {
+              signal: controller.signal,
+              cache: 'no-store' // 確保最新數據
+            }).finally(() => clearTimeout(timeoutId));
+            
             const latestRecords = await response.json();
             
-            // 檢查是否有新記錄
+            // 智能檢查是否有新記錄 - 添加類型註解避免錯誤
             if (Array.isArray(latestRecords) && latestRecords.length > 0) {
-              const newMaxId = latestRecords.reduce((maxId, record) => {
-                return Math.max(maxId, record.id || 0);
+              const newMaxId = latestRecords.reduce((maxId, record: any) => {
+                return Math.max(maxId, record?.id || 0);
               }, 0);
               
-              // 如果有新記錄，立即結束等待
+              // 如果有新記錄，更新UI狀態
               if (newMaxId > initialMaxId) {
                 clearInterval(intervalId);
                 
                 // 立即更新 React Query 緩存
                 queryClient.setQueryData(['/api/attendance'], latestRecords);
                 
-                // 清除處理中狀態
+                // 使用動畫過渡清除處理中狀態
                 setIsPending(false);
-                setPendingEmployee('');
                 
-                // 只在第一次檢測到新記錄且尚未通知時顯示通知
-                if (checkAttempts <= 1 && !hasNotified) {
+                // 短暫延遲清除員工名稱，提供更好的視覺過渡
+                setTimeout(() => setPendingEmployee(''), 800);
+                
+                // 根據處理時間優化通知內容
+                if (!hasNotified) {
+                  const successMessage = processingTime < 2000 
+                    ? "打卡處理完成！處理速度較快" 
+                    : "打卡處理已完成，請查看考勤記錄";
+                  
                   toast({
                     title: "處理完成",
-                    description: "打卡處理已完成，請查看考勤記錄",
+                    description: successMessage,
                   });
                   hasNotified = true;
                 }
@@ -468,7 +496,7 @@ export default function BarcodeScanPage() {
               hasNotified = true;
             }
           }
-        }, 300); // 每0.3秒檢查一次結果，更快地獲取更新
+        }, 500); // 每0.5秒檢查一次結果，平衡響應速度和伺服器負載
       } else if (data.success) {
         // 立即處理成功情況
         handleBarcodeSuccess({
