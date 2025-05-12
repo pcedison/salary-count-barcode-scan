@@ -1104,21 +1104,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   return cachedAttendance;
                 }
                 
-                // 設置較短的超時時間（從3秒減至900毫秒）
-                const attendancePromise = Promise.race([
-                  db.select()
-                    .from(temporaryAttendance)
-                    .where(and(
-                      eq(temporaryAttendance.date, currentDate),
-                      eq(temporaryAttendance.employeeId, employee.id)
-                    )),
-                  new Promise(resolve => setTimeout(() => resolve([]), 900))
-                ]);
+                // 使用儲存層的方法而不是直接查詢數據庫
+                console.log(`[查詢考勤記錄] 員工ID: ${employee.id}, 日期: ${currentDate}`);
                 
-                const records = await attendancePromise;
-                // 設置緩存（Map只接受key和value兩個參數）
-                attendanceCache.set(cacheKey, records);
-                return records;
+                try {
+                  // 使用儲存層的專用方法進行查詢
+                  const records = await storage.getTemporaryAttendanceByEmployeeAndDate(employee.id, currentDate);
+                  console.log(`[查詢考勤] 成功從儲存層獲取考勤記錄，數量: ${records.length}`);
+                  
+                  // 設置緩存
+                  attendanceCache.set(cacheKey, records);
+                  return records;
+                } catch (error) {
+                  console.error(`[查詢考勤] 發生錯誤: ${error.message}`);
+                  return [];
+                }
               } catch (err) {
                 console.error("[並行] 查詢考勤記錄時出錯:", err);
                 return []; // 發生錯誤時返回空數組

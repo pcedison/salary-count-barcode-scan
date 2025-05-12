@@ -380,9 +380,19 @@ export class DatabaseStorage implements IStorage {
           )
         );
       
+      console.log(`[打卡處理] 員工ID ${employee.id}，日期 ${currentDate} 找到 ${attendanceRecords.length} 筆考勤記錄`);
+      
+      // 查找未完成的記錄（無下班時間）
+      const incompleteRecords = attendanceRecords.filter(
+        record => !record.clockOut || record.clockOut === ''
+      );
+      
+      console.log(`[打卡處理] 其中有 ${incompleteRecords.length} 筆未完成的記錄`);
+      
       // 5. 判斷是上班還是下班打卡
-      if (attendanceRecords.length === 0) {
-        // 沒有記錄，創建新的上班打卡記錄
+      if (incompleteRecords.length === 0) {
+        // 沒有未完成記錄，創建新的上班打卡記錄
+        console.log(`[打卡處理] 沒有未完成記錄，建立新的上班打卡`);
         const newAttendance = await this.createTemporaryAttendance({
           employeeId: employee.id,
           date: currentDate,
@@ -393,20 +403,20 @@ export class DatabaseStorage implements IStorage {
         });
         return newAttendance;
       } else {
-        // 已有記錄，更新為下班打卡
-        const existingRecord = attendanceRecords[0];
+        // 已有未完成記錄，更新為下班打卡（使用最新未完成記錄）
+        // 按時間排序，獲取最新的未完成記錄
+        const latestIncompleteRecord = incompleteRecords.sort((a, b) => {
+          const timeA = a.clockIn ? a.clockIn.split(':').map(Number) : [0, 0];
+          const timeB = b.clockIn ? b.clockIn.split(':').map(Number) : [0, 0];
+          return (timeB[0] * 60 + timeB[1]) - (timeA[0] * 60 + timeA[1]);
+        })[0];
         
-        // 只有在下班打卡為空的情況下才更新
-        if (!existingRecord.clockOut || existingRecord.clockOut === '') {
-          const updatedAttendance = await this.updateTemporaryAttendance(
-            existingRecord.id,
-            { clockOut: currentTime }
-          );
-          return updatedAttendance || null;
-        }
-        
-        // 已經有完整的上下班記錄
-        return existingRecord;
+        console.log(`[打卡處理] 找到未完成記錄 ID: ${latestIncompleteRecord.id}，更新為下班打卡`);
+        const updatedAttendance = await this.updateTemporaryAttendance(
+          latestIncompleteRecord.id,
+          { clockOut: currentTime }
+        );
+        return updatedAttendance || null;
       }
     } catch (error) {
       console.error('Error recording barcode attendance:', error);
