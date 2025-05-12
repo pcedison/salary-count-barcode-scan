@@ -312,33 +312,31 @@ export default function BarcodeScanPage() {
     if (!idNumber.trim() || isSubmitting) return;
     
     setIsSubmitting(true);
+    setIdNumber(''); // 立即清空輸入框，避免重複提交
     
     try {
-      // 立即顯示處理中的狀態
+      // 立即顯示處理中的狀態（不預設上班/下班）
       setLastScan({
         timestamp: new Date().toISOString(),
         success: true,
-        statusMessage: '正在處理打卡，請稍候...',
-        // 初始狀態不設置具體的打卡類型，避免錯誤顯示
-        action: undefined,
-        isClockIn: undefined
+        statusMessage: '正在處理打卡，請稍候...'
       });
       
-      // 調用 API
+      // 調用 API 進行條碼掃描
       const response = await apiRequest('POST', '/api/barcode-scan', {
         idNumber: idNumber.trim()
       });
       
-      // 處理響應
+      // 處理成功響應
       if (response.ok) {
-        console.log('條碼掃描成功，等待處理結果');
+        console.log('條碼掃描請求成功，等待處理結果');
         
-        // 掃描成功後等待 1 秒，然後查詢最新的考勤記錄和掃描結果
+        // 掃描成功後等待短暫時間，然後查詢最新記錄
         setTimeout(async () => {
-          // 使用選擇性更新而不是全部刷新，減少請求
+          // 刷新考勤記錄查詢
           queryClient.invalidateQueries({
             queryKey: ['/api/attendance'],
-            refetchType: 'active' // 只刷新活躍查詢
+            refetchType: 'active' 
           });
           
           // 查詢最新的掃描結果
@@ -348,13 +346,13 @@ export default function BarcodeScanPage() {
               const scanResult = await scanResultResponse.json();
               console.log('獲取到的掃描結果:', scanResult);
               
-              // 確保有有效的員工ID和姓名
               if (scanResult && scanResult.employeeId && scanResult.employeeName) {
-                // 確定打卡類型（上班/下班）
-                const isClockIn = scanResult.isClockIn === true || scanResult.action === 'clock-in';
+                // 根據服務器返回的數據確定打卡類型
+                const isClockIn = scanResult.isClockIn === true;
+                const actionType = isClockIn ? 'clock-in' : 'clock-out';
                 const actionText = isClockIn ? '上班' : '下班';
                 
-                // 更新掃描狀態，使用服務器返回的打卡方向
+                // 更新狀態顯示
                 setLastScan({
                   timestamp: scanResult.timestamp || new Date().toISOString(),
                   success: true,
@@ -364,10 +362,10 @@ export default function BarcodeScanPage() {
                     id: scanResult.employeeId,
                     name: scanResult.employeeName,
                     department: scanResult.department || '生產部',
-                    idNumber: scanResult.idNumber || ''
+                    idNumber: ''
                   },
                   attendance: scanResult.attendance,
-                  action: isClockIn ? 'clock-in' : 'clock-out',
+                  action: actionType,
                   isClockIn: isClockIn,
                   statusMessage: `${scanResult.employeeName} ${actionText}打卡成功`
                 });
@@ -378,9 +376,14 @@ export default function BarcodeScanPage() {
                   description: `${scanResult.employeeName} ${actionText}打卡成功`,
                   variant: 'default'
                 });
+                
+                // 6秒後自動清除狀態訊息
+                setTimeout(() => {
+                  setLastScan(null);
+                }, 6000);
               } else {
                 // 掃描結果缺少必要信息
-                console.error('掃描結果缺少必要信息:', scanResult);
+                console.error('掃描結果數據不完整:', scanResult);
                 setLastScan({
                   timestamp: new Date().toISOString(),
                   success: false,
@@ -396,43 +399,78 @@ export default function BarcodeScanPage() {
             }
           } catch (error) {
             console.error('獲取最新掃描結果失敗:', error);
+            
+            // 處理獲取結果失敗
+            setLastScan({
+              timestamp: new Date().toISOString(),
+              success: false,
+              statusMessage: '獲取掃描結果失敗，請重新掃描'
+            });
+            
+            toast({
+              title: '獲取結果失敗',
+              description: '獲取掃描結果失敗，請重新掃描',
+              variant: 'destructive'
+            });
           }
         }, 1000);
-        
-        // 立即更新掃描狀態為處理中，但不顯示具體是上班還是下班
-        setLastScan({
-          timestamp: new Date().toISOString(),
-          success: true,
-          action: undefined, // 不設置動作類型，避免錯誤顯示
-          isClockIn: undefined, // 不設置打卡類型，避免錯誤顯示
-          statusMessage: '正在處理打卡，請稍候...' // 使用中性提示，不預設打卡類型
-        });
       } else {
-        const error = await response.text();
-        console.error('條碼掃描失敗:', error);
-        toast({
-          title: '掃描失敗',
-          description: error || '無法處理條碼掃描請求',
-          variant: 'destructive'
-        });
-        
-        // 更新掃描狀態為失敗
-        setLastScan({
-          timestamp: new Date().toISOString(),
-          success: false,
-          statusMessage: error || '無法處理條碼掃描請求'
-        });
+        // API 請求失敗
+        try {
+          const errorData = await response.json();
+          const errorMessage = errorData.error || '掃描失敗，請重試';
+          
+          console.error('條碼掃描失敗:', errorMessage);
+          
+          // 更新掃描狀態為失敗
+          setLastScan({
+            timestamp: new Date().toISOString(),
+            success: false,
+            statusMessage: errorMessage
+          });
+          
+          toast({
+            title: '掃描失敗',
+            description: errorMessage,
+            variant: 'destructive'
+          });
+        } catch (e) {
+          // 無法解析 JSON 錯誤
+          const errorText = await response.text().catch(() => '未知錯誤');
+          
+          console.error('無法解析錯誤響應:', e);
+          setLastScan({
+            timestamp: new Date().toISOString(),
+            success: false,
+            statusMessage: '掃描處理失敗，請重試'
+          });
+          
+          toast({
+            title: '掃描失敗',
+            description: '掃描處理失敗，請重試',
+            variant: 'destructive'
+          });
+        }
       }
     } catch (error) {
-      console.error('條碼掃描出錯:', error);
+      // 網絡錯誤或其他異常
+      console.error('條碼掃描請求異常:', error);
+      
+      setLastScan({
+        timestamp: new Date().toISOString(),
+        success: false,
+        statusMessage: '網絡錯誤，請檢查連接並重試'
+      });
+      
       toast({
-        title: '掃描出錯',
-        description: '處理條碼掃描時出現錯誤',
+        title: '網絡錯誤',
+        description: '請檢查連接並重試',
         variant: 'destructive'
       });
     } finally {
+      // 清理狀態，恢復輸入
       setIsSubmitting(false);
-      setIdNumber('');
+      if (inputRef.current) inputRef.current.focus();
     }
   };
   
@@ -444,8 +482,12 @@ export default function BarcodeScanPage() {
       {lastScan && (
         <Card className={`overflow-hidden border-l-4 ${
           lastScan.success 
-            ? (lastScan.action === 'clock-in' ? 'border-l-green-500' : 'border-l-blue-500')
-            : 'border-l-red-500'
+            ? (lastScan.isClockIn === undefined 
+               ? 'border-l-yellow-500' // 處理中
+               : lastScan.isClockIn 
+                 ? 'border-l-green-500' // 上班
+                 : 'border-l-blue-500') // 下班
+            : 'border-l-red-500' // 失敗
         }`}>
           <CardContent className="p-6">
             <div className="flex justify-between items-start">
@@ -455,15 +497,15 @@ export default function BarcodeScanPage() {
                     lastScan.isClockIn === undefined ? (
                       // 處理中狀態 - 顯示旋轉圖標
                       <div className="animate-spin">
-                        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+                        <Loader2 className="h-6 w-6 text-yellow-500" />
                       </div>
                     ) : (
                       // 成功狀態 - 根據打卡類型顯示對應顏色
-                      <CheckCircle2 className={lastScan.isClockIn ? 'text-green-500' : 'text-blue-500'} />
+                      <CheckCircle2 className={lastScan.isClockIn ? 'text-green-500' : 'text-blue-500'} size={24} />
                     )
                   ) : (
                     // 失敗狀態
-                    <XCircle className="text-red-500" />
+                    <XCircle className="text-red-500" size={24} />
                   )}
                   <h2 className="text-xl font-bold">
                     {lastScan.success ? (
