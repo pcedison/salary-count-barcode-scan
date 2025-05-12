@@ -236,13 +236,25 @@ export default function BarcodeScanPage() {
   
   // 監視打卡記錄變化，在條件滿足時隱藏今日打卡記錄
   useEffect(() => {
-    // 檢查是否有員工已經完成上班和下班打卡
-    const hasCompletedAttendance = todayAttendanceRecords.some(record => 
+    if (!lastScan || !lastScan.employee) return;
+    
+    // 獲取當前打卡的員工ID
+    const currentEmployeeId = lastScan.employee.id;
+    
+    // 檢查此員工是否已完成上下班打卡
+    const employeeAttendanceRecords = todayAttendanceRecords.filter(record => 
+      record.employeeId === currentEmployeeId
+    );
+    
+    // 檢查是否有該員工今天的完整打卡記錄（上班和下班都有）
+    const hasCompletedAttendance = employeeAttendanceRecords.some(record => 
       record.clockIn && record.clockOut && record.clockOut !== ''
     );
     
-    // 如果有新的掃描成功，且存在完整的打卡記錄，則準備隱藏打卡記錄
-    if (lastScan && lastScan.success && hasCompletedAttendance) {
+    // 如果最後的掃描操作成功，且此員工已完成今天的打卡
+    if (lastScan.success && hasCompletedAttendance) {
+      console.log(`員工 ${lastScan.employee.name} 已完成今日打卡，準備自動隱藏`);
+      
       // 清除之前的計時器（如果有）
       if (recordsVisibilityTimerRef.current) {
         clearTimeout(recordsVisibilityTimerRef.current);
@@ -254,8 +266,9 @@ export default function BarcodeScanPage() {
         console.log('自動隱藏今日打卡記錄');
         setShowTodayRecords(false);
       }, STATUS_AUTO_CLEAR_DELAY);
-    } else {
-      // 如果沒有完整記錄，確保始終顯示
+    } else if (lastScan.success && !hasCompletedAttendance) {
+      // 如果打卡成功，但該員工尚未完成完整打卡，確保記錄顯示
+      console.log(`員工 ${lastScan.employee.name} 尚未完成今日打卡，保持記錄顯示`);
       setShowTodayRecords(true);
     }
     
@@ -507,6 +520,18 @@ export default function BarcodeScanPage() {
               <span className="text-sm">{currentTime}</span>
             </div>
           </div>
+          
+          {!showTodayRecords && todayAttendanceRecords.length > 0 && (
+            <div className="mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowTodayRecords(true)}
+                className="w-full text-sm h-8"
+              >
+                顯示今日打卡記錄
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -529,7 +554,7 @@ export default function BarcodeScanPage() {
       
       {/* 今日打卡記錄 - 根據條件自動隱藏 */}
       {sortedScanRecords.length > 0 && showTodayRecords && (
-        <Card className="w-full">
+        <Card className="w-full animate-in fade-in-0 slide-in-from-bottom-5 duration-300">
           <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle>今日打卡記錄</CardTitle>
             <Button 
