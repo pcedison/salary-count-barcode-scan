@@ -201,6 +201,8 @@ export default function BarcodeScanPage() {
   const recordsVisibilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   // 狀態顯示的自動清除時間（毫秒）
   const STATUS_AUTO_CLEAR_DELAY = 6000; // 6秒
+  // 動畫持續時間（毫秒）
+  const ANIMATION_DURATION = 300; // 0.3秒
   // 設置顯示今日打卡記錄的狀態
   const [showTodayRecords, setShowTodayRecords] = useState<boolean>(true);
   
@@ -261,10 +263,19 @@ export default function BarcodeScanPage() {
         recordsVisibilityTimerRef.current = null;
       }
       
-      // 設置新的計時器，6秒後隱藏今日打卡記錄
+      // 設置新的計時器，6秒後隱藏今日打卡記錄（留給動畫足夠時間）
       recordsVisibilityTimerRef.current = setTimeout(() => {
         console.log('自動隱藏今日打卡記錄');
-        setShowTodayRecords(false);
+        // 使用動畫淡出效果
+        document.querySelectorAll('.attendance-record-card').forEach(card => {
+          (card as HTMLElement).style.opacity = '0';
+          (card as HTMLElement).style.transform = 'translateY(10px)';
+        });
+        
+        // 等待動畫完成後再隱藏
+        setTimeout(() => {
+          setShowTodayRecords(false);
+        }, ANIMATION_DURATION);
       }, STATUS_AUTO_CLEAR_DELAY);
     } else if (lastScan.success && !hasCompletedAttendance) {
       // 如果打卡成功，但該員工尚未完成完整打卡，確保記錄顯示
@@ -554,7 +565,8 @@ export default function BarcodeScanPage() {
       
       {/* 今日打卡記錄 - 根據條件自動隱藏 */}
       {sortedScanRecords.length > 0 && showTodayRecords && (
-        <Card className="w-full animate-in fade-in-0 slide-in-from-bottom-5 duration-300">
+        <Card className="w-full animate-in fade-in-0 slide-in-from-bottom-5 duration-300 attendance-record-card"
+          style={{transition: `opacity ${ANIMATION_DURATION}ms, transform ${ANIMATION_DURATION}ms`}}>
           <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle>今日打卡記錄</CardTitle>
             <Button 
@@ -607,7 +619,8 @@ export default function BarcodeScanPage() {
       
       {/* 尚未打下班卡的記錄 - 也根據條件自動隱藏 */}
       {incompleteRecords.length > 0 && showTodayRecords && (
-        <Card className="w-full border-orange-200">
+        <Card className="w-full border-orange-200 animate-in fade-in-0 slide-in-from-bottom-5 duration-300 attendance-record-card"
+          style={{transition: `opacity ${ANIMATION_DURATION}ms, transform ${ANIMATION_DURATION}ms`}}>
           <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle className="text-orange-800">尚未打下班卡的員工</CardTitle>
             <Button 
