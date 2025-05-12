@@ -10,343 +10,131 @@ import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-// 強制清除所有本地存儲的打卡記錄
-// 這是一個緊急修復，確保不顯示過時的記錄
-const clearAllAttendanceRecords = () => {
-  try {
-    console.log('[強制清理] 正在檢查並清除所有本地存儲的打卡記錄');
-    
-    // 清除所有可能存放打卡記錄的 localStorage 項目
-    localStorage.removeItem('last_barcode_scan');
-    localStorage.removeItem('recent_barcode_scans');
-    
-    // 找出並清除所有可能的舊記錄相關項目
-    Object.keys(localStorage).forEach(key => {
-      if (key.includes('scan') || key.includes('attendance') || key.includes('barcode') || key.includes('clock')) {
-        console.log(`[強制清理] 清除本地存儲項: ${key}`);
-        localStorage.removeItem(key);
-      }
-    });
-    
-    console.log('[強制清理] 本地存儲清理完成');
-    
-    // 判斷是否需要強制刷新頁面
-    const lastCleanTime = localStorage.getItem('last_storage_clean_time');
-    const currentTime = new Date().toISOString();
-    
-    // 如果是第一次清理或距離上次清理超過1分鐘，進行頁面刷新
-    if (!lastCleanTime || (new Date(currentTime).getTime() - new Date(lastCleanTime).getTime() > 60000)) {
-      localStorage.setItem('last_storage_clean_time', currentTime);
-      console.log('[強制清理] 即將刷新頁面以確保清理生效');
-      
-      // 設置短延遲以確保日誌輸出
-      setTimeout(() => {
-        window.location.reload();
-      }, 500);
-    }
-  } catch (error) {
-    console.error('[強制清理] 清理過程中出錯:', error);
-  }
-};
-
-// 立即執行清理
-clearAllAttendanceRecords();
-
-// 自定義 Hook 用於讀取和更新當天未完成打卡的員工記錄
-function useIncompleteAttendanceRecords() {
-  // 從 API 獲取考勤記錄
-  const { data: attendanceRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
-    refetchInterval: 30000, // 每 30 秒刷新一次
-    refetchOnWindowFocus: false // 避免重複觸發通知
-  });
-
-  // 嚴格篩選出今天的且尚未完成下班打卡的記錄
-  const todayDate = getTodayDate();
-  const currentDateYMD = new Date().toISOString().split('T')[0].replace(/-/g, '/'); // YYYY/MM/DD 格式
-  
-  // 確保數據為數組，如果是空或錯誤則返回空數組
-  const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
-    // 檢查日期格式是否匹配今天日期，只顯示今天的記錄
-    const isToday = record.date === todayDate || record.date === currentDateYMD;
-    
-    // 只返回今天且未完成下班打卡的記錄
-    return isToday && 
-           (!record.clockOut || record.clockOut === '') &&
-           record.isBarcodeScanned === true;
-  });
-  
-  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，目前日期: ${todayDate}`);
-  return incompleteRecords;
-}
-
-// 用於儲存和讀取上一次的掃描記錄的函數
+// 常數定義
 const LAST_SCAN_STORAGE_KEY = 'last_barcode_scan';
 const RECENT_SCANS_STORAGE_KEY = 'recent_barcode_scans';
 
-function saveLastScan(scanData: any) {
-  if (scanData) {
-    // 確保掃描數據包含時間戳
-    const scanWithTimestamp = {
-      ...scanData,
-      timestamp: scanData.timestamp || new Date().toISOString()
-    };
-    localStorage.setItem(LAST_SCAN_STORAGE_KEY, JSON.stringify(scanWithTimestamp));
-  }
-}
-
-function getTodayDateFormatted() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-// 頁面載入時立即執行清理函數，強制清除所有過時的記錄
-(() => {
+// 初始化時清理所有本地儲存，確保不會顯示舊的資料
+(function clearAllStoredData() {
   try {
-    const today = getTodayDate();
-    const todayFormatted = getTodayDateFormatted();
-    console.log(`[初始化清理] 系統日期: ${today}, 格式化日期: ${todayFormatted}`);
+    // 清除所有可能包含考勤記錄的 localStorage 項目
+    localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+    localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
     
-    // 清理上次掃描記錄
-    const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
-    if (storedScan) {
-      try {
-        const savedScan = JSON.parse(storedScan);
-        let isOutdated = true;
-        
-        // 檢查時間戳
-        if (savedScan.timestamp) {
-          const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
-          const formattedToday = todayFormatted.replace(/-/g, '-');
-          if (scanDate === formattedToday) {
-            isOutdated = false;
-          }
-        }
-        
-        // 檢查考勤記錄
-        if (savedScan.attendance?.date && savedScan.attendance.date === today) {
-          isOutdated = false;
-        }
-        
-        // 檢查日期字段
-        if (savedScan.date && (savedScan.date === today || savedScan.date.replace(/-/g, '/') === today)) {
-          isOutdated = false;
-        }
-        
-        if (isOutdated) {
-          console.log(`[初始化清理] 移除過時的上次掃描記錄`);
-          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        }
-      } catch (e) {
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+    // 找出其他可能包含掃描或考勤資料的項目
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('scan') || key.includes('attendance') || key.includes('barcode'))) {
+        localStorage.removeItem(key);
       }
     }
     
-    // 清理最近掃描記錄
-    const storedRecent = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
-    if (storedRecent) {
-      try {
-        const savedData = JSON.parse(storedRecent);
-        if (savedData && savedData.date) {
-          const isToday = savedData.date === today || 
-                          savedData.date === todayFormatted || 
-                          savedData.date.replace(/-/g, '/') === today;
-          
-          if (!isToday) {
-            console.log(`[初始化清理] 移除過時的最近掃描記錄`);
-            localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-          } else {
-            // 確認日期沒問題，檢查具體記錄
-            const todayScans = (savedData.scans || []).filter((scan: any) => {
-              if (!scan) return false;
-              
-              if (scan.date) {
-                const scanDate = scan.date.replace(/-/g, '/');
-                return scanDate === today || scanDate === todayFormatted;
-              }
-              
-              if (scan.timestamp) {
-                const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
-                return scanDate === todayFormatted.replace(/-/g, '-');
-              }
-              
-              if (scan.attendance?.date) {
-                return scan.attendance.date === today;
-              }
-              
-              return false;
-            });
-            
-            if (todayScans.length < (savedData.scans || []).length) {
-              console.log(`[初始化清理] 過濾掉 ${(savedData.scans || []).length - todayScans.length} 筆過時記錄`);
-              savedData.scans = todayScans;
-              localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify(savedData));
-            }
-          }
-        } else {
-          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-        }
-      } catch (e) {
-        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-      }
-    }
+    console.log('已清除所有可能包含考勤記錄的本地儲存項目');
   } catch (e) {
-    console.error('[初始化清理] 清理過程中出錯:', e);
+    console.error('清理本地儲存時出錯:', e);
   }
 })();
 
-function getLastScan() {
-  // 同樣完全重寫此函數，不再從 localStorage 讀取數據
-  // 這是為了確保過時的打卡記錄不會顯示在界面上
-  const today = getTodayDate();
-  console.log(`[重置版] 獲取最後掃描記錄，系統日期: ${today}`);
+// 自訂 Hook 用於篩選今天的未完成打卡記錄
+function useTodayIncompleteRecords() {
+  // 直接從 API 獲取考勤記錄
+  const { data: attendanceRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 10000, // 每 10 秒刷新一次
+    refetchOnWindowFocus: false
+  });
   
-  // 強制返回 null，以確保界面上不會顯示任何過時的掃描記錄
-  return null;
-}
-
-function saveRecentScans(scans: any[]) {
-  if (scans && scans.length > 0) {
-    // 確保每個掃描記錄都有時間戳和日期
-    const scansWithDate = scans.map(scan => ({
-      ...scan,
-      timestamp: scan.timestamp || new Date().toISOString(),
-      date: scan.date || getTodayDateFormatted()
-    }));
+  // 篩選出今天的且尚未完成下班打卡的記錄
+  const todayDate = getTodayDate();
+  const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
+    // 只保留今天的記錄
+    const isToday = record.date === todayDate;
+    // 只保留未完成下班打卡的記錄
+    const isIncomplete = (!record.clockOut || record.clockOut === '') && record.isBarcodeScanned === true;
     
-    localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify({
-      date: getTodayDateFormatted(),
-      lastUpdated: new Date().toISOString(), // 添加最後更新時間
-      scans: scansWithDate
-    }));
-  }
-}
-
-function getRecentScans() {
-  // 完全重寫此函數，不再從 localStorage 中讀取數據
-  // 直接從 API 數據中篩選今天的打卡記錄
-  // 確保使用今天的日期
-  const today = getTodayDate();
-  console.log(`[重置版] 取得今日打卡記錄，系統日期: ${today}`);
+    return isToday && isIncomplete;
+  });
   
-  try {
-    // 每次都返回空數組，強制清除所有舊的打卡記錄
-    // 真正的當日數據會在頁面重新載入後，透過 API 獲取
-    return [];
-  } catch (e) {
-    console.error('[重置版] 處理打卡記錄時出錯:', e);
-    return [];
-  }
+  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${todayDate}`);
+  return incompleteRecords;
 }
 
+// 自訂 Hook 用於篩選並顯示今天的打卡記錄
+function useTodayAttendanceRecords() {
+  const { data: attendanceRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 5000 // 每 5 秒刷新一次
+  });
+  
+  // 篩選出今天的記錄
+  const todayDate = getTodayDate();
+  const todayRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter(record => {
+    return record.date === todayDate;
+  });
+  
+  return todayRecords;
+}
+
+// 當前頁面元件
 export default function BarcodeScanPage() {
   const { toast } = useToast();
   const { isAdmin } = useAdmin();
-  const queryClient = useQueryClient(); // 獲取 react-query 客戶端實例
+  const queryClient = useQueryClient();
+  
+  // 狀態管理
   const [idNumber, setIdNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [isPending, setIsPending] = useState<boolean>(false); // 後台處理中狀態
-  const [pendingEmployee, setPendingEmployee] = useState<string>(''); // 正在處理的員工姓名
-  const [lastScan, setLastScan] = useState<any>(null); // 強制初始為 null
-  const [recentScans, setRecentScans] = useState<any[]>([]); // 強制初始為空數組
+  const [isPending, setIsPending] = useState<boolean>(false);
+  const [pendingEmployee, setPendingEmployee] = useState<string>('');
+  const [lastScan, setLastScan] = useState<any>(null); // 始終初始化為 null
   const [currentTime, setCurrentTime] = useState<string>(getCurrentTime());
-  const inputRef = useRef<HTMLInputElement>(null);
   
-  // 獲取今天的考勤記錄，直接從 API 獲取，不使用 localStorage
-  const { data: attendanceData = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
-    refetchInterval: 5000, // 每 5 秒刷新一次
-    refetchOnWindowFocus: false // 避免重複觸發通知
+  // 取得考勤記錄，資料來源只從 API 獲取，不使用 localStorage
+  const incompleteRecords = useTodayIncompleteRecords();
+  const todayAttendanceRecords = useTodayAttendanceRecords();
+  
+  // 重新組織為掃描記錄格式
+  const scanRecords = todayAttendanceRecords.map(record => {
+    // 確保員工資料完整
+    const employeeName = record._employeeName || '未知員工';
+    const department = record._employeeDepartment || '未指定部門';
+    
+    // 先創建上班打卡記錄
+    const clockInRecord = {
+      employee: { name: employeeName, department },
+      employeeName,
+      action: 'clock-in',
+      time: record.clockIn,
+      attendance: record,
+      success: true,
+      timestamp: new Date().toISOString() // 添加時間戳
+    };
+    
+    // 如果有下班打卡，創建下班打卡記錄
+    const records = [clockInRecord];
+    if (record.clockOut && record.clockOut !== '') {
+      records.push({
+        employee: { name: employeeName, department },
+        employeeName,
+        action: 'clock-out',
+        time: record.clockOut,
+        attendance: record,
+        success: true,
+        timestamp: new Date().toISOString() // 添加時間戳
+      });
+    }
+    
+    return records;
+  }).flat(); // 扁平化數組
+  
+  // 按時間排序，最新的在前面
+  const sortedScanRecords = [...scanRecords].sort((a, b) => {
+    const timeA = a.action === 'clock-in' ? a.attendance.clockIn : a.attendance.clockOut;
+    const timeB = b.action === 'clock-in' ? b.attendance.clockIn : b.attendance.clockOut;
+    
+    // 最新的在前面
+    return timeA > timeB ? -1 : 1;
   });
-  
-  // 過濾出今天的打卡記錄
-  const todayDate = getTodayDate();
-  
-  // 獲取未完成打卡的記錄
-  const incompleteRecords = useIncompleteAttendanceRecords();
-  
-  // 初始化時清理本地存儲的陳舊記錄
-  useEffect(() => {
-    // 獲取今天的日期
-    const today = getTodayDateFormatted();
-    
-    // 檢查並清理上次掃描記錄
-    const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
-    if (storedScan) {
-      try {
-        const savedScan = JSON.parse(storedScan);
-        if (savedScan && savedScan.timestamp) {
-          const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
-          if (scanDate !== today) {
-            // 不是今天的記錄，清除緩存
-            console.log('清理過時的上次掃描記錄');
-            localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-            setLastScan(null);
-          }
-        }
-      } catch (e) {
-        // 處理可能的解析錯誤
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-      }
-    }
-    
-    // 檢查並清理最近掃描記錄
-    const storedRecent = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
-    if (storedRecent) {
-      try {
-        const savedData = JSON.parse(storedRecent);
-        if (savedData && savedData.date && savedData.date !== today) {
-          // 不是今天的記錄，清除緩存
-          console.log('清理過時的打卡記錄');
-          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-          setRecentScans([]);
-        }
-      } catch (e) {
-        // 處理可能的解析錯誤
-        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-      }
-    }
-  }, []);
-  
-  // 當發現有未完成打卡記錄時，更新最近掃描狀態
-  useEffect(() => {
-    if (incompleteRecords.length > 0 && !lastScan) {
-      // 發現尚未下班打卡的記錄，設置為最後一次掃描
-      const recordsWithEmployees = incompleteRecords.map((record: any) => {
-        // 如果記錄中已有員工資訊，直接使用
-        if (record._employeeName) {
-          // 添加當前時間戳，確保日期檢查有效
-          return {
-            attendance: record,
-            employee: {
-              name: record._employeeName,
-              department: record._employeeDepartment || '未指定部門'
-            },
-            employeeName: record._employeeName,
-            action: 'clock-in',
-            success: true,
-            timestamp: new Date().toISOString() // 添加當前時間戳
-          };
-        }
-        return null;
-      }).filter(Boolean);
-      
-      if (recordsWithEmployees.length > 0) {
-        // 只設置最近一筆記錄
-        setLastScan(recordsWithEmployees[0]);
-      }
-    }
-  }, [incompleteRecords, lastScan]);
-
-  // 自動聚焦到輸入框
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [lastScan]);
   
   // 每秒更新時間
   useEffect(() => {
@@ -357,514 +145,236 @@ export default function BarcodeScanPage() {
     return () => clearInterval(timer);
   }, []);
   
-  // 每分鐘檢查是否有陳舊的掃描記錄需要清理
+  // 監聽打卡成功事件
   useEffect(() => {
-    const cleanupTimer = setInterval(() => {
-      // 獲取當天日期
-      const today = getTodayDateFormatted();
+    // 訂閱 eventBus 上的掃描成功事件
+    const handleBarcodeSuccess = (data: any) => {
+      console.log('打卡成功事件:', data);
       
-      // 檢查最後掃描記錄是否過期
-      const lastScanData = getLastScan();
-      if (lastScanData && lastScanData.timestamp) {
-        const scanDate = new Date(lastScanData.timestamp).toISOString().split('T')[0];
-        if (scanDate !== today.replace(/-/g, '-')) {
-          console.log('定期檢查: 清理過時的掃描記錄');
-          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-          setLastScan(null);
-        }
+      // 如果有設置待處理狀態，清除它
+      if (isPending) {
+        setIsPending(false);
+        setPendingEmployee('');
       }
       
-      // 檢查顯示超過10分鐘的打卡記錄是否應該清除
-      if (lastScan && lastScan.timestamp) {
-        const scanTime = new Date(lastScan.timestamp).getTime();
-        const currentTime = new Date().getTime();
-        const timeDiffMinutes = (currentTime - scanTime) / (1000 * 60);
-        
-        // 如果打卡記錄顯示超過10分鐘，自動清除
-        if (timeDiffMinutes > 10) {
-          console.log('定期檢查: 清理顯示時間過長的掃描記錄');
-          setLastScan(null);
-        }
-      }
-    }, 60000); // 每分鐘執行一次
-    
-    return () => clearInterval(cleanupTimer);
-  }, [lastScan]);
-
-  // 處理打卡成功事件
-  const handleBarcodeSuccess = (data: any) => {
-    console.log('打卡成功事件:', data);
-    
-    // 立即清除處理中狀態和輸入欄位
-    setIsPending(false);
-    setPendingEmployee('');
-    setIdNumber('');
-    setIsSubmitting(false);
-    
-    // 立即刷新考勤數據
-    queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
-    
-    // 根據打卡類型顯示不同的消息
-    const actionType = data.action === 'clock-out' ? '下班打卡' : '上班打卡';
-    const employeeName = data.employeeName || data.employee?.name || '員工';
-    
-    // 顯示打卡成功消息
-    toast({
-      title: `${actionType}成功`,
-      description: `${employeeName} ${actionType}成功`,
-      variant: 'default',
-    });
-    
-    // 保存最後一次掃描結果
-    setLastScan(data);
-    
-    // 添加到最近掃描記錄，確保數據包含時間戳
-    const scanWithTimestamp = {
-      ...data,
-      timestamp: data.timestamp || new Date().toISOString() // 確保有時間戳
+      // 更新最後一次掃描結果
+      setLastScan(data);
+      
+      // 根據打卡類型設置不同的清除時間
+      const clearTimeout = data.action === 'clock-out' ? 3000 : 10000;
+      
+      // 設置自動清除計時器
+      setTimeout(() => {
+        setLastScan(null);
+      }, clearTimeout);
+      
+      // 刷新 API 數據
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
     };
-    const newScans = [scanWithTimestamp, ...recentScans].slice(0, 10); // 只保留最近10筆
-    setRecentScans(newScans);
     
-    // 保存到 localStorage 時包含日期信息
-    saveRecentScans(newScans);
+    // 訂閱打卡開始事件
+    const handleBarcodePending = (data: { employeeName: string }) => {
+      console.log('打卡處理中:', data);
+      setIsPending(true);
+      setPendingEmployee(data.employeeName || '');
+    };
     
-    // 根據打卡類型設置不同的清除時間
-    if (data.action === 'clock-out') {
-      // 下班打卡，3秒後清空顯示
-      setTimeout(() => {
-        setLastScan(null);
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        
-        // 再次刷新考勤數據，但保留最近打卡記錄
-        queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
-      }, 3000);
-    } else {
-      // 上班打卡，設置為較長時間(10秒)
-      saveLastScan(data); // 儲存到 localStorage
-      
-      // 上班打卡也需要清除狀態，但時間較長
-      setTimeout(() => {
-        setLastScan(null);
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        
-        // 再次刷新考勤數據
-        queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
-      }, 10000);
-    }
+    // 註冊事件監聽
+    eventBus.on(EventNames.BARCODE_SUCCESS, handleBarcodeSuccess);
+    eventBus.on(EventNames.BARCODE_PENDING, handleBarcodePending);
     
-    // 確保輸入區域重新聚焦，準備下一次掃描
+    // 組件卸載時移除事件監聽
+    return () => {
+      eventBus.off(EventNames.BARCODE_SUCCESS, handleBarcodeSuccess);
+      eventBus.off(EventNames.BARCODE_PENDING, handleBarcodePending);
+    };
+  }, [isPending, queryClient]);
+  
+  // 自動聚焦輸入框
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
-  };
+  }, [lastScan]);
   
-  // 處理打卡錯誤事件
-  const handleBarcodeError = (data: any) => {
-    console.log('打卡錯誤事件:', data);
-    
-    // 清除處理中狀態
-    setIsPending(false);
-    setPendingEmployee('');
-    
-    toast({
-      title: "打卡失敗",
-      description: data.message || "處理打卡請求時出錯，請稍後再試",
-      variant: "destructive"
-    });
-    
-    // 清空表單狀態
-    setIsSubmitting(false);
-    setIdNumber('');
-  };
-  
-  // 獲取考勤數據，提高獲取頻率
-  const { data: attendanceRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
-    refetchInterval: 2000, // 每 2 秒刷新一次
-    staleTime: 1000, // 數據 1 秒後就認為過期，更容易觸發重新獲取
-    // 防止反复觸發通知
-    refetchOnWindowFocus: false
-  });
-  
-  // 監聽考勤數據變化，自動更新打卡狀態
-  useEffect(() => {
-    // 如果當前正在處理中狀態或數據為空，不更新，等待處理完成
-    if (isPending || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
-      return;
-    }
-    
-    // 檢查是否有新的打卡記錄
-    const todayDate = getTodayDate();
-    // 嚴格過濾今天的記錄
-    const today = attendanceRecords.filter((record: any) => record.date === todayDate);
-    
-    if (today.length > 0) {
-      // 找到最新的記錄（假設ID越大越新）
-      const latestRecord = today.reduce((latest: any, current: any) => {
-        return !latest || current.id > latest.id ? current : latest;
-      }, null);
-      
-      if (latestRecord) {
-        // 檢查這個記錄是否有完整的上下班時間
-        const hasClockIn = latestRecord.clockIn && latestRecord.clockIn !== '';
-        const hasClockOut = latestRecord.clockOut && latestRecord.clockOut !== '';
-        
-        // 確定正確的打卡動作
-        const action = hasClockOut ? 'clock-out' : 'clock-in';
-        
-        // 創建一致的打卡事件數據，包含必要的時間戳
-        const currentTimestamp = new Date().toISOString();
-        const lastScanData = {
-          employeeName: latestRecord._employeeName,
-          employee: {
-            name: latestRecord._employeeName,
-            department: latestRecord._employeeDepartment || '未指定部門'
-          },
-          action: action, // 使用判斷的動作
-          attendance: latestRecord,
-          success: true,
-          timestamp: currentTimestamp,
-          date: getTodayDateFormatted() // 添加格式化的日期，確保日期檢查可以正常工作
-        };
-        
-        // 更新最後打卡顯示
-        setLastScan(lastScanData);
-        
-        // 更新打卡記錄列表 - 保證上班/下班狀態的一致性
-        const existingRecordIndex = recentScans.findIndex(
-          scan => scan.attendance?.id === latestRecord.id
-        );
-        
-        let newScans;
-        if (existingRecordIndex >= 0) {
-          // 更新現有記錄的打卡狀態
-          newScans = [...recentScans];
-          newScans[existingRecordIndex] = lastScanData;
-        } else {
-          // 添加新的打卡記錄
-          newScans = [lastScanData, ...recentScans].slice(0, 10);
-        }
-        
-        setRecentScans(newScans);
-        saveRecentScans(newScans);
-      }
-    }
-  }, [attendanceRecords, isPending, recentScans, lastScan]);
-  
-  // 處理條碼掃描表單提交
-  const handleBarcodeSubmit = async (e: React.FormEvent) => {
+  // 處理掃描條碼
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!idNumber.trim()) {
-      toast({
-        title: "掃描錯誤",
-        description: "請先掃描員工條碼",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!idNumber.trim() || isSubmitting) return;
     
     setIsSubmitting(true);
     
-    // 顯示處理中提示
-    toast({
-      title: "處理中",
-      description: "正在處理打卡請求...",
-    });
-    
     try {
-      // 發送打卡請求
-      const response = await fetch('/api/barcode-scan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ idNumber: idNumber.trim() })
+      // 調用 API
+      const response = await apiRequest('POST', '/api/scan-barcode', {
+        idNumber: idNumber.trim()
       });
       
-      const data = await response.json();
-      
-      // 如果是處理中狀態，則顯示等待信息並由WebSocket事件處理最終結果
-      if (data.inProgress) {
-        console.log('打卡請求已接收，等待後台處理結果...');
-        // 設置處理中狀態
-        setIsPending(true);
-        
-        // 如果響應中包含員工信息，顯示正在處理的員工
-        if (data.employee?.name) {
-          setPendingEmployee(data.employee.name);
-        }
-        
-        // 立即開始檢查結果，並在更短的時間間隔內重複檢查
-        let checkAttempts = 0;
-        const maxAttempts = 10; // 最多檢查10次，每次間隔0.3秒
-        
-        // 記錄處理開始時間
-        const processStartTime = new Date();
-        
-        // 記錄目前考勤記錄的最大ID，用於檢測新記錄
-        let initialMaxId = 0;
-        if (Array.isArray(attendanceRecords) && attendanceRecords.length > 0) {
-          initialMaxId = attendanceRecords.reduce((maxId, record) => {
-            return Math.max(maxId, record.id || 0);
-          }, 0);
-        }
-        
-        // 設置一個變量，用於記錄處理狀態
-        // 創建一個標誌，標記已顯示通知
-        let hasNotified = false;
-        
-        const intervalId = setInterval(async () => {
-          // 主動獲取最新考勤數據，而不是依賴React Query輪詢
-          try {
-            const response = await fetch('/api/attendance');
-            const latestRecords = await response.json();
-            
-            // 檢查是否有新記錄
-            if (Array.isArray(latestRecords) && latestRecords.length > 0) {
-              const newMaxId = latestRecords.reduce((maxId, record) => {
-                return Math.max(maxId, record.id || 0);
-              }, 0);
-              
-              // 如果有新記錄，立即結束等待
-              if (newMaxId > initialMaxId) {
-                clearInterval(intervalId);
-                
-                // 立即更新 React Query 緩存
-                queryClient.setQueryData(['/api/attendance'], latestRecords);
-                
-                // 清除處理中狀態
-                setIsPending(false);
-                setPendingEmployee('');
-                
-                // 只在第一次檢測到新記錄且尚未通知時顯示通知
-                if (checkAttempts <= 1 && !hasNotified) {
-                  toast({
-                    title: "處理完成",
-                    description: "打卡處理已完成，請查看考勤記錄",
-                  });
-                  hasNotified = true;
-                }
-                
-                return;
-              }
-            }
-          } catch (e) {
-            console.log('檢查新記錄時出錯', e);
-          }
-          
-          // 安靜地刷新考勤數據，但不會觸發通知
-          queryClient.invalidateQueries({ 
-            queryKey: ['/api/attendance'],
-            // 只更新內部數據，不會導致UI重新渲染
-            exact: true
-          });
-          
-          checkAttempts++;
-          
-          // 如果檢查次數達到最大值，清除處理中狀態
-          if (checkAttempts >= maxAttempts) {
-            clearInterval(intervalId);
-            setIsPending(false);
-            setPendingEmployee('');
-            
-            // 最後再次刷新考勤數據
-            queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
-            
-            // 僅當達到最大嘗試次數時且尚未通知時才顯示通知
-            if (checkAttempts === maxAttempts && !hasNotified) {
-              toast({
-                title: "處理完成",
-                description: "打卡處理已完成，請查看考勤記錄",
-              });
-              hasNotified = true;
-            }
-          }
-        }, 300); // 每0.3秒檢查一次結果，更快地獲取更新
-      } else if (data.success) {
-        // 立即處理成功情況
-        handleBarcodeSuccess({
-          ...data,
-          action: data.action || 'clock-in',
-          employeeName: data.employee?.name,
-          timestamp: new Date().toISOString()
-        });
+      // 處理響應
+      if (response.ok) {
+        console.log('條碼掃描成功');
       } else {
-        // 直接處理錯誤情況
+        const error = await response.text();
+        console.error('條碼掃描失敗:', error);
         toast({
-          title: "處理失敗",
-          description: data.message || "掃描處理失敗，請重試",
-          variant: "destructive"
+          title: '掃描失敗',
+          description: error || '無法處理條碼掃描請求',
+          variant: 'destructive'
         });
-        setIsSubmitting(false);
-        setIdNumber('');
       }
-    } catch (error: any) {
-      console.error('掃描處理錯誤:', error);
+    } catch (error) {
+      console.error('條碼掃描出錯:', error);
       toast({
-        title: "處理錯誤",
-        description: error.message || "無法處理掃描，請確認網絡連接",
-        variant: "destructive"
+        title: '掃描出錯',
+        description: '處理條碼掃描時出現錯誤',
+        variant: 'destructive'
       });
+    } finally {
       setIsSubmitting(false);
       setIdNumber('');
     }
   };
-
+  
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">條碼掃描打卡</h1>
-        <div className="text-right">
-          <div className="text-sm text-muted-foreground">今天是</div>
-          <div className="font-bold">{getTodayDate()}</div>
-          <div className="text-sm text-muted-foreground mt-1">現在時間</div>
-          <div className="font-bold text-xl" id="current-time">{currentTime}</div>
-        </div>
-      </div>
-
-      {/* 掃描輸入區 */}
-      <Card className="w-full">
+    <div className="container mx-auto p-4 space-y-6">
+      <h1 className="text-2xl font-bold mb-6">員工打卡系統</h1>
+      
+      {/* 打卡狀態顯示區域 */}
+      {lastScan && (
+        <Card className={`overflow-hidden border-l-4 ${
+          lastScan.success 
+            ? (lastScan.action === 'clock-in' ? 'border-l-green-500' : 'border-l-blue-500')
+            : 'border-l-red-500'
+        }`}>
+          <CardContent className="p-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="flex items-center mb-4 space-x-2">
+                  {lastScan.success ? (
+                    <CheckCircle2 className={lastScan.action === 'clock-in' ? 'text-green-500' : 'text-blue-500'} />
+                  ) : (
+                    <XCircle className="text-red-500" />
+                  )}
+                  <h2 className="text-xl font-bold">
+                    {lastScan.success ? (
+                      lastScan.action === 'clock-in' ? '上班打卡成功' : '下班打卡成功'
+                    ) : '打卡失敗'}
+                  </h2>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-y-2 gap-x-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">員工</span>
+                    <span className="font-medium">{lastScan.employee?.name || lastScan.employeeName || '未知'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">部門</span>
+                    <span className="font-medium">{lastScan.employee?.department || '未指定部門'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">打卡日期</span>
+                    <span className="font-medium">{lastScan.attendance?.date || getTodayDate()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">打卡時間</span>
+                    <span className="font-medium">
+                      {lastScan.action === 'clock-in' 
+                        ? lastScan.attendance?.clockIn 
+                        : lastScan.attendance?.clockOut}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* 當有正在處理的打卡請求時顯示進度條 */}
+      {isPending && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-blue-100 mb-4">
+                <Clock className="w-8 h-8 text-blue-600 animate-pulse" />
+              </div>
+              <h3 className="text-lg font-semibold text-center mb-2">正在處理打卡請求</h3>
+              <p className="text-center text-muted-foreground mb-4">
+                正在處理 {pendingEmployee || '員工'} 的打卡請求，請稍候...
+              </p>
+              <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full animate-progress"></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* 掃描條碼輸入區域 */}
+      <Card>
         <CardHeader>
-          <CardTitle>員工條碼掃描</CardTitle>
-          <CardDescription>請掃描加密後的員工條碼進行打卡（員工管理頁可產生加密條碼）</CardDescription>
+          <CardTitle className="flex items-center">
+            <UserCheck className="mr-2" />
+            員工條碼掃描
+          </CardTitle>
+          <CardDescription>
+            掃描或輸入員工證條碼以記錄上下班時間
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleBarcodeSubmit} className="space-y-4">
-            <div className="flex gap-3">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex space-x-2">
               <Input
                 ref={inputRef}
-                id="idNumber"
                 type="text"
+                placeholder="請掃描員工證條碼"
                 value={idNumber}
                 onChange={(e) => setIdNumber(e.target.value)}
-                placeholder="請掃描加密後的條碼..."
-                className="flex-1 text-lg h-12 font-mono"
-                disabled={isSubmitting}
-                autoFocus
+                className="flex-1"
                 autoComplete="off"
               />
               <Button 
                 type="submit" 
-                className="min-w-24 h-12"
                 disabled={isSubmitting || !idNumber.trim()}
               >
-                打卡
+                {isSubmitting ? '處理中...' : '確認'}
               </Button>
             </div>
-            
-            <div className="mt-4 bg-blue-50 p-3 rounded-md border border-blue-200 text-sm">
-              <p className="flex items-center text-blue-800 font-medium mb-1">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 mr-1 text-blue-600">
-                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                </svg>
-                掃描加密條碼說明
-              </p>
-              <ol className="list-decimal pl-5 text-blue-700 space-y-1">
-                <li>為了提高資料安全性，本系統使用加密後的員工ID進行掃描打卡</li>
-                <li>請在員工管理頁面使用"產生加密ID"功能來獲取每位員工的加密條碼</li>
-                <li>打印或製作加密ID的條碼，以用於員工打卡</li>
-                <li>使用加密條碼有助於避免員工身分證號碼直接暴露</li>
-              </ol>
-            </div>
           </form>
+          
+          <div className="mt-4 flex justify-between items-center">
+            <div className="flex items-center space-x-1 text-muted-foreground">
+              <CalendarDays className="h-4 w-4" />
+              <span className="text-sm">{getTodayDate()}</span>
+            </div>
+            <div className="flex items-center space-x-1 text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span className="text-sm">{currentTime}</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      {/* 處理中狀態顯示 */}
-      {isPending && (
-        <Card className="w-full border-l-4 border-l-orange-500">
+      
+      {/* 管理員區域 */}
+      {isAdmin && (
+        <Card className="border border-yellow-200 bg-yellow-50">
           <CardHeader className="pb-2">
-            <CardTitle className="flex items-center">
-              <div className="mr-2 h-6 w-6 animate-spin text-orange-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-              </div>
-              處理中...
+            <CardTitle className="text-yellow-800 flex items-center">
+              <Lock className="mr-2 h-5 w-5" />
+              管理員模式
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">後台處理中，請稍等</div>
-                <div className="font-medium">
-                  系統正在處理{pendingEmployee ? ` ${pendingEmployee} ` : ''}打卡請求...
-                </div>
-                <div className="relative pt-1">
-                  <div className="overflow-hidden h-2 mb-1 text-xs flex rounded bg-orange-200">
-                    <div className="w-full animate-pulse bg-orange-500 h-full"></div>
-                  </div>
-                  <p className="text-xs text-orange-600 text-right">處理中...</p>
-                </div>
-              </div>
-              <div className="bg-orange-50 p-3 rounded-md border border-orange-200 mt-2">
-                <p className="text-orange-800 text-sm flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M12 8v4"></path>
-                    <path d="M12 16h.01"></path>
-                  </svg>
-                  處理完成後將自動顯示結果，無需重新掃描。請勿重複掃描同一條碼。
-                </p>
-              </div>
-            </div>
+            <p className="text-sm text-yellow-700 mb-4">
+              您已啟用管理員模式，可以手動輸入員工ID進行打卡操作。
+            </p>
           </CardContent>
         </Card>
       )}
-
-      {/* 最近掃描結果 */}
-      {!isPending && lastScan && (
-        <Card className={`w-full border-l-4 ${lastScan.action === 'clock-in' ? 'border-l-green-500' : 'border-l-blue-500'}`}>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center">
-              {lastScan.action === 'clock-in' ? (
-                <CheckCircle2 className="mr-2 text-green-500 h-6 w-6" />
-              ) : (
-                <Clock className="mr-2 text-blue-500 h-6 w-6" />
-              )}
-              {lastScan.action === 'clock-in' ? '上班打卡成功' : '下班打卡成功'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">員工</div>
-                <div className="font-medium flex items-center">
-                  <UserCheck className="mr-2 h-4 w-4" />
-                  {lastScan.employee?.name || '未知員工'}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">部門</div>
-                <div className="font-medium">
-                  {lastScan.employee?.department || '未指定部門'}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">打卡日期</div>
-                <div className="font-medium flex items-center">
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  {lastScan.attendance?.date || getTodayDate()}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm text-muted-foreground">打卡時間</div>
-                <div className="font-medium">
-                  {lastScan.action === 'clock-in' 
-                    ? lastScan.attendance?.clockIn 
-                    : lastScan.attendance?.clockOut}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
+      
       {/* 今日打卡記錄 */}
-      {recentScans.length > 0 && (
+      {sortedScanRecords.length > 0 && (
         <Card className="w-full">
           <CardHeader>
             <CardTitle>今日打卡記錄</CardTitle>
@@ -881,51 +391,60 @@ export default function BarcodeScanPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* 再次過濾，以確保只顯示今天的記錄 */}
-                  {recentScans
-                    .filter(scan => {
-                      // 先檢查記錄是否存在
-                      if (!scan) return false;
-                      
-                      const today = getTodayDate();
-                      
-                      // 檢查考勤記錄日期
-                      if (scan.attendance && scan.attendance.date) {
-                        return scan.attendance.date === today;
-                      }
-                      
-                      // 如果有日期字段，直接比較
-                      if (scan.date) {
-                        return scan.date === today || scan.date.replace(/-/g, '/') === today;
-                      }
-                      
-                      // 如果有時間戳，提取日期部分
-                      if (scan.timestamp) {
-                        const todayFormatted = getTodayDateFormatted().replace(/-/g, '-');
-                        const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
-                        return scanDate === todayFormatted;
-                      }
-                      
-                      // 無法確定日期，不顯示
-                      return false;
-                    })
-                    .map((scan, index) => (
-                      <tr key={index} className="border-b border-muted hover:bg-muted/20">
-                        <td className="p-2">{scan.employee?.name || scan.employeeName || '未知員工'}</td>
-                        <td className="p-2">{scan.employee?.department || '未指定'}</td>
-                        <td className="p-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                            scan.action === 'clock-in' 
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {scan.action === 'clock-in' ? '上班' : '下班'}
-                          </span>
-                        </td>
-                        <td className="p-2 font-mono">
-                          {scan.action === 'clock-in' 
-                            ? scan.attendance?.clockIn 
-                            : scan.attendance?.clockOut}
+                  {sortedScanRecords.map((scan, index) => (
+                    <tr key={index} className="border-b border-muted hover:bg-muted/20">
+                      <td className="p-2">{scan.employee?.name || scan.employeeName || '未知員工'}</td>
+                      <td className="p-2">{scan.employee?.department || '未指定'}</td>
+                      <td className="p-2">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                          scan.action === 'clock-in' 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {scan.action === 'clock-in' ? '上班' : '下班'}
+                        </span>
+                      </td>
+                      <td className="p-2 font-mono">
+                        {scan.action === 'clock-in' 
+                          ? scan.attendance?.clockIn 
+                          : scan.attendance?.clockOut}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* 尚未打下班卡的記錄 */}
+      {incompleteRecords.length > 0 && (
+        <Card className="w-full border-orange-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-orange-800">尚未打下班卡的員工</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-orange-50">
+                    <th className="p-2 text-left">員工</th>
+                    <th className="p-2 text-left">部門</th>
+                    <th className="p-2 text-left">上班時間</th>
+                    <th className="p-2 text-left">狀態</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {incompleteRecords.map((record, index) => (
+                    <tr key={index} className="border-b border-orange-100 hover:bg-orange-50/50">
+                      <td className="p-2">{record._employeeName || '未知員工'}</td>
+                      <td className="p-2">{record._employeeDepartment || '未指定'}</td>
+                      <td className="p-2 font-mono">{record.clockIn}</td>
+                      <td className="p-2">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-orange-100 text-orange-800 text-xs">
+                          尚未下班
+                        </span>
                       </td>
                     </tr>
                   ))}
