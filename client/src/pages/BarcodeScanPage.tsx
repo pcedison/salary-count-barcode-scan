@@ -14,6 +14,26 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 const LAST_SCAN_STORAGE_KEY = 'last_barcode_scan';
 const RECENT_SCANS_STORAGE_KEY = 'recent_barcode_scans';
 
+// 掃描結果類型定義
+interface ScanResult {
+  timestamp: string;
+  success: boolean;
+  employeeId: number;
+  employeeName: string;
+  employee?: {
+    id: number;
+    name: string;
+    department?: string;
+    idNumber?: string;
+  };
+  department?: string;
+  attendance?: any;
+  action: 'clock-in' | 'clock-out';
+  isClockIn: boolean;
+  statusMessage: string;
+  clockTime?: string; // 實際打卡時間，用於顯示
+}
+
 // 初始化時清理所有本地儲存，確保不會顯示舊的資料
 (function clearAllStoredData() {
   try {
@@ -89,7 +109,7 @@ export default function BarcodeScanPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isPending, setIsPending] = useState<boolean>(false);
   const [pendingEmployee, setPendingEmployee] = useState<string>('');
-  const [lastScan, setLastScan] = useState<any>(null); // 始終初始化為 null
+  const [lastScan, setLastScan] = useState<ScanResult | null>(null); // 始終初始化為 null
   const [currentTime, setCurrentTime] = useState<string>(getCurrentTime());
   
   // 取得考勤記錄，資料來源只從 API 獲取，不使用 localStorage
@@ -581,9 +601,11 @@ export default function BarcodeScanPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡時間</span>
                     <span className="font-medium">
-                      {lastScan.action === 'clock-in' || lastScan.isClockIn 
-                        ? lastScan.attendance?.clockIn || currentTime
-                        : lastScan.attendance?.clockOut || currentTime}
+                      {lastScan.clockTime || 
+                       (lastScan.action === 'clock-in' || lastScan.isClockIn 
+                        ? lastScan.attendance?.clockIn 
+                        : lastScan.attendance?.clockOut) || 
+                       currentTime}
                     </span>
                   </div>
                 </div>
