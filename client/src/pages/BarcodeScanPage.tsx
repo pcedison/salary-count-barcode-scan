@@ -4,7 +4,7 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Lock } from 'lucide-react';
+import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Lock, Loader2 } from 'lucide-react';
 import { apiRequest, getQueryFn } from '@/lib/queryClient';
 import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
