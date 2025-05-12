@@ -260,13 +260,19 @@ export default function BarcodeScanPage() {
     setIdNumber('');
   };
   
-  // 獲取考勤數據，提高獲取頻率
+  // 獲取考勤數據 - 大幅優化為更高效查詢策略
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 2000, // 每 2 秒刷新一次
-    staleTime: 1000, // 數據 1 秒後就認為過期，更容易觸發重新獲取
-    // 防止反复觸發通知
-    refetchOnWindowFocus: false
+    // 條碼掃描頁面使用更智能的查詢策略
+    refetchInterval: undefined, // 不設置自動重複獲取，改為主動觸發
+    staleTime: 5000, // 增加數據有效期至5秒
+    refetchOnWindowFocus: false, // 防止窗口焦點變化觸發查詢
+    refetchOnMount: true, // 組件掛載時獲取
+    cacheTime: 1000 * 60 * 10, // 緩存時間10分鐘，避免不必要查詢
+    // 優化請求錯誤處理
+    retry: false, // 失敗不自動重試，透過業務邏輯處理重試
+    // 實現高效緩存使用
+    select: (data) => data // 確保數據格式處理一致
   });
   
   // 監聽考勤數據變化，自動更新打卡狀態

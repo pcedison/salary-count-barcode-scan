@@ -62,15 +62,18 @@ export function useAttendanceData() {
     lastSynced: null
   });
   
-  // Fetch attendance data
+  // Fetch attendance data - 優化查詢策略，減少伺服器負擔
   const { 
     data: attendanceData = [], 
     isLoading,
     error
   } = useQuery({ 
     queryKey: ['/api/attendance'],
-    refetchInterval: 5000, // 加快刷新頻率到5秒，以更快獲取打卡更新
-    staleTime: 1000 // 縮短緩存的有效時間，使數據更快過期並重新獲取
+    refetchInterval: 30000, // 降低重新獲取間隔至30秒，減輕服務器負擔
+    staleTime: 15000, // 延長緩存有效時間至15秒
+    refetchIntervalInBackground: false, // 不在後台重複獲取
+    refetchOnWindowFocus: false, // 窗口獲得焦點時不重新獲取
+    retry: 1 // 僅在失敗時重試一次
   });
   
   // Check for errors in data fetching
