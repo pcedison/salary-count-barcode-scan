@@ -220,8 +220,10 @@ export default function BarcodeScanPage() {
         
         // 掃描成功後等待 1 秒，然後查詢最新的考勤記錄和掃描結果
         setTimeout(async () => {
+          // 使用選擇性更新而不是全部刷新，減少請求
           queryClient.invalidateQueries({
-            queryKey: ['/api/attendance']
+            queryKey: ['/api/attendance'],
+            refetchType: 'active' // 只刷新活躍查詢
           });
           
           // 查詢最新的掃描結果
@@ -259,12 +261,13 @@ export default function BarcodeScanPage() {
           }
         }, 1000);
         
-        // 立即更新掃描狀態為處理中
+        // 立即更新掃描狀態為處理中，但不顯示具體是上班還是下班
         setLastScan({
           timestamp: new Date().toISOString(),
           success: true,
-          isClockIn: undefined, // 未知是上班還是下班，等待服務器返回
-          statusMessage: '成功處理打卡，正在更新考勤記錄...'
+          action: undefined, // 不設置動作類型，避免錯誤顯示
+          isClockIn: undefined, // 不設置打卡類型，避免錯誤顯示
+          statusMessage: '正在處理打卡，請稍候...' // 使用中性提示，不預設打卡類型
         });
       } else {
         const error = await response.text();
@@ -311,13 +314,24 @@ export default function BarcodeScanPage() {
               <div>
                 <div className="flex items-center mb-4 space-x-2">
                   {lastScan.success ? (
-                    <CheckCircle2 className={lastScan.isClockIn ? 'text-green-500' : 'text-blue-500'} />
+                    lastScan.isClockIn === undefined ? (
+                      // 處理中狀態 - 顯示旋轉圖標
+                      <div className="animate-spin">
+                        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+                      </div>
+                    ) : (
+                      // 成功狀態 - 根據打卡類型顯示對應顏色
+                      <CheckCircle2 className={lastScan.isClockIn ? 'text-green-500' : 'text-blue-500'} />
+                    )
                   ) : (
+                    // 失敗狀態
                     <XCircle className="text-red-500" />
                   )}
                   <h2 className="text-xl font-bold">
                     {lastScan.success ? (
-                      lastScan.isClockIn ? '上班打卡成功' : '下班打卡成功'
+                      lastScan.isClockIn === undefined ? 
+                        '處理打卡中...' : 
+                        (lastScan.isClockIn ? '上班打卡成功' : '下班打卡成功')
                     ) : '打卡失敗'}
                   </h2>
                 </div>

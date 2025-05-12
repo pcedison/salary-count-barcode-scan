@@ -834,7 +834,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const attendanceCache = new Map();
   
   // 條碼掃描打卡路由 - 優化版本
-  // 用於前端查詢最近掃描結果的API
+  // 用於前端查詢最近掃描結果的API（優化版）
   app.get("/api/last-scan-result", async (_req, res) => {
     try {
       // 獲取當前日期（使用台灣時區 UTC+8）
@@ -842,33 +842,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
       const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
       
-      // 檢查緩存是否有最近的掃描結果
-      const employees = await storage.getAllEmployees();
-      if (employees && employees.length > 0) {
-        for (const employee of employees) {
-          const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
-          const scanResult = attendanceCache.get(scanResultKey);
-          if (scanResult) {
-            console.log("找到最近掃描結果:", scanResult);
-            
-            // 完善掃描結果對象，確保包含完整的員工信息
-            // 正確處理打卡類型
-            const isClockInAction = scanResult.action === 'clock-in' || scanResult.isClockIn === true;
-            
-            const enhancedResult = {
-              ...scanResult,
-              employeeId: employee.id,
-              employeeName: employee.name,
-              department: employee.department || '生產部',
-              // 添加方向明確的字段
-              action: isClockInAction ? 'clock-in' : 'clock-out',
-              isClockIn: isClockInAction,
-              message: `${employee.name} ${isClockInAction ? '上班' : '下班'}打卡成功` // 確保訊息一致
-            };
-            
-            return res.json(enhancedResult);
+      // 先檢查最新掃描結果緩存（從時間最近的開始）
+      let latestScanResult = null;
+      let latestTimestamp = 0;
+      
+      // 迭代所有緩存項
+      for (const [key, value] of attendanceCache.entries()) {
+        // 只處理今天的掃描結果緩存
+        if (key.startsWith('scan_result_') && key.endsWith(currentDate)) {
+          // 確保有時間戳
+          if (value && value.timestamp) {
+            const timestamp = new Date(value.timestamp).getTime();
+            // 保留時間最近的結果
+            if (timestamp > latestTimestamp) {
+              latestScanResult = value;
+              latestTimestamp = timestamp;
+            }
           }
         }
+      }
+      
+      // 如果找到了掃描結果
+      if (latestScanResult) {
+        console.log("找到最近掃描結果，時間戳:", new Date(latestTimestamp).toLocaleTimeString());
+        
+        // 確保打卡類型正確
+        const isClockInAction = latestScanResult.action === 'clock-in' || latestScanResult.isClockIn === true;
+        
+        // 完善掃描結果對象
+        const enhancedResult = {
+          ...latestScanResult,
+          // 添加方向明確的字段
+          action: isClockInAction ? 'clock-in' : 'clock-out',
+          isClockIn: isClockInAction,
+          message: `${latestScanResult.employeeName} ${isClockInAction ? '上班' : '下班'}打卡成功` // 確保訊息一致
+        };
+        
+        return res.json(enhancedResult);
       }
       
       // 如果沒有找到任何掃描結果
