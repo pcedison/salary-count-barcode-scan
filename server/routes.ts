@@ -121,29 +121,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Temporary attendance routes
   app.get("/api/attendance", async (_req, res) => {
     try {
+      console.log("[數據查詢] 獲取所有考勤記錄");
       const attendanceRecords = await storage.getTemporaryAttendance();
       
-      // 為了顯示員工資訊，我們需要獲取所有員工數據
-      const employees = await storage.getAllEmployees();
-      
-      // 將員工信息添加到考勤記錄中
-      const enhancedRecords = attendanceRecords.map(record => {
-        // 如果有 employeeId，則查找相應的員工信息
-        if (record.employeeId) {
-          const employee = employees.find(emp => emp.id === record.employeeId);
-          if (employee) {
-            return {
-              ...record,
-              _employeeName: employee.name,
-              _employeeDepartment: employee.department
-            };
-          }
-        }
-        return record;
-      });
-      
-      res.json(enhancedRecords);
+      console.log(`[查詢考勤] 成功從儲存層獲取考勤記錄，數量: ${attendanceRecords.length}`);
+      res.json(attendanceRecords);
     } catch (err) {
+      console.error("[查詢考勤] 獲取考勤記錄失敗:", err);
+      handleError(err, res);
+    }
+  });
+  
+  // 新增：專門用於獲取今日考勤記錄的API
+  app.get("/api/attendance/today", async (_req, res) => {
+    try {
+      // 獲取今天的日期格式 (YYYY/MM/DD)
+      const todayDate = new Date().toLocaleDateString('zh-TW', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).replace(/\//g, '/');
+      
+      console.log(`[查詢考勤] 獲取今日 (${todayDate}) 考勤記錄`);
+      
+      // 直接從儲存層獲取考勤記錄
+      const allAttendanceRecords = await storage.getTemporaryAttendance();
+      
+      // 篩選今天的記錄
+      const todayRecords = allAttendanceRecords.filter(record => record.date === todayDate);
+      console.log(`[查詢考勤] 找到 ${todayRecords.length} 筆今日考勤記錄`);
+      
+      res.json(todayRecords);
+    } catch (err) {
+      console.error("[查詢考勤] 獲取今日考勤記錄失敗:", err);
       handleError(err, res);
     }
   });

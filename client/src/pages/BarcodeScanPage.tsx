@@ -82,28 +82,23 @@ function createProcessingScanResult(): ScanResult {
   }
 })();
 
-// 自訂 Hook 用於篩選今天的未完成打卡記錄
+// 自訂 Hook 用於獲取和篩選今天的未完成打卡記錄
 function useTodayIncompleteRecords() {
-  // 直接從 API 獲取考勤記錄
-  const { data: attendanceRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
-    refetchInterval: 30000, // 每 30 秒刷新一次（降低頻率，減輕伺服器負擔）
-    refetchOnWindowFocus: false,
-    staleTime: 20000 // 數據 20 秒內不會被視為過期，減少不必要的請求
+  // 直接從新的專用 API 獲取今日考勤記錄
+  const { data: todayRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance/today'],
+    refetchInterval: 10000, // 每 10 秒刷新一次，提高實時性
+    refetchOnWindowFocus: true, // 當窗口獲得焦點時刷新，確保數據最新
+    staleTime: 5000 // 數據 5 秒內不會被視為過期，增加響應速度
   });
   
-  // 篩選出今天的且尚未完成下班打卡的記錄
-  const todayDate = getTodayDate();
-  const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
-    // 只保留今天的記錄
-    const isToday = record.date === todayDate;
+  // 篩選未完成下班打卡的記錄
+  const incompleteRecords = (Array.isArray(todayRecords) ? todayRecords : []).filter((record: any) => {
     // 只保留未完成下班打卡的記錄
-    const isIncomplete = (!record.clockOut || record.clockOut === '') && record.isBarcodeScanned === true;
-    
-    return isToday && isIncomplete;
+    return (!record.clockOut || record.clockOut === '') && record.isBarcodeScanned === true;
   });
   
-  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${todayDate}`);
+  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${getTodayDate()}`);
   return incompleteRecords;
 }
 
