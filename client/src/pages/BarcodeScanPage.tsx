@@ -207,7 +207,7 @@ export default function BarcodeScanPage() {
     
     try {
       // 調用 API
-      const response = await apiRequest('POST', '/api/scan-barcode', {
+      const response = await apiRequest('POST', '/api/barcode-scan', {
         idNumber: idNumber.trim()
       });
       

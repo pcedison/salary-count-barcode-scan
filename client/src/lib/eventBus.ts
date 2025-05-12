@@ -61,6 +61,8 @@ export const eventBus = new EventBus();
 export const EventNames = {
   ATTENDANCE_UPDATED: 'attendance_updated',
   BARCODE_SCANNED: 'barcode_scanned',
+  BARCODE_SUCCESS: 'barcode_success',   // 掃描成功事件
+  BARCODE_PENDING: 'barcode_pending',   // 掃描處理中事件
   BARCODE_ERROR: 'barcode_error',       // 打卡錯誤事件
   ATTENDANCE_ERROR: 'attendance_error', // 考勤系統錯誤事件
   DATABASE_ERROR: 'database_error',     // 資料庫連接錯誤
