@@ -190,46 +190,47 @@ export default function BarcodeScanPage() {
   const handleBarcodeSuccess = (data: any) => {
     console.log('打卡成功事件:', data);
     
-    // 清除處理中狀態
+    // 立即清除處理中狀態和輸入框，允許繼續掃描
     setIsPending(false);
     setPendingEmployee('');
+    setIdNumber('');
+    setIsSubmitting(false);
     
-    // 立即刷新所有考勤數據的查詢緩存
+    // 立即刷新考勤數據
     queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
     
-    // 清除條碼輸入框，立即允許下一次掃描
-    setIdNumber('');
+    // 根據打卡類型顯示不同的消息
+    const actionType = data.action === 'clock-out' ? '下班打卡' : '上班打卡';
+    const employeeName = data.employeeName || data.employee?.name || '';
     
-    // 如果是下班打卡，設置計時器在3秒後清空狀態
+    // 顯示打卡成功消息
+    toast({
+      title: `${actionType}成功`,
+      description: employeeName ? `${employeeName} ${actionType}成功` : `${actionType}已記錄`,
+      variant: 'default',
+    });
+    
+    // 設置最後掃描結果
+    setLastScan(data);
+    
+    // 添加到最近掃描記錄
+    const newScans = [data, ...recentScans].slice(0, 10); // 只保留最近10筆
+    setRecentScans(newScans);
+    saveRecentScans(newScans); // 儲存到 localStorage
+    
+    // 根據打卡類型設置不同的自動清除時間
     if (data.action === 'clock-out') {
-      setLastScan(data);
-      
-      // 添加到最近掃描記錄
-      const newScans = [data, ...recentScans].slice(0, 10); // 只保留最近10筆
-      setRecentScans(newScans);
-      saveRecentScans(newScans); // 儲存到 localStorage
-      
-      // 3秒後清空打卡狀態
+      // 下班打卡 - 3秒後清空
       setTimeout(() => {
         setLastScan(null);
         localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
         
-        // 也清空今日打卡記錄區塊
-        setRecentScans([]);
-        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-        
-        // 再次刷新考勤數據
+        // 再次刷新考勤數據，但保留記錄顯示
         queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       }, 3000);
     } else {
-      // 上班打卡，正常保存狀態
-      setLastScan(data);
+      // 上班打卡，設定較長時間清除狀態（10秒）
       saveLastScan(data); // 儲存到 localStorage
-      
-      // 添加到最近掃描記錄
-      const newScans = [data, ...recentScans].slice(0, 10);
-      setRecentScans(newScans);
-      saveRecentScans(newScans);
       
       // 上班打卡也需要清除狀態，但時間設置為較長（10秒）
       setTimeout(() => {
@@ -241,15 +242,10 @@ export default function BarcodeScanPage() {
       }, 10000);
     }
     
-    // 顯示成功通知
-    toast({
-      title: data.action === 'clock-in' ? "上班打卡成功" : "下班打卡成功",
-      description: `${data.employeeName || '員工'} 已${data.action === 'clock-in' ? '上班' : '下班'}打卡`,
-    });
-    
-    // 清空表單狀態
-    setIsSubmitting(false);
-    setIdNumber('');
+    // 確保輸入區域重新聚焦，準備下一次掃描
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
   };
   
   // 處理打卡錯誤事件
