@@ -453,9 +453,9 @@ export default function BarcodeScanPage() {
                   clockTime: clockTime
                 });
                 
-                // 顯示成功提示，確保顯示與狀態訊息一致
+                // 顯示成功提示，但不強調上班/下班
                 toast({
-                  title: `${actionText}打卡成功`,
+                  title: `打卡成功`,
                   description: statusMessage,
                   variant: 'default'
                 });
@@ -574,8 +574,8 @@ export default function BarcodeScanPage() {
                     {lastScan.success ? (
                       lastScan.isClockIn === undefined ? 
                         '處理打卡中...' : 
-                        // 直接使用 scanResult.message 或動態生成
-                        (lastScan.message || `${lastScan.employeeName} ${lastScan.isClockIn ? '上班' : '下班'}打卡成功`)
+                        // 只顯示員工姓名和打卡成功，不特別強調上班/下班
+                        (lastScan.message || `${lastScan.employeeName} 打卡成功`)
                     ) : '打卡失敗'}
                   </h2>
                 </div>
@@ -593,23 +593,7 @@ export default function BarcodeScanPage() {
                     <span className="text-muted-foreground">打卡日期</span>
                     <span className="font-medium">{lastScan.attendance?.date || getTodayDate()}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">打卡狀態</span>
-                    {lastScan.success && lastScan.isClockIn !== undefined ? (
-                      <span className={`font-medium ${
-                        lastScan.isClockIn
-                          ? 'text-green-600 font-bold' 
-                          : 'text-blue-600 font-bold'
-                      }`}>
-                        {/* 確保完全依據 isClockIn 欄位 */}
-                        {lastScan.isClockIn ? '【上班打卡】' : '【下班打卡】'}
-                      </span>
-                    ) : (
-                      <span className="font-medium text-red-600 font-bold">
-                        【未知】
-                      </span>
-                    )}
-                  </div>
+                  {/* 移除可能造成混淆的打卡狀態標籤，此資訊已經在標題和今日打卡記錄中清楚顯示 */}
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡時間</span>
                     <span className="font-medium">

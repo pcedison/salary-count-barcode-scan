@@ -1350,8 +1350,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isClockIn = false; // 確保狀態是下班打卡
             }
             
-            // 在伺服器端記錄打卡成功
-            console.log(`打卡成功: ${employee.name} ${isClockIn ? '上班' : '下班'}打卡`);
+            // 在伺服器端記錄打卡成功，保留具體上班/下班資訊僅用於後端伺服器日誌
+            console.log(`打卡成功: ${employee.name} ${isClockIn ? '上班' : '下班'}打卡 (操作類型: ${actionType})`);
             
             // 獲取更詳細的員工信息
             let employeeWithDetails = employee;
@@ -1382,7 +1382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               attendance: result,
               success: true,
               timestamp: new Date().toISOString(),
-              message: `${employeeWithDetails.name} ${isClockIn ? '上班' : '下班'}打卡成功`
+              message: `${employeeWithDetails.name} 打卡成功`
             };
             
             // 將結果儲存在全域快取中，讓前端能取得最新的打卡狀態
