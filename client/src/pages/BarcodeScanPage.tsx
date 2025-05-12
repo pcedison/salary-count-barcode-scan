@@ -239,11 +239,19 @@ export default function BarcodeScanPage() {
   // 監視打卡記錄變化，在條件滿足時隱藏今日打卡記錄
   useEffect(() => {
     // 如果沒有掃描數據或沒有完整的員工信息，不進行處理
-    if (!lastScan || !lastScan.employeeId || !lastScan.employeeName) return;
+    if (!lastScan || !lastScan.employee) return;
     
     // 獲取當前打卡的員工ID
-    const currentEmployeeId = lastScan.employeeId;
-    const employeeName = lastScan.employeeName;
+    const currentEmployeeId = lastScan.employee.id;
+    const employeeName = lastScan.employee.name;
+    
+    // 記錄當前掃描數據，便於調試
+    console.log('當前掃描數據:', {
+      employee: lastScan.employee,
+      action: lastScan.action,
+      isClockIn: lastScan.isClockIn,
+      success: lastScan.success
+    });
     
     // 檢查是否是下班打卡
     const isClockOutAction = lastScan.action === 'clock-out' || lastScan.isClockIn === false;
@@ -253,14 +261,26 @@ export default function BarcodeScanPage() {
       console.log(`${employeeName} 下班打卡成功，檢查完整記錄...`);
       
       // 查找今天該員工的考勤記錄
-      const todayRecords = todayAttendanceRecords.filter(record => 
-        record.employeeId === currentEmployeeId && record.date === getTodayDate()
-      );
+      const todayDate = getTodayDate();
+      console.log(`今日日期: ${todayDate}, 檢查員工ID: ${currentEmployeeId} 的記錄`);
+      
+      // 確保進行嚴格的日期格式比較
+      const todayRecords = todayAttendanceRecords.filter(record => {
+        // 將記錄日期標準化為 YYYY/MM/DD 格式
+        const recordDate = record.date.replace(/(\d{4})\/(\d{1})\/(\d{1,2})/, '$1/$2/$3')
+                                    .replace(/(\d{4})\/(\d{2})\/(\d{1})/, '$1/$2/0$3');
+                                    
+        console.log(`比較: 記錄日期 "${record.date}" vs 今日 "${todayDate}", 員工ID: ${record.employeeId} vs ${currentEmployeeId}`);
+        
+        return record.employeeId === currentEmployeeId && recordDate === todayDate;
+      });
+      console.log(`找到該員工今日記錄 ${todayRecords.length} 筆:`, todayRecords);
       
       // 找到有上下班記錄的考勤數據
       const completedRecords = todayRecords.filter(record => 
         record.clockIn && record.clockOut && record.clockOut !== ''
       );
+      console.log(`其中完整記錄 ${completedRecords.length} 筆:`, completedRecords);
       
       if (completedRecords.length > 0) {
         console.log(`${employeeName} 已完成今日上下班打卡，將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後隱藏記錄`);
@@ -291,6 +311,18 @@ export default function BarcodeScanPage() {
             setTimeout(() => {
               console.log('動畫完成，設置隱藏狀態');
               setShowTodayRecords(false);
+              
+              // 在隱藏元素後重置樣式，以便下次顯示時可以正常淡入
+              setTimeout(() => {
+                const resetCards = document.querySelectorAll('.attendance-record-card');
+                if (resetCards && resetCards.length > 0) {
+                  resetCards.forEach(card => {
+                    (card as HTMLElement).style.opacity = '';
+                    (card as HTMLElement).style.transform = '';
+                  });
+                  console.log('已重置所有記錄卡片樣式，為下次顯示做準備');
+                }
+              }, 500); // 確保元素已完全隱藏
             }, ANIMATION_DURATION);
           } else {
             // 如果沒有找到卡片元素，直接隱藏
