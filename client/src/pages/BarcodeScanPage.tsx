@@ -264,15 +264,35 @@ export default function BarcodeScanPage() {
       const todayDate = getTodayDate();
       console.log(`今日日期: ${todayDate}, 檢查員工ID: ${currentEmployeeId} 的記錄`);
       
-      // 確保進行嚴格的日期格式比較
+      // 確保進行嚴格的日期格式比較 - 標準化日期格式
+      const standardizeDate = (dateStr: string): string => {
+        try {
+          // 從日期字符串中提取年、月、日
+          const parts = dateStr.split('/');
+          if (parts.length !== 3) return dateStr;
+          
+          const year = parts[0];
+          const month = parts[1].padStart(2, '0'); // 確保月份是兩位數
+          const day = parts[2].padStart(2, '0');   // 確保日期是兩位數
+          
+          return `${year}/${month}/${day}`;
+        } catch (e) {
+          console.error('日期標準化失敗:', e);
+          return dateStr;
+        }
+      };
+      
+      // 標準化今天日期
+      const standardizedTodayDate = standardizeDate(todayDate);
+      
+      // 過濾今天該員工的記錄
       const todayRecords = todayAttendanceRecords.filter(record => {
-        // 將記錄日期標準化為 YYYY/MM/DD 格式
-        const recordDate = record.date.replace(/(\d{4})\/(\d{1})\/(\d{1,2})/, '$1/$2/$3')
-                                    .replace(/(\d{4})\/(\d{2})\/(\d{1})/, '$1/$2/0$3');
-                                    
-        console.log(`比較: 記錄日期 "${record.date}" vs 今日 "${todayDate}", 員工ID: ${record.employeeId} vs ${currentEmployeeId}`);
+        // 標準化記錄日期
+        const standardizedRecordDate = standardizeDate(record.date);
         
-        return record.employeeId === currentEmployeeId && recordDate === todayDate;
+        console.log(`比較: 記錄日期 "${record.date}" => "${standardizedRecordDate}" vs 今日 "${todayDate}" => "${standardizedTodayDate}", 員工ID: ${record.employeeId} vs ${currentEmployeeId}`);
+        
+        return record.employeeId === currentEmployeeId && standardizedRecordDate === standardizedTodayDate;
       });
       console.log(`找到該員工今日記錄 ${todayRecords.length} 筆:`, todayRecords);
       
@@ -283,6 +303,18 @@ export default function BarcodeScanPage() {
       console.log(`其中完整記錄 ${completedRecords.length} 筆:`, completedRecords);
       
       if (completedRecords.length > 0) {
+        // 詳細記錄完整記錄的資訊，以便更好地調試
+        completedRecords.forEach((record, index) => {
+          console.log(`完整記錄 #${index+1}:`, {
+            id: record.id,
+            employeeId: record.employeeId,
+            date: record.date,
+            clockIn: record.clockIn,
+            clockOut: record.clockOut,
+            _employeeName: record._employeeName
+          });
+        });
+      
         console.log(`${employeeName} 已完成今日上下班打卡，將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後隱藏記錄`);
         
         // 清除之前的計時器（如果有）
@@ -291,44 +323,13 @@ export default function BarcodeScanPage() {
           recordsVisibilityTimerRef.current = null;
         }
         
-        // 設置新的計時器，延遲後隱藏記錄
+        // 設置新的計時器，6秒後隱藏記錄
         recordsVisibilityTimerRef.current = setTimeout(() => {
           console.log('執行自動隱藏今日打卡記錄');
           
-          // 先使用動畫效果（使用更精確的選擇器）
-          const todayCards = document.querySelectorAll('.today-records');
-          const incompleteCards = document.querySelectorAll('.incomplete-records');
-          const allCards = [...Array.from(todayCards), ...Array.from(incompleteCards)];
-          
-          if (allCards.length > 0) {
-            console.log(`找到 ${allCards.length} 個記錄卡片，開始執行淡出動畫`);
-            allCards.forEach(card => {
-              (card as HTMLElement).style.opacity = '0';
-              (card as HTMLElement).style.transform = 'translateY(10px)';
-            });
-            
-            // 動畫完成後再隱藏
-            setTimeout(() => {
-              console.log('動畫完成，設置隱藏狀態');
-              setShowTodayRecords(false);
-              
-              // 在隱藏元素後重置樣式，以便下次顯示時可以正常淡入
-              setTimeout(() => {
-                const resetCards = document.querySelectorAll('.attendance-record-card');
-                if (resetCards && resetCards.length > 0) {
-                  resetCards.forEach(card => {
-                    (card as HTMLElement).style.opacity = '';
-                    (card as HTMLElement).style.transform = '';
-                  });
-                  console.log('已重置所有記錄卡片樣式，為下次顯示做準備');
-                }
-              }, 500); // 確保元素已完全隱藏
-            }, ANIMATION_DURATION);
-          } else {
-            // 如果沒有找到卡片元素，直接隱藏
-            console.log('找不到記錄卡片元素，直接設置隱藏狀態');
-            setShowTodayRecords(false);
-          }
+          // 簡單直接地設置狀態，避免DOM操作可能出現的問題
+          console.log('設置隱藏狀態');
+          setShowTodayRecords(false);
         }, STATUS_AUTO_CLEAR_DELAY);
       } else {
         console.log(`無法找到 ${employeeName} 的完整上下班記錄，保持顯示`);
@@ -626,14 +627,48 @@ export default function BarcodeScanPage() {
           style={{transition: `opacity ${ANIMATION_DURATION}ms, transform ${ANIMATION_DURATION}ms`}}>
           <CardHeader className="flex flex-row justify-between items-center pb-2">
             <CardTitle>今日打卡記錄</CardTitle>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setShowTodayRecords(false)}
-              className="h-8 px-2"
-            >
-              隱藏
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  console.log("測試卡片淡出動畫");
+                  const cards = document.querySelectorAll('.today-records, .incomplete-records');
+                  if (cards && cards.length > 0) {
+                    console.log(`找到 ${cards.length} 個記錄卡片，開始測試淡出動畫`);
+                    cards.forEach(card => {
+                      (card as HTMLElement).style.opacity = '0';
+                      (card as HTMLElement).style.transform = 'translateY(10px)';
+                    });
+                    
+                    setTimeout(() => {
+                      setShowTodayRecords(false);
+                      console.log("動畫完成，記錄已隱藏");
+                      
+                      // 恢復元素樣式
+                      setTimeout(() => {
+                        cards.forEach(card => {
+                          (card as HTMLElement).style.opacity = '';
+                          (card as HTMLElement).style.transform = '';
+                        });
+                        console.log("已重置樣式");
+                      }, 500);
+                    }, ANIMATION_DURATION);
+                  }
+                }}
+                className="h-8 px-2"
+              >
+                測試動畫
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setShowTodayRecords(false)}
+                className="h-8 px-2"
+              >
+                隱藏
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
