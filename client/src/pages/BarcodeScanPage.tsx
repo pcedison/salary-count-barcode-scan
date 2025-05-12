@@ -135,32 +135,40 @@ export default function BarcodeScanPage() {
   // 獲取未完成打卡的記錄
   const incompleteRecords = useIncompleteAttendanceRecords();
   
-  // 當發現有未完成打卡記錄時，更新最近掃描狀態
+  // 當發現有未完成打卡記錄時，更新最近掃描狀態 - 修復無限循環問題
   useEffect(() => {
-    if (incompleteRecords.length > 0 && !lastScan) {
+    // 避免無限循環：只在沒有上次掃描記錄時才執行
+    const shouldProcessIncompleteRecords = incompleteRecords.length > 0 && !lastScan;
+    
+    if (shouldProcessIncompleteRecords) {
       // 發現尚未下班打卡的記錄，設置為最後一次掃描
-      const recordsWithEmployees = incompleteRecords.map((record: any) => {
-        // 如果記錄中已有員工資訊，直接使用
+      const recordsWithEmployees = [];
+      
+      // 優化循環，避免不必要的映射
+      for (const record of incompleteRecords) {
         if (record._employeeName) {
-          return {
+          recordsWithEmployees.push({
             attendance: record,
             employee: {
               name: record._employeeName,
               department: record._employeeDepartment || '未指定部門'
             },
-            employeeName: record._employeeName, // 添加 employeeName 屬性以兼容新的事件格式
+            employeeName: record._employeeName,
             action: 'clock-in',
             success: true
-          };
+          });
+          // 找到一個有效記錄後即可停止循環
+          break;
         }
-        return null;
-      }).filter(Boolean);
+      }
       
+      // 使用函數式更新，避免依賴 lastScan
       if (recordsWithEmployees.length > 0) {
-        setLastScan(recordsWithEmployees[0]);
+        const firstRecord = recordsWithEmployees[0];
+        setLastScan(() => firstRecord);
       }
     }
-  }, [incompleteRecords, lastScan]);
+  }, [incompleteRecords]); // 從依賴項中移除 lastScan
 
   // 自動聚焦到輸入框
   useEffect(() => {
