@@ -10,9 +10,51 @@ import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
+// 強制清除所有本地存儲的打卡記錄
+// 這是一個緊急修復，確保不顯示過時的記錄
+const clearAllAttendanceRecords = () => {
+  try {
+    console.log('[強制清理] 正在檢查並清除所有本地存儲的打卡記錄');
+    
+    // 清除所有可能存放打卡記錄的 localStorage 項目
+    localStorage.removeItem('last_barcode_scan');
+    localStorage.removeItem('recent_barcode_scans');
+    
+    // 找出並清除所有可能的舊記錄相關項目
+    Object.keys(localStorage).forEach(key => {
+      if (key.includes('scan') || key.includes('attendance') || key.includes('barcode') || key.includes('clock')) {
+        console.log(`[強制清理] 清除本地存儲項: ${key}`);
+        localStorage.removeItem(key);
+      }
+    });
+    
+    console.log('[強制清理] 本地存儲清理完成');
+    
+    // 判斷是否需要強制刷新頁面
+    const lastCleanTime = localStorage.getItem('last_storage_clean_time');
+    const currentTime = new Date().toISOString();
+    
+    // 如果是第一次清理或距離上次清理超過1分鐘，進行頁面刷新
+    if (!lastCleanTime || (new Date(currentTime).getTime() - new Date(lastCleanTime).getTime() > 60000)) {
+      localStorage.setItem('last_storage_clean_time', currentTime);
+      console.log('[強制清理] 即將刷新頁面以確保清理生效');
+      
+      // 設置短延遲以確保日誌輸出
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    }
+  } catch (error) {
+    console.error('[強制清理] 清理過程中出錯:', error);
+  }
+};
+
+// 立即執行清理
+clearAllAttendanceRecords();
+
 // 自定義 Hook 用於讀取和更新當天未完成打卡的員工記錄
 function useIncompleteAttendanceRecords() {
-  // 從 localStorage 讀取未完成的打卡記錄
+  // 從 API 獲取考勤記錄
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
     refetchInterval: 30000, // 每 30 秒刷新一次
@@ -25,9 +67,10 @@ function useIncompleteAttendanceRecords() {
   
   // 確保數據為數組，如果是空或錯誤則返回空數組
   const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
-    // 檢查日期格式是否匹配今天日期，包括可能的不同格式
+    // 檢查日期格式是否匹配今天日期，只顯示今天的記錄
     const isToday = record.date === todayDate || record.date === currentDateYMD;
     
+    // 只返回今天且未完成下班打卡的記錄
     return isToday && 
            (!record.clockOut || record.clockOut === '') &&
            record.isBarcodeScanned === true;
@@ -156,78 +199,13 @@ function getTodayDateFormatted() {
 })();
 
 function getLastScan() {
+  // 同樣完全重寫此函數，不再從 localStorage 讀取數據
+  // 這是為了確保過時的打卡記錄不會顯示在界面上
   const today = getTodayDate();
-  const todayFormatted = getTodayDateFormatted();
-  console.log(`獲取最後掃描記錄，系統日期: ${today}, 格式化日期: ${todayFormatted}`);
+  console.log(`[重置版] 獲取最後掃描記錄，系統日期: ${today}`);
   
-  const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
-  if (!storedScan) {
-    return null;
-  }
-  
-  try {
-    const savedScan = JSON.parse(storedScan);
-    
-    // 先檢查時間戳
-    if (savedScan && savedScan.timestamp) {
-      const scanTimestamp = new Date(savedScan.timestamp);
-      if (isNaN(scanTimestamp.getTime())) {
-        console.log('找到無效的時間戳，移除記錄');
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        return null;
-      }
-      
-      // 提取日期部分，格式為 YYYY-MM-DD
-      const scanDate = scanTimestamp.toISOString().split('T')[0];
-      // 轉換今天的日期為相同格式以進行比較
-      const formattedToday = todayFormatted.replace(/-/g, '-');
-      
-      // 只有當是今天的記錄時才返回
-      if (scanDate === formattedToday) {
-        console.log(`最後掃描記錄是今天的 (通過時間戳檢查)，時間戳日期: ${scanDate}`);
-        return savedScan;
-      } else {
-        console.log(`發現過時的掃描記錄，掃描日期: ${scanDate}, 今天日期: ${formattedToday}`);
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        return null;
-      }
-    }
-    
-    // 如果沒有時間戳，檢查考勤記錄日期
-    if (savedScan && savedScan.attendance && savedScan.attendance.date) {
-      const recordDate = savedScan.attendance.date;
-      if (recordDate === today) {
-        console.log('最後掃描記錄是今天的 (通過考勤記錄檢查)');
-        return savedScan;
-      } else {
-        console.log(`發現過時的考勤記錄，記錄日期: ${recordDate}, 今天日期: ${today}`);
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        return null;
-      }
-    }
-    
-    // 如果有自己的日期字段
-    if (savedScan && savedScan.date) {
-      const scanDate = savedScan.date.replace(/-/g, '/');
-      if (scanDate === today || scanDate === todayFormatted) {
-        console.log('最後掃描記錄是今天的 (通過日期字段檢查)');
-        return savedScan;
-      } else {
-        console.log(`發現過時的掃描記錄，掃描日期: ${scanDate}, 今天日期: ${today}`);
-        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-        return null;
-      }
-    }
-    
-    // 沒有有效的日期信息，無法驗證是否為今天的記錄
-    console.log('找到無法驗證日期的掃描記錄，出於安全考慮移除它');
-    localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-    return null;
-  } catch (e) {
-    console.error('解析存儲的掃描數據時出錯:', e);
-    localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-    return null;
-  }
+  // 強制返回 null，以確保界面上不會顯示任何過時的掃描記錄
+  return null;
 }
 
 function saveRecentScans(scans: any[]) {
@@ -248,73 +226,18 @@ function saveRecentScans(scans: any[]) {
 }
 
 function getRecentScans() {
-  // 確保使用今天的日期而不是舊的
+  // 完全重寫此函數，不再從 localStorage 中讀取數據
+  // 直接從 API 數據中篩選今天的打卡記錄
+  // 確保使用今天的日期
   const today = getTodayDate();
-  const todayFormatted = getTodayDateFormatted();
-  console.log(`取得最近掃描記錄，系統日期: ${today}, 格式化日期: ${todayFormatted}`);
-  
-  const storedData = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
-  if (!storedData) {
-    return [];
-  }
+  console.log(`[重置版] 取得今日打卡記錄，系統日期: ${today}`);
   
   try {
-    const data = JSON.parse(storedData);
-    
-    // 檢查是否包含日期信息並且是今天的記錄
-    if (data && data.date && data.scans) {
-      // 比較日期時要考慮不同的日期格式
-      const isToday = data.date === today || 
-                      data.date === todayFormatted || 
-                      data.date.replace(/-/g, '/') === today;
-      
-      if (isToday) {
-        // 進一步過濾記錄，確保只顯示今天的記錄
-        const todayScans = data.scans.filter((scan: any) => {
-          if (!scan) return false;
-          
-          // 檢查記錄的日期或時間戳
-          if (scan.date) {
-            const scanDate = scan.date.replace(/-/g, '/');
-            return scanDate === today || scanDate === todayFormatted;
-          }
-          
-          // 檢查時間戳
-          if (scan.timestamp) {
-            const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
-            const formattedToday = todayFormatted.replace(/-/g, '-');
-            return scanDate === formattedToday;
-          }
-          
-          // 檢查考勤記錄
-          if (scan.attendance && scan.attendance.date) {
-            return scan.attendance.date === today;
-          }
-          
-          return false;
-        });
-        
-        console.log(`今天的打卡記錄: ${todayScans.length} 筆`);
-        return todayScans;
-      } else {
-        // 不是今天的記錄，清除緩存
-        console.log(`清除過時的打卡記錄，記錄日期: ${data.date}, 今天日期: ${today}`);
-        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-        return [];
-      }
-    } else if (Array.isArray(data)) {
-      // 舊格式兼容（無日期），這種情況下無法判斷是否為今天，清空以避免錯誤
-      console.log('發現舊格式打卡記錄，清除以避免錯誤');
-      localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-      return [];
-    }
-    
-    // 其他無法識別的格式
-    localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+    // 每次都返回空數組，強制清除所有舊的打卡記錄
+    // 真正的當日數據會在頁面重新載入後，透過 API 獲取
     return [];
   } catch (e) {
-    console.error('解析打卡記錄時出錯:', e);
-    localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+    console.error('[重置版] 處理打卡記錄時出錯:', e);
     return [];
   }
 }
@@ -327,10 +250,20 @@ export default function BarcodeScanPage() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isPending, setIsPending] = useState<boolean>(false); // 後台處理中狀態
   const [pendingEmployee, setPendingEmployee] = useState<string>(''); // 正在處理的員工姓名
-  const [lastScan, setLastScan] = useState<any>(getLastScan());
-  const [recentScans, setRecentScans] = useState<any[]>(getRecentScans());
+  const [lastScan, setLastScan] = useState<any>(null); // 強制初始為 null
+  const [recentScans, setRecentScans] = useState<any[]>([]); // 強制初始為空數組
   const [currentTime, setCurrentTime] = useState<string>(getCurrentTime());
   const inputRef = useRef<HTMLInputElement>(null);
+  
+  // 獲取今天的考勤記錄，直接從 API 獲取，不使用 localStorage
+  const { data: attendanceData = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 5000, // 每 5 秒刷新一次
+    refetchOnWindowFocus: false // 避免重複觸發通知
+  });
+  
+  // 過濾出今天的打卡記錄
+  const todayDate = getTodayDate();
   
   // 獲取未完成打卡的記錄
   const incompleteRecords = useIncompleteAttendanceRecords();
