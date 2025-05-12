@@ -1153,6 +1153,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
             attendanceCache.set(scanResultKey, successResult);
             
+            // 新增 API 端點，用於前端查詢最近掃描結果
+            app.get("/api/last-scan-result", async (_req, res) => {
+              try {
+                // 獲取當前日期（使用台灣時區 UTC+8）
+                const now = new Date();
+                const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+                const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
+                
+                // 檢查緩存是否有最近的掃描結果
+                const employees = await storage.getAllEmployees();
+                if (employees && employees.length > 0) {
+                  for (const employee of employees) {
+                    const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
+                    const scanResult = attendanceCache.get(scanResultKey);
+                    if (scanResult) {
+                      return res.json(scanResult);
+                    }
+                  }
+                }
+                
+                // 如果沒有找到任何掃描結果
+                return res.status(404).json({ error: "今日尚無掃描記錄" });
+              } catch (error) {
+                console.error("獲取最後掃描結果時出錯:", error);
+                res.status(500).json({ error: "獲取最後掃描結果時出錯" });
+              }
+            });
+            
             // 更新考勤緩存，確保下次讀取是最新的
             const attendanceCacheKey = `attendance_${employee.id}_${currentDate}`;
             attendanceCache.delete(attendanceCacheKey);

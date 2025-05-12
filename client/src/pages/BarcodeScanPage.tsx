@@ -213,7 +213,50 @@ export default function BarcodeScanPage() {
       
       // 處理響應
       if (response.ok) {
-        console.log('條碼掃描成功');
+        console.log('條碼掃描成功，等待處理結果');
+        
+        // 掃描成功後等待 1 秒，然後查詢最新的考勤記錄和掃描結果
+        setTimeout(async () => {
+          queryClient.invalidateQueries({
+            queryKey: ['/api/attendance']
+          });
+          
+          // 查詢最新的掃描結果
+          try {
+            const scanResultResponse = await fetch('/api/last-scan-result');
+            if (scanResultResponse.ok) {
+              const scanResult = await scanResultResponse.json();
+              
+              // 更新掃描狀態，使用服務器返回的打卡方向（上班或下班）
+              setLastScan({
+                timestamp: scanResult.timestamp,
+                success: true,
+                employeeName: scanResult.employeeName,
+                attendance: scanResult.attendance,
+                action: scanResult.action,
+                isClockIn: scanResult.action === 'clock-in',
+                statusMessage: scanResult.message
+              });
+              
+              // 顯示成功提示
+              toast({
+                title: '打卡成功',
+                description: scanResult.message,
+                variant: 'default'
+              });
+            }
+          } catch (error) {
+            console.error('獲取最新掃描結果失敗:', error);
+          }
+        }, 1000);
+        
+        // 立即更新掃描狀態為處理中
+        setLastScan({
+          timestamp: new Date().toISOString(),
+          success: true,
+          isClockIn: undefined, // 未知是上班還是下班，等待服務器返回
+          statusMessage: '成功處理打卡，正在更新考勤記錄...'
+        });
       } else {
         const error = await response.text();
         console.error('條碼掃描失敗:', error);
@@ -221,6 +264,13 @@ export default function BarcodeScanPage() {
           title: '掃描失敗',
           description: error || '無法處理條碼掃描請求',
           variant: 'destructive'
+        });
+        
+        // 更新掃描狀態為失敗
+        setLastScan({
+          timestamp: new Date().toISOString(),
+          success: false,
+          statusMessage: error || '無法處理條碼掃描請求'
         });
       }
     } catch (error) {
@@ -277,11 +327,25 @@ export default function BarcodeScanPage() {
                     <span className="font-medium">{lastScan.attendance?.date || getTodayDate()}</span>
                   </div>
                   <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">打卡狀態</span>
+                    <span className={`font-medium ${
+                      (lastScan.isClockIn === true || lastScan.action === 'clock-in') 
+                        ? 'text-green-600 font-bold' 
+                        : (lastScan.isClockIn === false || lastScan.action === 'clock-out') 
+                          ? 'text-blue-600 font-bold' 
+                          : ''
+                    }`}>
+                      {lastScan.isClockIn !== undefined 
+                        ? (lastScan.isClockIn ? '【上班打卡】' : '【下班打卡】') 
+                        : (lastScan.action === 'clock-in' ? '【上班打卡】' : '【下班打卡】')}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡時間</span>
                     <span className="font-medium">
-                      {lastScan.action === 'clock-in' 
-                        ? lastScan.attendance?.clockIn 
-                        : lastScan.attendance?.clockOut}
+                      {lastScan.action === 'clock-in' || lastScan.isClockIn 
+                        ? lastScan.attendance?.clockIn || currentTime
+                        : lastScan.attendance?.clockOut || currentTime}
                     </span>
                   </div>
                 </div>
