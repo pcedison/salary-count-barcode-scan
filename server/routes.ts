@@ -132,17 +132,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // 專門用於獲取今日考勤記錄的高效API
+  // 專門用於獲取今日考勤記錄的API
   app.get("/api/attendance/today", async (_req, res) => {
     try {
       const startTime = Date.now();
-      console.log(`[查詢考勤] 使用優化API獲取今日考勤記錄`);
+      console.log(`[查詢考勤] 獲取今日考勤記錄`);
       
-      // 使用專門的高效緩存方法
-      const todayRecords = await storage.getTodayAttendance();
+      // 獲取今天的日期格式 (YYYY/MM/DD)
+      const todayDate = new Date().toLocaleDateString('zh-TW', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).replace(/\//g, '/');
+      
+      // 直接從儲存層獲取所有考勤記錄
+      const allAttendanceRecords = await storage.getTemporaryAttendance();
+      
+      // 篩選今天的記錄
+      const todayRecords = allAttendanceRecords.filter(record => record.date === todayDate);
       
       const endTime = Date.now();
-      console.log(`[查詢考勤] 今日考勤API響應時間: ${endTime - startTime}ms`);
+      console.log(`[查詢考勤] 今日考勤API響應時間: ${endTime - startTime}ms，找到 ${todayRecords.length} 筆記錄`);
       
       res.json(todayRecords);
     } catch (err) {
