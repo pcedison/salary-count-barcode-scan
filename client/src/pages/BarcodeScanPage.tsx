@@ -314,6 +314,16 @@ export default function BarcodeScanPage() {
     setIsSubmitting(true);
     
     try {
+      // 立即顯示處理中的狀態
+      setLastScan({
+        timestamp: new Date().toISOString(),
+        success: true,
+        statusMessage: '正在處理打卡，請稍候...',
+        // 初始狀態不設置具體的打卡類型，避免錯誤顯示
+        action: undefined,
+        isClockIn: undefined
+      });
+      
       // 調用 API
       const response = await apiRequest('POST', '/api/barcode-scan', {
         idNumber: idNumber.trim()
@@ -336,30 +346,53 @@ export default function BarcodeScanPage() {
             const scanResultResponse = await fetch('/api/last-scan-result');
             if (scanResultResponse.ok) {
               const scanResult = await scanResultResponse.json();
+              console.log('獲取到的掃描結果:', scanResult);
               
-              // 更新掃描狀態，使用服務器返回的打卡方向（上班或下班）
-              setLastScan({
-                timestamp: scanResult.timestamp,
-                success: true,
-                employeeName: scanResult.employeeName,
-                employee: {
-                  id: scanResult.employeeId,
-                  name: scanResult.employeeName,
-                  department: '生產部', // 根據實際情況修改或從員工數據中獲取
-                  idNumber: ''
-                },
-                attendance: scanResult.attendance,
-                action: scanResult.action,
-                isClockIn: scanResult.isClockIn === true || scanResult.action === 'clock-in',
-                statusMessage: scanResult.message || `${scanResult.employeeName} ${scanResult.isClockIn ? '上班' : '下班'}打卡成功`
-              });
-              
-              // 顯示成功提示
-              toast({
-                title: '打卡成功',
-                description: scanResult.message,
-                variant: 'default'
-              });
+              // 確保有有效的員工ID和姓名
+              if (scanResult && scanResult.employeeId && scanResult.employeeName) {
+                // 確定打卡類型（上班/下班）
+                const isClockIn = scanResult.isClockIn === true || scanResult.action === 'clock-in';
+                const actionText = isClockIn ? '上班' : '下班';
+                
+                // 更新掃描狀態，使用服務器返回的打卡方向
+                setLastScan({
+                  timestamp: scanResult.timestamp || new Date().toISOString(),
+                  success: true,
+                  employeeId: scanResult.employeeId,
+                  employeeName: scanResult.employeeName,
+                  employee: {
+                    id: scanResult.employeeId,
+                    name: scanResult.employeeName,
+                    department: scanResult.department || '生產部',
+                    idNumber: scanResult.idNumber || ''
+                  },
+                  attendance: scanResult.attendance,
+                  action: isClockIn ? 'clock-in' : 'clock-out',
+                  isClockIn: isClockIn,
+                  statusMessage: `${scanResult.employeeName} ${actionText}打卡成功`
+                });
+                
+                // 顯示成功提示
+                toast({
+                  title: '打卡成功',
+                  description: `${scanResult.employeeName} ${actionText}打卡成功`,
+                  variant: 'default'
+                });
+              } else {
+                // 掃描結果缺少必要信息
+                console.error('掃描結果缺少必要信息:', scanResult);
+                setLastScan({
+                  timestamp: new Date().toISOString(),
+                  success: false,
+                  statusMessage: '無法識別員工信息，請重試'
+                });
+                
+                toast({
+                  title: '打卡失敗',
+                  description: '無法識別員工信息，請重試',
+                  variant: 'destructive'
+                });
+              }
             }
           } catch (error) {
             console.error('獲取最新掃描結果失敗:', error);
