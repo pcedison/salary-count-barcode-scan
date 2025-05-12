@@ -834,6 +834,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const attendanceCache = new Map();
   
   // 條碼掃描打卡路由 - 優化版本
+  // 用於前端查詢最近掃描結果的API
+  app.get("/api/last-scan-result", async (_req, res) => {
+    try {
+      // 獲取當前日期（使用台灣時區 UTC+8）
+      const now = new Date();
+      const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
+      
+      // 檢查緩存是否有最近的掃描結果
+      const employees = await storage.getAllEmployees();
+      if (employees && employees.length > 0) {
+        for (const employee of employees) {
+          const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
+          const scanResult = attendanceCache.get(scanResultKey);
+          if (scanResult) {
+            console.log("找到最近掃描結果:", scanResult);
+            return res.json(scanResult);
+          }
+        }
+      }
+      
+      // 如果沒有找到任何掃描結果
+      return res.status(404).json({ error: "今日尚無掃描記錄" });
+    } catch (error) {
+      console.error("獲取最後掃描結果時出錯:", error);
+      res.status(500).json({ error: "獲取最後掃描結果時出錯" });
+    }
+  });
+
   app.post("/api/barcode-scan", async (req, res) => {
     let findEmployeePromise;
     
@@ -1093,22 +1122,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let isClockIn = true;
           
           try {
-            // 查找本日最近一筆未打下班卡的記錄
+            console.log(`[打卡處理] 開始處理打卡記錄，員工: ${employee.name}, 日期: ${currentDate}, 時間: ${currentTime}`);
+            console.log(`[打卡處理] 共找到 ${attendanceRecords.length} 筆今日考勤記錄`);
+            
+            // 如果需要詳細日誌，可以輸出所有記錄
+            if (attendanceRecords.length > 0) {
+              console.log('[打卡處理] 今日考勤記錄詳情:');
+              attendanceRecords.forEach((record, idx) => {
+                console.log(`  [${idx}] ID: ${record.id}, 上班: ${record.clockIn}, 下班: ${record.clockOut || '尚未打卡'}`);
+              });
+            }
+            
+            // 檢查是否有今日未完成的打卡記錄（沒有下班時間）
             const incompleteRecords = attendanceRecords.filter(
               record => !record.clockOut || record.clockOut === ''
             );
             
+            console.log(`[打卡處理] 找到 ${incompleteRecords.length} 筆未完成打卡記錄`);
+            
             // 如果沒有記錄或所有記錄都已經有完整的上下班時間，則創建新的上班打卡記錄
             if (attendanceRecords.length === 0 || incompleteRecords.length === 0) {
               console.log(`[打卡處理] 未找到未完成打卡記錄或無記錄，創建新的上班打卡`);
-              result = await storage.createTemporaryAttendance({
-                employeeId: employee.id,
-                date: currentDate,
-                clockIn: currentTime,
-                clockOut: '', // 下班時間暫時為空
-                isHoliday: isHoliday,
-                isBarcodeScanned: true
-              });
+              
+              // 避免在同一分鐘創建多條記錄
+              const existingRecordInSameMinute = attendanceRecords.find(record => 
+                record.clockIn === currentTime && record.date === currentDate
+              );
+              
+              if (existingRecordInSameMinute) {
+                console.log(`[打卡處理] 發現在同一分鐘內已有打卡記錄，ID: ${existingRecordInSameMinute.id}`);
+                // 如果這條記錄已經有下班時間，清除它
+                if (existingRecordInSameMinute.clockOut && existingRecordInSameMinute.clockOut !== '') {
+                  console.log(`[打卡處理] 此記錄已有下班時間 ${existingRecordInSameMinute.clockOut}，更新為空`);
+                  result = await storage.updateTemporaryAttendance(
+                    existingRecordInSameMinute.id,
+                    { clockOut: '' }
+                  );
+                } else {
+                  result = existingRecordInSameMinute;
+                }
+              } else {
+                // 創建新的上班打卡記錄
+                result = await storage.createTemporaryAttendance({
+                  employeeId: employee.id,
+                  date: currentDate,
+                  clockIn: currentTime,
+                  clockOut: '', // 下班時間暫時為空
+                  isHoliday: isHoliday,
+                  isBarcodeScanned: true
+                });
+              }
               isClockIn = true;
             } else {
               // 已有未完成的打卡記錄，更新為下班打卡（使用最近的一筆記錄）
@@ -1119,7 +1182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 return (timeB[0] * 60 + timeB[1]) - (timeA[0] * 60 + timeA[1]);
               })[0];
               
-              console.log(`[打卡處理] 找到未完成打卡記錄，ID: ${latestIncompleteRecord.id}，更新為下班打卡`);
+              console.log(`[打卡處理] 找到未完成打卡記錄，ID: ${latestIncompleteRecord.id}，上班時間: ${latestIncompleteRecord.clockIn}，更新為下班打卡`);
               result = await storage.updateTemporaryAttendance(
                 latestIncompleteRecord.id,
                 { clockOut: currentTime }
@@ -1145,33 +1208,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
             attendanceCache.set(scanResultKey, successResult);
             
-            // 新增 API 端點，用於前端查詢最近掃描結果
-            app.get("/api/last-scan-result", async (_req, res) => {
-              try {
-                // 獲取當前日期（使用台灣時區 UTC+8）
-                const now = new Date();
-                const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-                const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
-                
-                // 檢查緩存是否有最近的掃描結果
-                const employees = await storage.getAllEmployees();
-                if (employees && employees.length > 0) {
-                  for (const employee of employees) {
-                    const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
-                    const scanResult = attendanceCache.get(scanResultKey);
-                    if (scanResult) {
-                      return res.json(scanResult);
-                    }
-                  }
-                }
-                
-                // 如果沒有找到任何掃描結果
-                return res.status(404).json({ error: "今日尚無掃描記錄" });
-              } catch (error) {
-                console.error("獲取最後掃描結果時出錯:", error);
-                res.status(500).json({ error: "獲取最後掃描結果時出錯" });
-              }
-            });
+            // 將結果儲存在全域快取中，讓前端能取得最新的打卡狀態
+            // 注意：該 API 端點定義已移至主路由區域
             
             // 更新考勤緩存，確保下次讀取是最新的
             const attendanceCacheKey = `attendance_${employee.id}_${currentDate}`;

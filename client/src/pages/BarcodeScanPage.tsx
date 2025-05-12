@@ -232,6 +232,12 @@ export default function BarcodeScanPage() {
                 timestamp: scanResult.timestamp,
                 success: true,
                 employeeName: scanResult.employeeName,
+                employee: {
+                  id: scanResult.employeeId,
+                  name: scanResult.employeeName,
+                  department: '生產部', // 根據實際情況修改或從員工數據中獲取
+                  idNumber: ''
+                },
                 attendance: scanResult.attendance,
                 action: scanResult.action,
                 isClockIn: scanResult.action === 'clock-in',
