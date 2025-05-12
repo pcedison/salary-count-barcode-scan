@@ -1093,8 +1093,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let isClockIn = true;
           
           try {
-            // 如果沒有記錄，創建上班打卡記錄
-            if (attendanceRecords.length === 0) {
+            // 查找本日最近一筆未打下班卡的記錄
+            const incompleteRecords = attendanceRecords.filter(
+              record => !record.clockOut || record.clockOut === ''
+            );
+            
+            // 如果沒有記錄或所有記錄都已經有完整的上下班時間，則創建新的上班打卡記錄
+            if (attendanceRecords.length === 0 || incompleteRecords.length === 0) {
+              console.log(`[打卡處理] 未找到未完成打卡記錄或無記錄，創建新的上班打卡`);
               result = await storage.createTemporaryAttendance({
                 employeeId: employee.id,
                 date: currentDate,
@@ -1103,36 +1109,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 isHoliday: isHoliday,
                 isBarcodeScanned: true
               });
+              isClockIn = true;
             } else {
-              // 已有記錄，更新為下班打卡
-              const existingRecord = attendanceRecords[0];
+              // 已有未完成的打卡記錄，更新為下班打卡（使用最近的一筆記錄）
+              // 按照創建日期排序，獲取最新的未完成記錄
+              const latestIncompleteRecord = incompleteRecords.sort((a, b) => {
+                const timeA = a.clockIn ? a.clockIn.split(':').map(Number) : [0, 0];
+                const timeB = b.clockIn ? b.clockIn.split(':').map(Number) : [0, 0];
+                return (timeB[0] * 60 + timeB[1]) - (timeA[0] * 60 + timeA[1]);
+              })[0];
               
-              // 檢查記錄狀態
-              if (!existingRecord.clockOut || existingRecord.clockOut === '') {
-                // 下班打卡為空，更新為下班打卡
-                result = await storage.updateTemporaryAttendance(
-                  existingRecord.id,
-                  { clockOut: currentTime }
-                );
-                isClockIn = false;
-              } else {
-                // 已經有完整的上下班記錄
-                // 此時我們應該刪除現有記錄，建立新的上班打卡記錄（開始新的打卡週期）
-                await storage.deleteTemporaryAttendance(existingRecord.id);
-                
-                // 創建新的上班打卡記錄
-                result = await storage.createTemporaryAttendance({
-                  employeeId: employee.id,
-                  date: currentDate,
-                  clockIn: currentTime,
-                  clockOut: '', // 下班時間暫時為空
-                  isHoliday: isHoliday,
-                  isBarcodeScanned: true
-                });
-                
-                // 這是上班打卡
-                isClockIn = true;
-              }
+              console.log(`[打卡處理] 找到未完成打卡記錄，ID: ${latestIncompleteRecord.id}，更新為下班打卡`);
+              result = await storage.updateTemporaryAttendance(
+                latestIncompleteRecord.id,
+                { clockOut: currentTime }
+              );
+              isClockIn = false;
             }
             
             // 在伺服器端記錄打卡成功
