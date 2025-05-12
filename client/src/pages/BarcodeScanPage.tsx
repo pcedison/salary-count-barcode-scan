@@ -331,18 +331,25 @@ export default function BarcodeScanPage() {
       if (response.ok) {
         console.log('條碼掃描請求成功，等待處理結果');
         
-        // 掃描成功後等待短暫時間，然後查詢最新記錄
+        // 減少等待時間，加快掃描反應速度 (從1000ms縮短至500ms)
         setTimeout(async () => {
-          // 刷新考勤記錄查詢
-          queryClient.invalidateQueries({
-            queryKey: ['/api/attendance'],
-            refetchType: 'active' 
-          });
+          // 立即並行執行兩個查詢，提高響應速度
+          const [attendanceUpdate, scanResultPromise] = await Promise.allSettled([
+            // 刷新考勤記錄查詢
+            queryClient.invalidateQueries({
+              queryKey: ['/api/attendance'],
+              refetchType: 'active'
+            }),
+            
+            // 同時查詢最新的掃描結果
+            fetch('/api/last-scan-result')
+          ]);
           
           // 查詢最新的掃描結果
           try {
-            const scanResultResponse = await fetch('/api/last-scan-result');
-            if (scanResultResponse.ok) {
+            // 獲取並行查詢的結果
+            const scanResultResponse = scanResultPromise.status === 'fulfilled' ? scanResultPromise.value : null;
+            if (scanResultResponse && scanResultResponse.ok) {
               const scanResult = await scanResultResponse.json();
               console.log('獲取到的掃描結果:', scanResult);
               
@@ -413,7 +420,7 @@ export default function BarcodeScanPage() {
               variant: 'destructive'
             });
           }
-        }, 1000);
+        }, 500); // 縮短到500毫秒
       } else {
         // API 請求失敗
         try {

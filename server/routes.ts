@@ -835,29 +835,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // 條碼掃描打卡路由 - 優化版本
   // 用於前端查詢最近掃描結果的API（優化版）
+  // 最後一次掃描結果的專用緩存，避免每次搜索全部緩存
+  let lastScanResultCache = null;
+  let lastScanTimestamp = 0;
+  
   app.get("/api/last-scan-result", async (_req, res) => {
     try {
+      // 如果已經有最新緩存且在5秒內，直接返回結果，顯著提高響應速度
+      const now = Date.now();
+      if (lastScanResultCache && now - lastScanTimestamp < 5000) {
+        console.log("[性能優化] 使用最近5秒內的掃描結果緩存");
+        return res.json(lastScanResultCache);
+      }
+      
       // 獲取當前日期（使用台灣時區 UTC+8）
-      const now = new Date();
-      const taiwanTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      const taiwanTime = new Date(now + 8 * 60 * 60 * 1000);
       const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
       
       // 先檢查最新掃描結果緩存（從時間最近的開始）
       let latestScanResult = null;
       let latestTimestamp = 0;
       
-      // 迭代所有緩存項
-      for (const [key, value] of attendanceCache.entries()) {
-        // 只處理今天的掃描結果緩存
-        if (key.startsWith('scan_result_') && key.endsWith(currentDate)) {
-          // 確保有時間戳
-          if (value && value.timestamp) {
-            const timestamp = new Date(value.timestamp).getTime();
-            // 保留時間最近的結果
-            if (timestamp > latestTimestamp) {
-              latestScanResult = value;
-              latestTimestamp = timestamp;
-            }
+      // 只查找最近添加的緩存項，提高檢索效率
+      const recentKeys = Array.from(attendanceCache.keys())
+        .filter(key => key.startsWith('scan_result_') && key.endsWith(currentDate))
+        .sort()
+        .reverse()
+        .slice(0, 5); // 只查看最近的5個項目
+      
+      for (const key of recentKeys) {
+        const value = attendanceCache.get(key);
+        if (value && value.timestamp) {
+          const timestamp = new Date(value.timestamp).getTime();
+          if (timestamp > latestTimestamp) {
+            latestScanResult = value;
+            latestTimestamp = timestamp;
           }
         }
       }
@@ -878,10 +890,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: `${latestScanResult.employeeName} ${isClockInAction ? '上班' : '下班'}打卡成功` // 確保訊息一致
         };
         
+        // 保存到專用緩存
+        lastScanResultCache = enhancedResult;
+        lastScanTimestamp = now;
+        
         return res.json(enhancedResult);
       }
       
-      // 如果沒有找到任何掃描結果
+      // 如果沒有找到任何掃描結果但有緩存，仍然返回舊緩存
+      if (lastScanResultCache) {
+        console.log("[性能優化] 沒有找到新掃描結果，但使用最近的緩存");
+        return res.json(lastScanResultCache);
+      }
+      
+      // 如果完全沒有找到任何掃描結果
       return res.status(404).json({ error: "今日尚無掃描記錄" });
     } catch (error) {
       console.error("獲取最後掃描結果時出錯:", error);
