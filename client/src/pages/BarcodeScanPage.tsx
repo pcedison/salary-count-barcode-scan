@@ -362,7 +362,7 @@ export default function BarcodeScanPage() {
     setIdNumber(''); // 立即清空輸入框，避免重複提交
     
     try {
-      // 立即顯示處理中的狀態（不預設上班/下班）
+      // 立即顯示處理中的狀態
       setLastScan(createProcessingScanResult());
       
       // 調用 API 進行條碼掃描
@@ -462,11 +462,7 @@ export default function BarcodeScanPage() {
               } else {
                 // 掃描結果缺少必要信息
                 console.error('掃描結果數據不完整:', scanResult);
-                setLastScan({
-                  timestamp: new Date().toISOString(),
-                  success: false,
-                  statusMessage: '無法識別員工信息，請重試'
-                });
+                setLastScan(createErrorScanResult('無法識別員工信息，請重試'));
                 
                 toast({
                   title: '打卡失敗',
@@ -479,11 +475,7 @@ export default function BarcodeScanPage() {
             console.error('獲取最新掃描結果失敗:', error);
             
             // 處理獲取結果失敗
-            setLastScan({
-              timestamp: new Date().toISOString(),
-              success: false,
-              statusMessage: '獲取掃描結果失敗，請重新掃描'
-            });
+            setLastScan(createErrorScanResult('獲取掃描結果失敗，請重新掃描'));
             
             toast({
               title: '獲取結果失敗',
@@ -501,11 +493,7 @@ export default function BarcodeScanPage() {
           console.error('條碼掃描失敗:', errorMessage);
           
           // 更新掃描狀態為失敗
-          setLastScan({
-            timestamp: new Date().toISOString(),
-            success: false,
-            statusMessage: errorMessage
-          });
+          setLastScan(createErrorScanResult(errorMessage));
           
           toast({
             title: '掃描失敗',
@@ -517,11 +505,7 @@ export default function BarcodeScanPage() {
           const errorText = await response.text().catch(() => '未知錯誤');
           
           console.error('無法解析錯誤響應:', e);
-          setLastScan({
-            timestamp: new Date().toISOString(),
-            success: false,
-            statusMessage: '掃描處理失敗，請重試'
-          });
+          setLastScan(createErrorScanResult('掃描處理失敗，請重試'));
           
           toast({
             title: '掃描失敗',
