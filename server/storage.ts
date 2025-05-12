@@ -45,6 +45,7 @@ export interface IStorage {
   // Temporary attendance methods
   getTemporaryAttendance(): Promise<TemporaryAttendance[]>;
   getTemporaryAttendanceById(id: number): Promise<TemporaryAttendance | undefined>;
+  getTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<TemporaryAttendance[]>; // 查詢特定員工特定日期的考勤記錄
   createTemporaryAttendance(attendance: InsertTemporaryAttendance): Promise<TemporaryAttendance>;
   updateTemporaryAttendance(id: number, attendance: Partial<InsertTemporaryAttendance>): Promise<TemporaryAttendance | undefined>;
   deleteTemporaryAttendance(id: number): Promise<boolean>;
@@ -231,6 +232,32 @@ export class DatabaseStorage implements IStorage {
   async getTemporaryAttendanceById(id: number): Promise<TemporaryAttendance | undefined> {
     const [attendance] = await db.select().from(temporaryAttendance).where(eq(temporaryAttendance.id, id));
     return attendance;
+  }
+  
+  async getTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<TemporaryAttendance[]> {
+    console.log(`[數據查詢] 查詢員工ID: ${employeeId}, 日期: ${date} 的考勤記錄`);
+    
+    try {
+      // 使用精確匹配查詢
+      const records = await db.select()
+        .from(temporaryAttendance)
+        .where(
+          and(
+            eq(temporaryAttendance.date, date),
+            eq(temporaryAttendance.employeeId, employeeId)
+          )
+        );
+      
+      console.log(`[數據查詢] 找到 ${records.length} 筆考勤記錄`);
+      if (records.length > 0) {
+        console.log(`[數據查詢] 第一筆記錄日期: ${records[0].date}`);
+      }
+      
+      return records;
+    } catch (error) {
+      console.error(`[數據查詢錯誤] 查詢考勤記錄失敗:`, error);
+      return []; // 返回空數組而不是拋出錯誤
+    }
   }
 
   async createTemporaryAttendance(attendance: InsertTemporaryAttendance): Promise<TemporaryAttendance> {
