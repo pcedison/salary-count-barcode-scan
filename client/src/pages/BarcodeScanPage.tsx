@@ -200,7 +200,7 @@ export default function BarcodeScanPage() {
   // 今日打卡記錄自動隱藏計時器
   const recordsVisibilityTimerRef = useRef<NodeJS.Timeout | null>(null);
   // 狀態顯示的自動清除時間（毫秒）
-  const STATUS_AUTO_CLEAR_DELAY = 10000; // 10秒 (增加顯示時間，讓用戶有更多時間看到提示)
+  const STATUS_AUTO_CLEAR_DELAY = 6000; // 6秒
   // 動畫持續時間（毫秒）
   const ANIMATION_DURATION = 300; // 0.3秒
   // 設置顯示今日打卡記錄的狀態
@@ -254,7 +254,6 @@ export default function BarcodeScanPage() {
       
       // 獲取今天的日期
       const todayDate = getTodayDate();
-      console.log(`檢查日期: ${todayDate}, 員工ID: ${currentEmployeeId}, 名稱: ${employeeName}`);
       
       // 標準化日期格式，以便比較
       const formatDate = (dateStr: string): string => {
@@ -264,29 +263,14 @@ export default function BarcodeScanPage() {
         return `${parts[0]}/${parts[1].padStart(2, '0')}/${parts[2].padStart(2, '0')}`;
       };
       
-      // 記錄所有的考勤記錄以便調試
-      console.log('所有考勤記錄：', todayAttendanceRecords.map(record => ({
-        id: record.id,
-        employeeId: record.employeeId,
-        date: record.date,
-        clockIn: record.clockIn,
-        clockOut: record.clockOut,
-        employeeName: record._employeeName
-      })));
-      
       // 找出該員工今日的完整考勤記錄（含上班和下班時間）
-      const completeRecords = todayAttendanceRecords.filter(record => {
-        const isComplete = 
-          record.employeeId === currentEmployeeId && 
-          record.date.includes(todayDate.slice(0, 8)) && // 只比較年/月/日的前綴
-          record.clockIn && 
-          record.clockOut && 
-          record.clockOut !== '';
-        
-        console.log(`記錄 #${record.id}, 日期: ${record.date}, 上班: ${record.clockIn}, 下班: ${record.clockOut}, 完整?: ${isComplete}`);
-        
-        return isComplete;
-      });
+      const completeRecords = todayAttendanceRecords.filter(record => 
+        record.employeeId === currentEmployeeId && 
+        formatDate(record.date) === formatDate(todayDate) &&
+        record.clockIn && 
+        record.clockOut && 
+        record.clockOut !== ''
+      );
       
       if (completeRecords.length > 0) {
         console.log(`找到 ${employeeName} 今日完整打卡記錄 ${completeRecords.length} 筆`);
@@ -298,15 +282,9 @@ export default function BarcodeScanPage() {
         }
         
         // 設置計時器，延遲後隱藏打卡記錄
-        console.log(`將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後自動隱藏打卡記錄 (${completeRecords.length} 筆完整記錄)`);
-        
-        // 使用直接的方法立即隱藏記錄 (調試用)
-        console.log('立即設置隱藏狀態 (為了調試)');
-        setShowTodayRecords(false);
-        
-        // 同時也設置計時器（正常情況下應該使用這個）
+        console.log(`將在 ${STATUS_AUTO_CLEAR_DELAY/1000} 秒後自動隱藏打卡記錄`);
         recordsVisibilityTimerRef.current = setTimeout(() => {
-          console.log('執行自動隱藏今日打卡記錄 (透過計時器)');
+          console.log('執行自動隱藏今日打卡記錄');
           setShowTodayRecords(false);
         }, STATUS_AUTO_CLEAR_DELAY);
       } else {
@@ -347,10 +325,10 @@ export default function BarcodeScanPage() {
         
         // 掃描成功後等待 1 秒，然後查詢最新的考勤記錄和掃描結果
         setTimeout(async () => {
-          // 刷新考勤數據
+          // 使用選擇性更新而不是全部刷新，減少請求
           queryClient.invalidateQueries({
             queryKey: ['/api/attendance'],
-            refetchType: 'all' // 強制刷新所有考勤數據
+            refetchType: 'active' // 只刷新活躍查詢
           });
           
           // 查詢最新的掃描結果
@@ -373,7 +351,7 @@ export default function BarcodeScanPage() {
                 attendance: scanResult.attendance,
                 action: scanResult.action,
                 isClockIn: scanResult.isClockIn === true || scanResult.action === 'clock-in',
-                statusMessage: scanResult.message || `${scanResult.employeeName} ${(scanResult.isClockIn === true || scanResult.action === 'clock-in') ? '上班' : '下班'}打卡成功`
+                statusMessage: scanResult.message || `${scanResult.employeeName} ${scanResult.isClockIn ? '上班' : '下班'}打卡成功`
               });
               
               // 顯示成功提示
