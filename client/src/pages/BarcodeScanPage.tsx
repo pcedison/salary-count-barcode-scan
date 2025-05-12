@@ -195,10 +195,38 @@ export default function BarcodeScanPage() {
   
   // 自動聚焦輸入框
   const inputRef = useRef<HTMLInputElement>(null);
+  // 自動清除計時器引用
+  const statusClearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 狀態顯示的自動清除時間（毫秒）
+  const STATUS_AUTO_CLEAR_DELAY = 6000; // 6秒
+  
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
+    
+    // 如果有新的掃描結果並且成功，設置自動清除定時器
+    if (lastScan && lastScan.success) {
+      // 清除之前的計時器（如果有）
+      if (statusClearTimerRef.current) {
+        clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
+      }
+      
+      // 設置新的計時器，自動清除掃描狀態
+      statusClearTimerRef.current = setTimeout(() => {
+        console.log('自動清除打卡狀態提示');
+        setLastScan(null);
+      }, STATUS_AUTO_CLEAR_DELAY);
+    }
+    
+    // 組件卸載時清除計時器
+    return () => {
+      if (statusClearTimerRef.current) {
+        clearTimeout(statusClearTimerRef.current);
+        statusClearTimerRef.current = null;
+      }
+    };
   }, [lastScan]);
   
   // 處理掃描條碼
