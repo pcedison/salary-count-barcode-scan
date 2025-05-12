@@ -1090,7 +1090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const queryWithTimeout = (promise, timeoutMs = 400) => {
                 return Promise.race([
                   promise,
-                  new Promise((resolve) => setTimeout(() => resolve({ status: 'timeout' }), timeoutMs))
+                  new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))
                 ]);
               };
               
@@ -1107,17 +1107,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               let employee = null;
               
               // 檢查直接查詢結果 - 最常見最快的情況
-              if (directResult.status === 'fulfilled' && directResult.value) {
+              if (directResult.status === 'fulfilled' && directResult.value && typeof directResult.value === 'object') {
                 employee = directResult.value;
                 console.log(`[優化] 直接查詢成功: ${employee.name}`);
               }
               // 檢查解密查詢結果 - 次常見的情況
-              else if (decryptedResult.status === 'fulfilled' && decryptedResult.value) {
+              else if (decryptedResult.status === 'fulfilled' && decryptedResult.value && typeof decryptedResult.value === 'object') {
                 employee = decryptedResult.value;
                 console.log(`[優化] 解密後查詢成功: ${employee.name}`);
               }
               // 進行更復雜的比對 - 最後嘗試
-              else if (employeesList.status === 'fulfilled' && employeesList.value) {
+              else if (employeesList.status === 'fulfilled' && employeesList.value && Array.isArray(employeesList.value)) {
                 const allEmployees = employeesList.value;
                 console.log(`[優化] 進行快速比對，員工數量: ${allEmployees.length}`);
                 
@@ -1285,7 +1285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           let result;
           let isClockIn = true; // 默認是上班打卡
-          let actionType = 'clock-in'; // 預設動作類型，與 isClockIn 同步
+          // 預設動作類型，稍後在使用前重新賦值
           
           try {
             // 詳細的日誌信息
@@ -1360,8 +1360,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 { clockOut: currentTime }
               );
               isClockIn = false; // 確保狀態是下班打卡
-              actionType = 'clock-out'; // 更新動作類型
+              // actionType 會在之後由 isClockIn 決定，無需在此更新
             }
+            
+            // 在伺服器端追蹤打卡狀態 (提前定義actionType)
+            const actionType = isClockIn ? 'clock-in' : 'clock-out';
             
             // 在伺服器端記錄打卡成功，保留具體上班/下班資訊僅用於後端伺服器日誌
             console.log(`打卡成功: ${employee.name} ${isClockIn ? '上班' : '下班'}打卡 (操作類型: ${actionType})`);
@@ -1369,10 +1372,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // 獲取更詳細的員工信息
             let employeeWithDetails = employee;
             try {
-              // 嘗試獲取完整的員工信息
-              const fullEmployeeInfo = await storage.getEmployeeById(employee.id);
-              if (fullEmployeeInfo) {
-                employeeWithDetails = fullEmployeeInfo;
+              // 嘗試獲取完整的員工信息，增加穩定性檢查
+              if (employee && employee.id) {
+                const fullEmployeeInfo = await Promise.race([
+                  storage.getEmployeeById(employee.id),
+                  new Promise((resolve) => setTimeout(() => resolve(employee), 300)) // 超時直接使用已有信息
+                ]);
+                
+                if (fullEmployeeInfo && typeof fullEmployeeInfo === 'object' && fullEmployeeInfo.name) {
+                  employeeWithDetails = fullEmployeeInfo;
+                  console.log(`[詳細信息] 成功獲取員工完整資料: ${employeeWithDetails.name}, 部門: ${employeeWithDetails.department || '未指定'}`);
+                }
+              } else {
+                console.error("[詳細信息] 員工ID無效，無法獲取詳細信息");
               }
             } catch (err) {
               console.error("獲取詳細員工信息時出錯:", err);
@@ -1380,7 +1392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             
             // 在伺服器端追蹤打卡狀態 (替代前端的 EventBus)
-            const actionType = isClockIn ? 'clock-in' : 'clock-out';
+            // 使用前面已定義的 actionType 變數
             
             // 輸出更詳細的打卡狀態日誌
             console.log(`[打卡狀態] 員工: ${employeeWithDetails.name}, 打卡類型: ${isClockIn ? '上班' : '下班'}, 動作: ${actionType}`);
