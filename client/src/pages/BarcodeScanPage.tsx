@@ -82,38 +82,82 @@ function createProcessingScanResult(): ScanResult {
   }
 })();
 
-// 自訂 Hook 用於獲取和篩選今天的未完成打卡記錄
+// 自訂 Hook 用於獲取和篩選今天的未完成打卡記錄 - 使用常規 API
 function useTodayIncompleteRecords() {
-  // 直接從新的專用 API 獲取今日考勤記錄
-  const { data: todayRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance/today'],
-    refetchInterval: 10000, // 每 10 秒刷新一次，提高實時性
+  // 獲取員工信息
+  const { data: employees = [] } = useQuery<any[]>({
+    queryKey: ['/api/employees'],
+    staleTime: 60000 // 員工數據不經常變更，可以較長時間緩存
+  });
+  
+  // 獲取今日日期
+  const todayDate = getTodayDate();
+  
+  // 使用常規考勤記錄 API，以確保獲取最完整的資料
+  const { data: attendanceRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 5000, // 每 5 秒刷新一次，提高實時性
     refetchOnWindowFocus: true, // 當窗口獲得焦點時刷新，確保數據最新
-    staleTime: 5000 // 數據 5 秒內不會被視為過期，增加響應速度
+    staleTime: 2000 // 數據 2 秒內不會被視為過期，增加響應速度
   });
   
-  // 篩選未完成下班打卡的記錄
-  const incompleteRecords = (Array.isArray(todayRecords) ? todayRecords : []).filter((record: any) => {
+  // 篩選今日且未完成下班打卡的記錄
+  const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
+    // 只保留今天的記錄
+    const isToday = record.date === todayDate;
     // 只保留未完成下班打卡的記錄
-    return (!record.clockOut || record.clockOut === '') && record.isBarcodeScanned === true;
+    const isIncomplete = (!record.clockOut || record.clockOut === '') && record.isBarcodeScanned === true;
+    
+    return isToday && isIncomplete;
+  }).map(record => {
+    // 為每條記錄添加員工詳細信息
+    const employee = employees.find(emp => emp.id === record.employeeId);
+    return {
+      ...record,
+      _employeeName: employee?.name || '未知員工',
+      _employeeDepartment: employee?.department || '未指定部門'
+    };
   });
   
-  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${getTodayDate()}`);
+  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${todayDate}`);
   return incompleteRecords;
 }
 
-// 自訂 Hook 用於獲取並顯示今天的打卡記錄
+// 自訂 Hook 用於獲取並顯示今天的打卡記錄 - 使用常規 API 增強可靠性
 function useTodayAttendanceRecords() {
-  // 共用與 useTodayIncompleteRecords 相同的 API 調用
-  const { data: todayRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance/today'],
-    refetchInterval: 10000, // 每 10 秒刷新一次
-    staleTime: 5000, // 數據 5 秒內不會被視為過期，提高響應速度
-    refetchOnWindowFocus: false, // 避免過於頻繁的請求
+  // 獲取員工信息
+  const { data: employees = [] } = useQuery<any[]>({
+    queryKey: ['/api/employees'],
+    staleTime: 60000 // 員工數據不經常變更，可以較長時間緩存
+  });
+  
+  // 獲取今日日期
+  const todayDate = getTodayDate();
+  
+  // 使用常規考勤記錄 API，並在前端篩選
+  const { data: attendanceRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 5000, // 每 5 秒刷新一次
+    staleTime: 2000, // 數據 2 秒內不會被視為過期，提高響應速度
+    refetchOnWindowFocus: true, // 當窗口獲得焦點時應該刷新
     retry: 3  // 如果請求失敗，最多重試 3 次
   });
   
-  return Array.isArray(todayRecords) ? todayRecords : [];
+  // 篩選今日記錄並添加員工信息
+  const todayRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : [])
+    .filter(record => record.date === todayDate)
+    .map(record => {
+      // 為每條記錄添加員工詳細信息
+      const employee = employees.find(emp => emp.id === record.employeeId);
+      return {
+        ...record,
+        _employeeName: employee?.name || '未知員工',
+        _employeeDepartment: employee?.department || '未指定部門'
+      };
+    });
+  
+  console.log(`找到 ${todayRecords.length} 筆今日打卡記錄，日期: ${todayDate}`);
+  return todayRecords;
 }
 
 // 當前頁面元件
@@ -365,24 +409,35 @@ export default function BarcodeScanPage() {
       if (response.ok) {
         console.log('條碼掃描請求成功，等待處理結果');
         
-        // 減少等待時間，加快掃描反應速度 (從1000ms縮短至500ms)
+        // 減少等待時間，加快掃描反應速度 (從500ms縮短至300ms)
         setTimeout(async () => {
-          // 立即並行執行兩個查詢，提高響應速度
-          const [attendanceUpdate, scanResultPromise] = await Promise.allSettled([
-            // 刷新考勤記錄查詢
-            queryClient.invalidateQueries({
-              queryKey: ['/api/attendance'],
-              refetchType: 'active'
-            }),
-            
-            // 同時查詢最新的掃描結果
-            fetch('/api/last-scan-result')
-          ]);
-          
-          // 查詢最新的掃描結果
           try {
-            // 獲取並行查詢的結果
-            const scanResultResponse = scanResultPromise.status === 'fulfilled' ? scanResultPromise.value : null;
+            console.log('開始查詢掃描結果和刷新數據');
+            
+            // 首先刷新所有考勤記錄，確保數據最新
+            await queryClient.invalidateQueries({
+              queryKey: ['/api/attendance'],
+              refetchType: 'all' // 強制所有查詢立即刷新
+            });
+            
+            // 刷新所有相關查詢
+            await Promise.all([
+              // 強制刷新員工數據，確保所有關聯數據都是最新的
+              queryClient.invalidateQueries({
+                queryKey: ['/api/employees'],
+                refetchType: 'all'
+              }),
+              
+              // 強制刷新個別員工資料
+              queryClient.invalidateQueries({
+                queryKey: ['/api/employee'], 
+                refetchType: 'all'
+              })
+            ]);
+            
+            // 查詢最新的掃描結果
+            const scanResultResponse = await fetch('/api/last-scan-result');
+            
             if (scanResultResponse && scanResultResponse.ok) {
               const scanResult = await scanResultResponse.json();
               console.log('獲取到的掃描結果:', scanResult);
@@ -390,7 +445,6 @@ export default function BarcodeScanPage() {
               if (scanResult && scanResult.employeeId && scanResult.employeeName) {
                 // 確保從伺服器獲取正確的打卡類型
                 // 優先使用 isClockIn (布爾值)，其次使用 action 轉換
-                // 這個邏輯改進優先信任服務器發送的 isClockIn 布爾值，而不是通過推斷得出
                 const isClockIn = typeof scanResult.isClockIn === 'boolean' 
                   ? scanResult.isClockIn 
                   : (scanResult.action === 'clock-in');
@@ -479,7 +533,7 @@ export default function BarcodeScanPage() {
               variant: 'destructive'
             });
           }
-        }, 500); // 縮短到500毫秒
+        }, 300); // 縮短到300毫秒，加快掃描反應速度
       } else {
         // API 請求失敗
         try {
