@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-05-12T04:17:08.172Z",
+    "timestamp": "2025-05-12T06:39:13.693Z",
     "type": "daily",
-    "description": "初始每日備份 5/12/2025, 4:17:08 AM",
+    "description": "初始每日備份 5/12/2025, 6:39:13 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -669,6 +669,26 @@
       "isHoliday": false,
       "isBarcodeScanned": true,
       "createdAt": "2025-05-09T14:04:03.792Z"
+    },
+    {
+      "id": 26,
+      "employeeId": 1,
+      "date": "2025/05/12",
+      "clockIn": "14:30",
+      "clockOut": "",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-12T06:30:17.500Z"
+    },
+    {
+      "id": 27,
+      "employeeId": 1,
+      "date": "2025/05/12",
+      "clockIn": "14:32",
+      "clockOut": "",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-12T06:32:45.712Z"
     }
   ]
 }

@@ -1197,6 +1197,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const successResult = {
               employeeId: employee.id,
               employeeName: employee.name,
+              department: employee.department || '生產部', // 使用員工部門或預設值
+              idNumber: employee.idNumber, // 員工ID號碼
               action: isClockIn ? 'clock-in' : 'clock-out',
               attendance: result,
               success: true,

@@ -326,7 +326,7 @@ export default function BarcodeScanPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">部門</span>
-                    <span className="font-medium">{lastScan.employee?.department || '未指定部門'}</span>
+                    <span className="font-medium">{lastScan.employee?.department || lastScan.department || '生產部'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡日期</span>
