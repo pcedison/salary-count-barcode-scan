@@ -1,0 +1,150 @@
+import { useState, useEffect, useRef } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { useAdmin } from '@/hooks/useAdmin';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Lock } from 'lucide-react';
+import { apiRequest, getQueryFn } from '@/lib/queryClient';
+import { getTodayDate, getCurrentTime } from '@/lib/utils';
+import { eventBus, EventNames } from '@/lib/eventBus';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
+// 自定義 Hook 用於讀取和更新當天未完成打卡的員工記錄
+function useIncompleteAttendanceRecords() {
+  // 從 localStorage 讀取未完成的打卡記錄
+  const { data: attendanceRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance'],
+    refetchInterval: 30000 // 每 30 秒刷新一次
+  });
+
+  // 篩選出今天的且尚未完成下班打卡的記錄
+  const todayDate = getTodayDate();
+  const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
+    return record.date === todayDate && 
+           (!record.clockOut || record.clockOut === '') &&
+           record.isBarcodeScanned === true;
+  });
+  
+  return incompleteRecords;
+}
+
+// 用於儲存和讀取上一次的掃描記錄的函數
+const LAST_SCAN_STORAGE_KEY = 'last_barcode_scan';
+const RECENT_SCANS_STORAGE_KEY = 'recent_barcode_scans';
+
+function saveLastScan(scanData: any) {
+  if (scanData) {
+    localStorage.setItem(LAST_SCAN_STORAGE_KEY, JSON.stringify(scanData));
+  }
+}
+
+function getTodayDateFormatted() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getLastScan() {
+  const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
+  if (storedScan) {
+    try {
+      const savedScan = JSON.parse(storedScan);
+      
+      // 檢查是否是今天的記錄
+      if (savedScan && savedScan.timestamp) {
+        const today = getTodayDateFormatted();
+        const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
+        
+        // 只有當是今天的記錄時才返回
+        if (scanDate === today) {
+          return savedScan;
+        } else {
+          // 不是今天的記錄，清除緩存
+          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+          return null;
+        }
+      }
+      return savedScan;
+    } catch (e) {
+      console.error('Error parsing stored scan data:', e);
+      localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+      return null;
+    }
+  }
+  return null;
+}
+
+function saveRecentScans(scans: any[]) {
+  if (scans && scans.length > 0) {
+    localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify({
+      date: getTodayDateFormatted(),
+      scans: scans
+    }));
+  }
+}
+
+function getRecentScans() {
+  const storedData = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
+  if (storedData) {
+    try {
+      const data = JSON.parse(storedData);
+      
+      // 檢查是否包含日期信息並且是今天的記錄
+      if (data && data.date && data.scans) {
+        const today = getTodayDateFormatted();
+        
+        // 只有當是今天的記錄時才返回
+        if (data.date === today) {
+          return data.scans;
+        } else {
+          // 不是今天的記錄，清除緩存
+          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+          return [];
+        }
+      } else if (Array.isArray(data)) {
+        // 舊格式兼容（無日期）
+        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+        return [];
+      }
+      return [];
+    } catch (e) {
+      console.error('Error parsing stored scans data:', e);
+      localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+      return [];
+    }
+  }
+  return [];
+}
+
+export default function BarcodeScanPage() {
+  const { toast } = useToast();
+  const { isAdmin } = useAdmin();
+  const queryClient = useQueryClient(); // 獲取 react-query 客戶端實例
+  const [idNumber, setIdNumber] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isPending, setIsPending] = useState<boolean>(false); // 後台處理中狀態
+  const [pendingEmployee, setPendingEmployee] = useState<string>(''); // 正在處理的員工姓名
+  const [lastScan, setLastScan] = useState<any>(getLastScan());
+  const [recentScans, setRecentScans] = useState<any[]>(getRecentScans());
+  const [currentTime, setCurrentTime] = useState<string>(getCurrentTime());
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // 獲取未完成打卡的記錄
+  const incompleteRecords = useIncompleteAttendanceRecords();
+  
+  // 當發現有未完成打卡記錄時，更新最近掃描狀態
+  useEffect(() => {
+    if (incompleteRecords.length > 0 && !lastScan) {
+      // 發現尚未下班打卡的記錄，設置為最後一次掃描
+      const recordsWithEmployees = incompleteRecords.map((record: any) => {
+        // 如果記錄中已有員工資訊，直接使用
+        if (record._employeeName) {
+          return {
+            attendance: record,
+            employee: {
+              name: record._employeeName,
+              department: record._employeeDepartment || '未指定部門'
+            },
