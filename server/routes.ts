@@ -852,14 +852,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.log("找到最近掃描結果:", scanResult);
             
             // 完善掃描結果對象，確保包含完整的員工信息
+            // 正確處理打卡類型
+            const isClockInAction = scanResult.action === 'clock-in' || scanResult.isClockIn === true;
+            
             const enhancedResult = {
               ...scanResult,
               employeeId: employee.id,
               employeeName: employee.name,
               department: employee.department || '生產部',
               // 添加方向明確的字段
-              action: scanResult.action || (scanResult.isClockIn ? 'clock-in' : 'clock-out'),
-              isClockIn: scanResult.action === 'clock-in' || scanResult.isClockIn === true,
+              action: isClockInAction ? 'clock-in' : 'clock-out',
+              isClockIn: isClockInAction,
+              message: `${employee.name} ${isClockInAction ? '上班' : '下班'}打卡成功` // 確保訊息一致
             };
             
             return res.json(enhancedResult);
