@@ -135,6 +135,49 @@ export default function BarcodeScanPage() {
   // 獲取未完成打卡的記錄
   const incompleteRecords = useIncompleteAttendanceRecords();
   
+  // 初始化時清理本地存儲的陳舊記錄
+  useEffect(() => {
+    // 獲取今天的日期
+    const today = getTodayDateFormatted();
+    
+    // 檢查並清理上次掃描記錄
+    const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
+    if (storedScan) {
+      try {
+        const savedScan = JSON.parse(storedScan);
+        if (savedScan && savedScan.timestamp) {
+          const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
+          if (scanDate !== today) {
+            // 不是今天的記錄，清除緩存
+            console.log('清理過時的上次掃描記錄');
+            localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+            setLastScan(null);
+          }
+        }
+      } catch (e) {
+        // 處理可能的解析錯誤
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+      }
+    }
+    
+    // 檢查並清理最近掃描記錄
+    const storedRecent = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
+    if (storedRecent) {
+      try {
+        const savedData = JSON.parse(storedRecent);
+        if (savedData && savedData.date && savedData.date !== today) {
+          // 不是今天的記錄，清除緩存
+          console.log('清理過時的打卡記錄');
+          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+          setRecentScans([]);
+        }
+      } catch (e) {
+        // 處理可能的解析錯誤
+        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+      }
+    }
+  }, []);
+  
   // 當發現有未完成打卡記錄時，更新最近掃描狀態
   useEffect(() => {
     if (incompleteRecords.length > 0 && !lastScan) {
@@ -142,21 +185,24 @@ export default function BarcodeScanPage() {
       const recordsWithEmployees = incompleteRecords.map((record: any) => {
         // 如果記錄中已有員工資訊，直接使用
         if (record._employeeName) {
+          // 添加當前時間戳，確保日期檢查有效
           return {
             attendance: record,
             employee: {
               name: record._employeeName,
               department: record._employeeDepartment || '未指定部門'
             },
-            employeeName: record._employeeName, // 添加 employeeName 屬性以兼容新的事件格式
+            employeeName: record._employeeName,
             action: 'clock-in',
-            success: true
+            success: true,
+            timestamp: new Date().toISOString() // 添加當前時間戳
           };
         }
         return null;
       }).filter(Boolean);
       
       if (recordsWithEmployees.length > 0) {
+        // 只設置最近一筆記錄
         setLastScan(recordsWithEmployees[0]);
       }
     }
@@ -205,10 +251,16 @@ export default function BarcodeScanPage() {
     // 保存最後一次掃描結果
     setLastScan(data);
     
-    // 添加到最近掃描記錄
-    const newScans = [data, ...recentScans].slice(0, 10); // 只保留最近10筆
+    // 添加到最近掃描記錄，確保數據包含時間戳
+    const scanWithTimestamp = {
+      ...data,
+      timestamp: data.timestamp || new Date().toISOString() // 確保有時間戳
+    };
+    const newScans = [scanWithTimestamp, ...recentScans].slice(0, 10); // 只保留最近10筆
     setRecentScans(newScans);
-    saveRecentScans(newScans); // 儲存到 localStorage
+    
+    // 保存到 localStorage 時包含日期信息
+    saveRecentScans(newScans);
     
     // 根據打卡類型設置不同的清除時間
     if (data.action === 'clock-out') {
@@ -277,6 +329,7 @@ export default function BarcodeScanPage() {
     
     // 檢查是否有新的打卡記錄
     const todayDate = getTodayDate();
+    // 嚴格過濾今天的記錄
     const today = attendanceRecords.filter((record: any) => record.date === todayDate);
     
     if (today.length > 0) {
