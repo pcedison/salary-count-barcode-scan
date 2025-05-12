@@ -1269,13 +1269,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             
             // 在伺服器端追蹤打卡狀態 (替代前端的 EventBus)
+            const actionType = isClockIn ? 'clock-in' : 'clock-out';
+            
+            // 輸出更詳細的打卡狀態日誌
+            console.log(`[打卡狀態] 員工: ${employeeWithDetails.name}, 打卡類型: ${isClockIn ? '上班' : '下班'}, 動作: ${actionType}`);
+            
             const successResult = {
               employeeId: employeeWithDetails.id,
               employeeName: employeeWithDetails.name,
               department: employeeWithDetails.department || '生產部',
               idNumber: employeeWithDetails.idNumber,
-              action: isClockIn ? 'clock-in' : 'clock-out',
-              isClockIn: isClockIn, // 添加明確的布爾類型字段
+              action: actionType,
+              isClockIn: isClockIn, // 確保這是一個明確的布爾值
               attendance: result,
               success: true,
               timestamp: new Date().toISOString(),
@@ -1284,10 +1289,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             // 將結果儲存在全域快取中，讓前端能取得最新的打卡狀態
             const scanResultKey = `scan_result_${employee.id}_${currentDate}`;
-            attendanceCache.set(scanResultKey, successResult);
+            attendanceCache.set(scanResultKey, {...successResult});
             
-            // 將結果儲存在全域快取中，讓前端能取得最新的打卡狀態
-            // 注意：該 API 端點定義已移至主路由區域
+            // 同時更新專用緩存，確保始終返回最新結果
+            lastScanResultCache = {...successResult};
+            lastScanTimestamp = Date.now();
+            
+            // 輸出詳細的緩存狀態日誌，方便調試
+            console.log(`[緩存更新] 類型=${isClockIn ? '上班' : '下班'}, action=${successResult.action}, isClockIn=${successResult.isClockIn}`);
+            console.log(`[緩存資訊] 包含訊息: ${successResult.message}`)
             
             // 更新考勤緩存，確保下次讀取是最新的
             const attendanceCacheKey = `attendance_${employee.id}_${currentDate}`;

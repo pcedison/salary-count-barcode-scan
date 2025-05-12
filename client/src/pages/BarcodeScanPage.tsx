@@ -354,14 +354,31 @@ export default function BarcodeScanPage() {
               console.log('獲取到的掃描結果:', scanResult);
               
               if (scanResult && scanResult.employeeId && scanResult.employeeName) {
-                // 從伺服器直接獲取打卡類型，確保一致性
-                const isClockIn = scanResult.isClockIn;
+                // 確保從伺服器獲取正確的打卡類型
+                // 直接檢查 isClockIn 是否為布爾值，確保始終使用正確的值
+                const isClockIn = typeof scanResult.isClockIn === 'boolean' ? scanResult.isClockIn : (scanResult.action === 'clock-in');
                 const actionType = isClockIn ? 'clock-in' : 'clock-out';
                 const actionText = isClockIn ? '上班' : '下班';
                 
-                console.log(`伺服器返回的打卡方向: ${isClockIn ? '上班' : '下班'}`);
+                // 輸出調試信息
+                console.log(`伺服器返回的打卡信息:`, {
+                  employeeName: scanResult.employeeName,
+                  isClockIn: scanResult.isClockIn,
+                  action: scanResult.action,
+                  message: scanResult.message,
+                  interpretedDirection: isClockIn ? '上班' : '下班'
+                });
                 
-                // 更新狀態顯示，確保與伺服器返回的一致
+                // 確認最終使用的值
+                console.log(`使用的打卡方向: ${isClockIn ? '上班' : '下班'}, actionType: ${actionType}`);
+                
+                // 使用伺服器原始訊息或自行構建訊息
+                const statusMessage = scanResult.message || `${scanResult.employeeName} ${actionText}打卡成功`;
+                
+                // 記錄最終顯示的訊息
+                console.log(`最終顯示訊息: ${statusMessage}`);
+                
+                // 更新狀態顯示，確保所有顯示與實際打卡類型一致
                 setLastScan({
                   timestamp: scanResult.timestamp || new Date().toISOString(),
                   success: true,
@@ -376,13 +393,13 @@ export default function BarcodeScanPage() {
                   attendance: scanResult.attendance,
                   action: actionType,
                   isClockIn: isClockIn,
-                  statusMessage: `${scanResult.employeeName} ${actionText}打卡成功`
+                  statusMessage: statusMessage
                 });
                 
-                // 顯示成功提示，確保顯示正確的打卡類型
+                // 顯示成功提示，確保顯示與狀態訊息一致
                 toast({
                   title: `${actionText}打卡成功`,
-                  description: `${scanResult.employeeName} ${actionText}打卡成功`,
+                  description: statusMessage,
                   variant: 'default'
                 });
                 
