@@ -102,22 +102,18 @@ function useTodayIncompleteRecords() {
   return incompleteRecords;
 }
 
-// 自訂 Hook 用於篩選並顯示今天的打卡記錄
+// 自訂 Hook 用於獲取並顯示今天的打卡記錄
 function useTodayAttendanceRecords() {
-  const { data: attendanceRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
-    refetchInterval: 30000, // 每 30 秒刷新一次（與另一個查詢保持一致）
-    staleTime: 20000, // 數據 20 秒內不會被視為過期
-    refetchOnWindowFocus: false // 避免窗口獲得焦點時重新獲取
+  // 共用與 useTodayIncompleteRecords 相同的 API 調用
+  const { data: todayRecords = [] } = useQuery<any[]>({
+    queryKey: ['/api/attendance/today'],
+    refetchInterval: 10000, // 每 10 秒刷新一次
+    staleTime: 5000, // 數據 5 秒內不會被視為過期，提高響應速度
+    refetchOnWindowFocus: false, // 避免過於頻繁的請求
+    retry: 3  // 如果請求失敗，最多重試 3 次
   });
   
-  // 篩選出今天的記錄
-  const todayDate = getTodayDate();
-  const todayRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter(record => {
-    return record.date === todayDate;
-  });
-  
-  return todayRecords;
+  return Array.isArray(todayRecords) ? todayRecords : [];
 }
 
 // 當前頁面元件

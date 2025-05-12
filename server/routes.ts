@@ -151,6 +151,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const todayRecords = allAttendanceRecords.filter(record => record.date === todayDate);
       console.log(`[查詢考勤] 找到 ${todayRecords.length} 筆今日考勤記錄`);
       
+      // 為了更高效地獲取員工信息，僅獲取今日記錄所需的員工
+      if (todayRecords.length > 0) {
+        // 獲取不重複的員工ID列表
+        const employeeIds = [...new Set(todayRecords.map(record => record.employeeId).filter(Boolean))];
+        
+        if (employeeIds.length > 0) {
+          console.log(`[查詢考勤] 需要查詢 ${employeeIds.length} 位員工的信息`);
+          
+          // 獲取相關員工信息
+          const employees = await Promise.all(
+            employeeIds.map(id => storage.getEmployeeById(id))
+          );
+          
+          // 創建員工ID到信息的映射
+          const employeeMap = new Map();
+          employees.forEach(emp => {
+            if (emp) employeeMap.set(emp.id, emp);
+          });
+          
+          // 將員工信息添加到考勤記錄中
+          todayRecords.forEach(record => {
+            if (record.employeeId && employeeMap.has(record.employeeId)) {
+              const employee = employeeMap.get(record.employeeId);
+              record._employeeName = employee.name;
+              record._employeeDepartment = employee.department;
+            }
+          });
+        }
+      }
+      
       res.json(todayRecords);
     } catch (err) {
       console.error("[查詢考勤] 獲取今日考勤記錄失敗:", err);
