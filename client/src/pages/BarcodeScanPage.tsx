@@ -268,7 +268,7 @@ export default function BarcodeScanPage() {
     staleTime: 5000, // 增加數據有效期至5秒
     refetchOnWindowFocus: false, // 防止窗口焦點變化觸發查詢
     refetchOnMount: true, // 組件掛載時獲取
-    cacheTime: 1000 * 60 * 10, // 緩存時間10分鐘，避免不必要查詢
+    // 移除 gcTime 設置，使用默認值
     // 優化請求錯誤處理
     retry: false, // 失敗不自動重試，透過業務邏輯處理重試
     // 實現高效緩存使用
@@ -393,8 +393,8 @@ export default function BarcodeScanPage() {
         // 記錄目前考勤記錄的最大ID，用於檢測新記錄
         let initialMaxId = 0;
         if (Array.isArray(attendanceRecords) && attendanceRecords.length > 0) {
-          initialMaxId = attendanceRecords.reduce((maxId, record) => {
-            return Math.max(maxId, record.id || 0);
+          initialMaxId = attendanceRecords.reduce((maxId, record: any) => {
+            return Math.max(maxId, record?.id || 0);
           }, 0);
         }
         

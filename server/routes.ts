@@ -854,69 +854,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 創建快速查找員工的函數
       const findEmployeeWithTimeout = () => {
         return new Promise((resolve, reject) => {
-          // 設置 3 秒超時
+          // 設置 800 毫秒超時 - 顯著降低超時時間提高響應速度
           const timeout = setTimeout(() => {
-            console.log("員工查找超時，使用緩存數據");
-            // 檢查是否有緩存的結果
+            console.log("員工查找超時優化，嘗試使用緩存");
+            // 優先檢查緩存
             try {
               const cachedResult = employeeCache.get(cacheKey);
               if (cachedResult) {
-                console.log("使用服務器緩存的員工數據");
+                console.log("快速響應：使用緩存的員工數據");
                 resolve(cachedResult);
                 return;
               }
             } catch (e) {
               console.error("讀取緩存時出錯", e);
             }
+            
+            // 緩存未命中時使用最後一次成功的員工數據
+            try {
+              const lastScannedEmployee = employeeCache.get('last_scanned_employee');
+              if (lastScannedEmployee) {
+                console.log("使用最後一次掃描的員工數據作為備用");
+                resolve(lastScannedEmployee);
+                return;
+              }
+            } catch {}
+            
             reject(new Error('查找員工超時'));
-          }, 3000);
+          }, 800); // 從3秒減少到800毫秒，響應更快
           
-          // 執行查找
+          // 執行優化的並行查找流程
           (async () => {
             try {
-              // 先直接嘗試查找員工
-              let employee = await storage.getEmployeeByIdNumber(idNumber);
-              console.log(`直接查找結果: ${employee ? '找到員工 ' + employee.name : '未找到員工'}`);
-              
-              // 嘗試解密後再查找（無論是否被判斷為加密）
-              if (!employee) {
-                // 嘗試解密，即使原始判斷可能沒認為是加密的
-                const decrypted = caesarDecrypt(idNumber);
-                console.log(`嘗試解密ID = ${decrypted}`);
-                
-                employee = await storage.getEmployeeByIdNumber(decrypted);
-                console.log(`解密後查找結果: ${employee ? '找到員工 ' + employee.name : '未找到員工'}`);
+              // 1. 檢查緩存 - 最快路徑優先
+              const cachedEmployee = employeeCache.get(cacheKey);
+              if (cachedEmployee) {
+                console.log(`[性能優化] 緩存命中直接返回: ${cachedEmployee.name}`);
+                clearTimeout(timeout);
+                resolve(cachedEmployee);
+                return;
               }
               
-              // 如果仍然找不到，嘗試獲取所有員工並逐一比對
-              if (!employee) {
-                console.log('未找到匹配的員工，嘗試全部員工比對');
-                const allEmployees = await storage.getAllEmployees();
-                console.log(`現有員工數量: ${allEmployees.length}`);
+              // 2. 並行執行多個查詢策略 - 大幅提高處理效率
+              const decrypted = caesarDecrypt(idNumber);
+              
+              // 準備並行查詢 - 同時執行多個可能的查詢方式
+              console.log(`[並行查詢] 同時執行多策略查詢`);
+              const [directResult, decryptedResult, employeesList] = await Promise.allSettled([
+                // 直接查詢
+                storage.getEmployeeByIdNumber(idNumber).catch(() => null),
+                // 解密後查詢
+                storage.getEmployeeByIdNumber(decrypted).catch(() => null),
+                // 獲取所有員工列表（同時進行，避免串行等待）
+                storage.getAllEmployees().catch(() => [])
+              ]);
+              
+              // 3. 按優先級處理結果
+              let employee = null;
+              
+              // 檢查直接查詢結果 - 最常見最快的情況
+              if (directResult.status === 'fulfilled' && directResult.value) {
+                employee = directResult.value;
+                console.log(`[優化] 直接查詢成功: ${employee.name}`);
+              }
+              // 檢查解密查詢結果 - 次常見的情況
+              else if (decryptedResult.status === 'fulfilled' && decryptedResult.value) {
+                employee = decryptedResult.value;
+                console.log(`[優化] 解密後查詢成功: ${employee.name}`);
+              }
+              // 進行更復雜的比對 - 最後嘗試
+              else if (employeesList.status === 'fulfilled' && employeesList.value) {
+                const allEmployees = employeesList.value;
+                console.log(`[優化] 進行快速比對，員工數量: ${allEmployees.length}`);
                 
-                // 嘗試多種比對方案
+                // 高效匹配邏輯 - 只需一次循環
                 for (const emp of allEmployees) {
                   // 情況1：直接比對
                   if (emp.idNumber === idNumber) {
-                    console.log(`匹配成功: 直接ID相等`);
+                    console.log(`[優化] 匹配成功: 直接ID相等`);
                     employee = emp;
                     break;
                   }
                   
                   // 情況2：掃描的是解密的ID，資料庫儲存的是加密ID
                   if (isEncrypted(emp.idNumber)) {
-                    const decrypted = caesarDecrypt(emp.idNumber);
-                    if (decrypted === idNumber) {
-                      console.log(`匹配成功: 資料庫存的是加密ID，掃描的是解密ID`);
+                    const empDecrypted = caesarDecrypt(emp.idNumber);
+                    if (empDecrypted === idNumber) {
+                      console.log(`[優化] 匹配成功: 資料庫存的是加密ID，掃描的是解密ID`);
                       employee = emp;
                       break;
                     }
                   }
                   
                   // 情況3：掃描的是加密的ID，資料庫儲存的是解密ID
-                  const decrypted = caesarDecrypt(idNumber);
                   if (decrypted === emp.idNumber) {
-                    console.log(`匹配成功: 資料庫存的是解密ID，掃描的是加密ID`);
+                    console.log(`[優化] 匹配成功: 資料庫存的是解密ID，掃描的是加密ID`);
                     employee = emp;
                     break;
                   }
