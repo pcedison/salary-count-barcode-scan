@@ -18,8 +18,8 @@ const RECENT_SCANS_STORAGE_KEY = 'recent_barcode_scans';
 interface ScanResult {
   timestamp: string;
   success: boolean;
-  employeeId: number;
-  employeeName: string;
+  employeeId?: number;
+  employeeName?: string;
   employee?: {
     id: number;
     name: string;
@@ -28,10 +28,37 @@ interface ScanResult {
   };
   department?: string;
   attendance?: any;
-  action: 'clock-in' | 'clock-out';
-  isClockIn: boolean;
+  action?: 'clock-in' | 'clock-out';
+  isClockIn?: boolean;
   statusMessage: string;
-  clockTime?: string; // 實際打卡時間，用於顯示
+  message?: string;      // 服務器返回的消息
+  clockTime?: string;    // 實際打卡時間，用於顯示
+}
+
+// 創建一個統一的處理錯誤函數
+function createErrorScanResult(message: string): ScanResult {
+  return {
+    timestamp: new Date().toISOString(),
+    success: false,
+    employeeId: -1,
+    employeeName: '未知',
+    action: 'clock-in',
+    isClockIn: false,
+    statusMessage: message
+  };
+}
+
+// 創建一個處理中的掃描結果
+function createProcessingScanResult(): ScanResult {
+  return {
+    timestamp: new Date().toISOString(),
+    success: true,
+    employeeId: -1, 
+    employeeName: '處理中',
+    action: 'clock-in',
+    isClockIn: false,
+    statusMessage: '正在處理打卡，請稍候...'
+  };
 }
 
 // 初始化時清理所有本地儲存，確保不會顯示舊的資料
@@ -336,11 +363,7 @@ export default function BarcodeScanPage() {
     
     try {
       // 立即顯示處理中的狀態（不預設上班/下班）
-      setLastScan({
-        timestamp: new Date().toISOString(),
-        success: true,
-        statusMessage: '正在處理打卡，請稍候...'
-      });
+      setLastScan(createProcessingScanResult());
       
       // 調用 API 進行條碼掃描
       const response = await apiRequest('POST', '/api/barcode-scan', {
@@ -566,7 +589,8 @@ export default function BarcodeScanPage() {
                     {lastScan.success ? (
                       lastScan.isClockIn === undefined ? 
                         '處理打卡中...' : 
-                        (lastScan.isClockIn ? '上班打卡成功' : '下班打卡成功')
+                        // 直接使用 scanResult.message 或動態生成
+                        (lastScan.message || `${lastScan.employeeName} ${lastScan.isClockIn ? '上班' : '下班'}打卡成功`)
                     ) : '打卡失敗'}
                   </h2>
                 </div>
@@ -587,15 +611,12 @@ export default function BarcodeScanPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">打卡狀態</span>
                     <span className={`font-medium ${
-                      (lastScan.isClockIn === true || lastScan.action === 'clock-in') 
+                      lastScan.isClockIn
                         ? 'text-green-600 font-bold' 
-                        : (lastScan.isClockIn === false || lastScan.action === 'clock-out') 
-                          ? 'text-blue-600 font-bold' 
-                          : ''
+                        : 'text-blue-600 font-bold'
                     }`}>
-                      {lastScan.isClockIn !== undefined 
-                        ? (lastScan.isClockIn ? '【上班打卡】' : '【下班打卡】') 
-                        : (lastScan.action === 'clock-in' ? '【上班打卡】' : '【下班打卡】')}
+                      {/* 確保完全依據 isClockIn 欄位 */}
+                      {lastScan.isClockIn ? '【上班打卡】' : '【下班打卡】'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
