@@ -60,34 +60,174 @@ function getTodayDateFormatted() {
   return `${year}-${month}-${day}`;
 }
 
-function getLastScan() {
-  const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
-  if (storedScan) {
-    try {
-      const savedScan = JSON.parse(storedScan);
-      
-      // 檢查是否是今天的記錄
-      if (savedScan && savedScan.timestamp) {
-        const today = getTodayDateFormatted();
-        const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
+// 頁面載入時立即執行清理函數，強制清除所有過時的記錄
+(() => {
+  try {
+    const today = getTodayDate();
+    const todayFormatted = getTodayDateFormatted();
+    console.log(`[初始化清理] 系統日期: ${today}, 格式化日期: ${todayFormatted}`);
+    
+    // 清理上次掃描記錄
+    const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
+    if (storedScan) {
+      try {
+        const savedScan = JSON.parse(storedScan);
+        let isOutdated = true;
         
-        // 只有當是今天的記錄時才返回
-        if (scanDate === today) {
-          return savedScan;
-        } else {
-          // 不是今天的記錄，清除緩存
-          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-          return null;
+        // 檢查時間戳
+        if (savedScan.timestamp) {
+          const scanDate = new Date(savedScan.timestamp).toISOString().split('T')[0];
+          const formattedToday = todayFormatted.replace(/-/g, '-');
+          if (scanDate === formattedToday) {
+            isOutdated = false;
+          }
         }
+        
+        // 檢查考勤記錄
+        if (savedScan.attendance?.date && savedScan.attendance.date === today) {
+          isOutdated = false;
+        }
+        
+        // 檢查日期字段
+        if (savedScan.date && (savedScan.date === today || savedScan.date.replace(/-/g, '/') === today)) {
+          isOutdated = false;
+        }
+        
+        if (isOutdated) {
+          console.log(`[初始化清理] 移除過時的上次掃描記錄`);
+          localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
       }
-      return savedScan;
-    } catch (e) {
-      console.error('Error parsing stored scan data:', e);
-      localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
-      return null;
     }
+    
+    // 清理最近掃描記錄
+    const storedRecent = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
+    if (storedRecent) {
+      try {
+        const savedData = JSON.parse(storedRecent);
+        if (savedData && savedData.date) {
+          const isToday = savedData.date === today || 
+                          savedData.date === todayFormatted || 
+                          savedData.date.replace(/-/g, '/') === today;
+          
+          if (!isToday) {
+            console.log(`[初始化清理] 移除過時的最近掃描記錄`);
+            localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+          } else {
+            // 確認日期沒問題，檢查具體記錄
+            const todayScans = (savedData.scans || []).filter((scan: any) => {
+              if (!scan) return false;
+              
+              if (scan.date) {
+                const scanDate = scan.date.replace(/-/g, '/');
+                return scanDate === today || scanDate === todayFormatted;
+              }
+              
+              if (scan.timestamp) {
+                const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+                return scanDate === todayFormatted.replace(/-/g, '-');
+              }
+              
+              if (scan.attendance?.date) {
+                return scan.attendance.date === today;
+              }
+              
+              return false;
+            });
+            
+            if (todayScans.length < (savedData.scans || []).length) {
+              console.log(`[初始化清理] 過濾掉 ${(savedData.scans || []).length - todayScans.length} 筆過時記錄`);
+              savedData.scans = todayScans;
+              localStorage.setItem(RECENT_SCANS_STORAGE_KEY, JSON.stringify(savedData));
+            }
+          }
+        } else {
+          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+      }
+    }
+  } catch (e) {
+    console.error('[初始化清理] 清理過程中出錯:', e);
   }
-  return null;
+})();
+
+function getLastScan() {
+  const today = getTodayDate();
+  const todayFormatted = getTodayDateFormatted();
+  console.log(`獲取最後掃描記錄，系統日期: ${today}, 格式化日期: ${todayFormatted}`);
+  
+  const storedScan = localStorage.getItem(LAST_SCAN_STORAGE_KEY);
+  if (!storedScan) {
+    return null;
+  }
+  
+  try {
+    const savedScan = JSON.parse(storedScan);
+    
+    // 先檢查時間戳
+    if (savedScan && savedScan.timestamp) {
+      const scanTimestamp = new Date(savedScan.timestamp);
+      if (isNaN(scanTimestamp.getTime())) {
+        console.log('找到無效的時間戳，移除記錄');
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        return null;
+      }
+      
+      // 提取日期部分，格式為 YYYY-MM-DD
+      const scanDate = scanTimestamp.toISOString().split('T')[0];
+      // 轉換今天的日期為相同格式以進行比較
+      const formattedToday = todayFormatted.replace(/-/g, '-');
+      
+      // 只有當是今天的記錄時才返回
+      if (scanDate === formattedToday) {
+        console.log(`最後掃描記錄是今天的 (通過時間戳檢查)，時間戳日期: ${scanDate}`);
+        return savedScan;
+      } else {
+        console.log(`發現過時的掃描記錄，掃描日期: ${scanDate}, 今天日期: ${formattedToday}`);
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        return null;
+      }
+    }
+    
+    // 如果沒有時間戳，檢查考勤記錄日期
+    if (savedScan && savedScan.attendance && savedScan.attendance.date) {
+      const recordDate = savedScan.attendance.date;
+      if (recordDate === today) {
+        console.log('最後掃描記錄是今天的 (通過考勤記錄檢查)');
+        return savedScan;
+      } else {
+        console.log(`發現過時的考勤記錄，記錄日期: ${recordDate}, 今天日期: ${today}`);
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        return null;
+      }
+    }
+    
+    // 如果有自己的日期字段
+    if (savedScan && savedScan.date) {
+      const scanDate = savedScan.date.replace(/-/g, '/');
+      if (scanDate === today || scanDate === todayFormatted) {
+        console.log('最後掃描記錄是今天的 (通過日期字段檢查)');
+        return savedScan;
+      } else {
+        console.log(`發現過時的掃描記錄，掃描日期: ${scanDate}, 今天日期: ${today}`);
+        localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+        return null;
+      }
+    }
+    
+    // 沒有有效的日期信息，無法驗證是否為今天的記錄
+    console.log('找到無法驗證日期的掃描記錄，出於安全考慮移除它');
+    localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+    return null;
+  } catch (e) {
+    console.error('解析存儲的掃描數據時出錯:', e);
+    localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+    return null;
+  }
 }
 
 function saveRecentScans(scans: any[]) {
@@ -108,36 +248,75 @@ function saveRecentScans(scans: any[]) {
 }
 
 function getRecentScans() {
+  // 確保使用今天的日期而不是舊的
+  const today = getTodayDate();
+  const todayFormatted = getTodayDateFormatted();
+  console.log(`取得最近掃描記錄，系統日期: ${today}, 格式化日期: ${todayFormatted}`);
+  
   const storedData = localStorage.getItem(RECENT_SCANS_STORAGE_KEY);
-  if (storedData) {
-    try {
-      const data = JSON.parse(storedData);
+  if (!storedData) {
+    return [];
+  }
+  
+  try {
+    const data = JSON.parse(storedData);
+    
+    // 檢查是否包含日期信息並且是今天的記錄
+    if (data && data.date && data.scans) {
+      // 比較日期時要考慮不同的日期格式
+      const isToday = data.date === today || 
+                      data.date === todayFormatted || 
+                      data.date.replace(/-/g, '/') === today;
       
-      // 檢查是否包含日期信息並且是今天的記錄
-      if (data && data.date && data.scans) {
-        const today = getTodayDateFormatted();
+      if (isToday) {
+        // 進一步過濾記錄，確保只顯示今天的記錄
+        const todayScans = data.scans.filter((scan: any) => {
+          if (!scan) return false;
+          
+          // 檢查記錄的日期或時間戳
+          if (scan.date) {
+            const scanDate = scan.date.replace(/-/g, '/');
+            return scanDate === today || scanDate === todayFormatted;
+          }
+          
+          // 檢查時間戳
+          if (scan.timestamp) {
+            const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+            const formattedToday = todayFormatted.replace(/-/g, '-');
+            return scanDate === formattedToday;
+          }
+          
+          // 檢查考勤記錄
+          if (scan.attendance && scan.attendance.date) {
+            return scan.attendance.date === today;
+          }
+          
+          return false;
+        });
         
-        // 只有當是今天的記錄時才返回
-        if (data.date === today) {
-          return data.scans;
-        } else {
-          // 不是今天的記錄，清除緩存
-          localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
-          return [];
-        }
-      } else if (Array.isArray(data)) {
-        // 舊格式兼容（無日期）
+        console.log(`今天的打卡記錄: ${todayScans.length} 筆`);
+        return todayScans;
+      } else {
+        // 不是今天的記錄，清除緩存
+        console.log(`清除過時的打卡記錄，記錄日期: ${data.date}, 今天日期: ${today}`);
         localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
         return [];
       }
-      return [];
-    } catch (e) {
-      console.error('Error parsing stored scans data:', e);
+    } else if (Array.isArray(data)) {
+      // 舊格式兼容（無日期），這種情況下無法判斷是否為今天，清空以避免錯誤
+      console.log('發現舊格式打卡記錄，清除以避免錯誤');
       localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
       return [];
     }
+    
+    // 其他無法識別的格式
+    localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+    return [];
+  } catch (e) {
+    console.error('解析打卡記錄時出錯:', e);
+    localStorage.removeItem(RECENT_SCANS_STORAGE_KEY);
+    return [];
   }
-  return [];
 }
 
 export default function BarcodeScanPage() {
@@ -769,23 +948,51 @@ export default function BarcodeScanPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentScans.map((scan, index) => (
-                    <tr key={index} className="border-b border-muted hover:bg-muted/20">
-                      <td className="p-2">{scan.employee?.name || '未知員工'}</td>
-                      <td className="p-2">{scan.employee?.department || '未指定'}</td>
-                      <td className="p-2">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
-                          scan.action === 'clock-in' 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {scan.action === 'clock-in' ? '上班' : '下班'}
-                        </span>
-                      </td>
-                      <td className="p-2 font-mono">
-                        {scan.action === 'clock-in' 
-                          ? scan.attendance?.clockIn 
-                          : scan.attendance?.clockOut}
+                  {/* 再次過濾，以確保只顯示今天的記錄 */}
+                  {recentScans
+                    .filter(scan => {
+                      // 先檢查記錄是否存在
+                      if (!scan) return false;
+                      
+                      const today = getTodayDate();
+                      
+                      // 檢查考勤記錄日期
+                      if (scan.attendance && scan.attendance.date) {
+                        return scan.attendance.date === today;
+                      }
+                      
+                      // 如果有日期字段，直接比較
+                      if (scan.date) {
+                        return scan.date === today || scan.date.replace(/-/g, '/') === today;
+                      }
+                      
+                      // 如果有時間戳，提取日期部分
+                      if (scan.timestamp) {
+                        const todayFormatted = getTodayDateFormatted().replace(/-/g, '-');
+                        const scanDate = new Date(scan.timestamp).toISOString().split('T')[0];
+                        return scanDate === todayFormatted;
+                      }
+                      
+                      // 無法確定日期，不顯示
+                      return false;
+                    })
+                    .map((scan, index) => (
+                      <tr key={index} className="border-b border-muted hover:bg-muted/20">
+                        <td className="p-2">{scan.employee?.name || scan.employeeName || '未知員工'}</td>
+                        <td className="p-2">{scan.employee?.department || '未指定'}</td>
+                        <td className="p-2">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                            scan.action === 'clock-in' 
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {scan.action === 'clock-in' ? '上班' : '下班'}
+                          </span>
+                        </td>
+                        <td className="p-2 font-mono">
+                          {scan.action === 'clock-in' 
+                            ? scan.attendance?.clockIn 
+                            : scan.attendance?.clockOut}
                       </td>
                     </tr>
                   ))}
