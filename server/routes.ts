@@ -1017,51 +1017,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return;
           }
           
-          // 檢查是否為假日 - 使用緩存優化
-          let isHoliday = false;
+          // 並行處理：同時檢查假日狀態和考勤記錄 - 顯著提高效率
+          console.log(`[優化流程] 啟動並行處理`);
           
-          try {
-            // 如果緩存的假日數據不超過 24 小時，優先使用緩存
-            const now24h = Date.now();
-            if (cachedHolidays.length > 0 && (now24h - holidaysCacheTime < 24 * 60 * 60 * 1000)) {
-              console.log("使用假日緩存數據");
-              isHoliday = cachedHolidays.some(holiday => holiday.date === currentDate);
-            } else {
-              // 設置超時 Promise，最多等待 2 秒
-              const holidayPromise = Promise.race([
-                storage.getAllHolidays(),
-                new Promise(resolve => setTimeout(() => resolve([]), 2000))
-              ]);
-              
-              const holidays = await holidayPromise;
-              cachedHolidays = holidays;
-              holidaysCacheTime = Date.now();
-              isHoliday = holidays.some(holiday => holiday.date === currentDate);
-            }
-          } catch (err) {
-            console.error("檢查假日時出錯:", err);
-            // 繼續處理，將假日默認為 false
-          }
-          
-          // 查找今天是否已有該員工打卡記錄
-          let attendanceRecords = [];
-          try {
-            // 設置 Promise，最多等待 3 秒
-            const attendancePromise = Promise.race([
-              db.select()
-                .from(temporaryAttendance)
-                .where(and(
-                  eq(temporaryAttendance.date, currentDate),
-                  eq(temporaryAttendance.employeeId, employee.id)
-                )),
-              new Promise(resolve => setTimeout(() => resolve([]), 3000))
-            ]);
+          // 並行運行多個數據查詢
+          const [holidayData, attendanceData] = await Promise.all([
+            // 1. 假日檢查（快速路徑優先）
+            (async () => {
+              try {
+                // 使用快速緩存檢查
+                const now24h = Date.now();
+                if (cachedHolidays.length > 0 && (now24h - holidaysCacheTime < 24 * 60 * 60 * 1000)) {
+                  console.log("[並行] 使用假日緩存數據");
+                  return cachedHolidays.some(holiday => holiday.date === currentDate);
+                }
+                
+                // 設置超時 Promise，減少等待時間到 900ms
+                const holidayPromise = Promise.race([
+                  storage.getAllHolidays(),
+                  new Promise(resolve => setTimeout(() => resolve([]), 900))
+                ]);
+                
+                const holidays = await holidayPromise;
+                // 更新緩存
+                cachedHolidays = holidays;
+                holidaysCacheTime = Date.now();
+                return holidays.some(holiday => holiday.date === currentDate);
+              } catch (err) {
+                console.error("[並行] 檢查假日時出錯:", err);
+                return false; // 發生錯誤時默認非假日
+              }
+            })(),
             
-            attendanceRecords = await attendancePromise;
-          } catch (err) {
-            console.error("查詢考勤記錄時出錯:", err);
-            // 繼續處理，使用空數組
-          }
+            // 2. 考勤記錄查詢（減少等待時間）
+            (async () => {
+              try {
+                // 嘗試從緩存獲取
+                const cacheKey = `attendance_${employee.id}_${currentDate}`;
+                const cachedAttendance = attendanceCache.get(cacheKey);
+                if (cachedAttendance) {
+                  console.log("[並行] 使用考勤緩存數據");
+                  return cachedAttendance;
+                }
+                
+                // 設置較短的超時時間（從3秒減至900毫秒）
+                const attendancePromise = Promise.race([
+                  db.select()
+                    .from(temporaryAttendance)
+                    .where(and(
+                      eq(temporaryAttendance.date, currentDate),
+                      eq(temporaryAttendance.employeeId, employee.id)
+                    )),
+                  new Promise(resolve => setTimeout(() => resolve([]), 900))
+                ]);
+                
+                const records = await attendancePromise;
+                // 設置緩存
+                attendanceCache.set(cacheKey, records, 60000); // 一分鐘有效期
+                return records;
+              } catch (err) {
+                console.error("[並行] 查詢考勤記錄時出錯:", err);
+                return []; // 發生錯誤時返回空數組
+              }
+            })()
+          ]);
+          
+          // 解構並行結果
+          const isHoliday = holidayData;
+          const attendanceRecords = attendanceData;
           
           let result;
           let isClockIn = true;
