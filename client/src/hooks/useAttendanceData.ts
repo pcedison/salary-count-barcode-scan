@@ -105,10 +105,22 @@ export function useAttendanceData() {
   }, [attendanceData, isLoading, error]);
   
   // 從useEmployees中獲取員工資料，用於關聯考勤記錄
-  const { employees } = useEmployees();
+  const { employees, activeEmployees, forceRefreshEmployees } = useEmployees();
+  
+  // 確保在需要員工資料時有最新的資料
+  useEffect(() => {
+    if (attendanceData.length > 0 && (!employees || employees.length === 0)) {
+      console.log('考勤數據需要員工資料，但尚未加載員工資料，嘗試重新獲取...');
+      if (forceRefreshEmployees) {
+        forceRefreshEmployees();
+      }
+    }
+  }, [attendanceData, employees, forceRefreshEmployees]);
   
   // 增強考勤數據，添加員工姓名和部門信息
   const enhancedAttendanceData = useMemo(() => {
+    console.log('重新計算增強考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attendanceData?.length || 0);
+    
     if (!Array.isArray(attendanceData) || attendanceData.length === 0) return [];
     
     return [...attendanceData].map(record => {
@@ -116,11 +128,14 @@ export function useAttendanceData() {
       if (record.employeeId && employees && employees.length > 0) {
         const employee = employees.find((emp) => emp.id === record.employeeId);
         if (employee) {
+          console.log(`找到考勤記錄 ID:${record.id} 的員工信息: ${employee.name} (${employee.department || '無部門'})`);
           return {
             ...record,
             _employeeName: employee.name,
             _employeeDepartment: employee.department
           };
+        } else {
+          console.log(`無法找到考勤記錄 ID:${record.id} 員工ID:${record.employeeId} 的員工信息`);
         }
       }
       return record;

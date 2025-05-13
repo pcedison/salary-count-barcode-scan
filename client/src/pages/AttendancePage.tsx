@@ -33,7 +33,7 @@ export default function AttendancePage() {
   } = useAttendanceData();
   
   const { settings } = useSettings();
-  const { activeEmployees, isLoading: isLoadingEmployees } = useEmployees();
+  const { activeEmployees, isLoading: isLoadingEmployees, forceRefreshEmployees } = useEmployees();
   
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [recentActivity, setRecentActivity] = useState<{ message: string; timestamp: string } | null>(null);
@@ -47,6 +47,19 @@ export default function AttendancePage() {
   // 員工選擇相關狀態
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  
+  // 組件掛載時加載員工數據
+  useEffect(() => {
+    console.log('AttendancePage 掛載，確保加載員工數據');
+    // 簡單延遲以確保其他資源已經加載
+    const timer = setTimeout(() => {
+      if (forceRefreshEmployees) {
+        forceRefreshEmployees();
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [forceRefreshEmployees]);
   
   // 過濾特定員工的考勤記錄
   const filteredAttendanceData = (selectedEmployeeId && selectedEmployeeId !== 'all')
@@ -365,11 +378,38 @@ export default function AttendancePage() {
             </div>
           )}
           
-          <p className="mt-2 text-xs text-blue-600">
-            {!selectedEmployee 
-              ? "選擇特定員工以查看其考勤記錄，或使用條碼掃描功能自動切換" 
-              : `目前顯示 ${selectedEmployee.name} 的考勤記錄。條碼掃描打卡後也會自動切換到對應員工。`}
-          </p>
+          <div className="flex justify-between items-center mt-2">
+            <p className="text-xs text-blue-600">
+              {!selectedEmployee 
+                ? "選擇特定員工以查看其考勤記錄，或使用條碼掃描功能自動切換" 
+                : `目前顯示 ${selectedEmployee.name} 的考勤記錄。條碼掃描打卡後也會自動切換到對應員工。`}
+            </p>
+            <button 
+              className="text-xs text-gray-500 hover:text-blue-600"
+              onClick={(e) => {
+                e.preventDefault();
+                if (forceRefreshEmployees) {
+                  forceRefreshEmployees()
+                    .then(() => {
+                      toast({
+                        title: "員工資料已更新",
+                        description: `成功載入 ${activeEmployees.length} 名員工資料`,
+                        variant: "default",
+                      });
+                    })
+                    .catch(error => {
+                      toast({
+                        title: "更新失敗",
+                        description: `載入員工資料時發生錯誤: ${error.message}`,
+                        variant: "destructive",
+                      });
+                    });
+                }
+              }}
+            >
+              重新載入員工資料
+            </button>
+          </div>
         </div>
       </div>
 

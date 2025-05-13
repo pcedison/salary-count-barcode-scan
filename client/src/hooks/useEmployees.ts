@@ -9,14 +9,18 @@ async function fetchEmployees(): Promise<Employee[]> {
   try {
     // 嘗試從 API 獲取員工數據
     console.log('開始從 API 獲取員工數據');
-    const response = await fetch('/api/employees');
     
-    if (!response.ok) {
-      throw new Error(`獲取員工數據失敗: ${response.status}`);
-    }
+    // 使用 apiRequest 而不是直接 fetch
+    const response = await apiRequest('GET', '/api/employees');
     
+    // 解析JSON回應
     const data = await response.json();
     console.log(`從 API 獲取到 ${data.length} 名員工數據`);
+    
+    // 輸出員工數據以便調試
+    if (data && data.length > 0) {
+      console.log('員工數據示例:', data[0]);
+    }
     
     // 緩存獲取的數據
     cacheEmployees(data);
@@ -40,6 +44,8 @@ async function fetchEmployees(): Promise<Employee[]> {
 }
 
 export function useEmployees() {
+  const queryClient = useQueryClient();
+  
   // 獲取所有員工
   const { 
     data: employees = [], 
@@ -58,7 +64,7 @@ export function useEmployees() {
 
   // 記錄員工數據獲取狀態
   console.log('useEmployees hook:', { 
-    employees: employees?.length || 0, 
+    dataLength: employees?.length || 0, 
     isLoading, 
     hasError: !!error 
   });
@@ -74,11 +80,26 @@ export function useEmployees() {
     console.log('活躍員工名單:', activeEmployees.map(emp => emp.name).join(', '));
   }
 
+  // 強制刷新員工數據的函數
+  const forceRefreshEmployees = async () => {
+    console.log('強制刷新員工數據...');
+    // 首先使緩存失效
+    queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+    // 然後執行重新獲取
+    const result = await refetch();
+    console.log('強制刷新結果:', { 
+      success: !result.error, 
+      employeeCount: result.data?.length || 0 
+    });
+    return result;
+  };
+
   return {
     employees: employees || [],
     activeEmployees,
     isLoading,
     error,
-    refetch
+    refetch,
+    forceRefreshEmployees
   };
 }

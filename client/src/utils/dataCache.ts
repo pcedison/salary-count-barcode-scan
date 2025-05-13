@@ -158,11 +158,26 @@ export interface Holiday {
  * 員工數據緩存
  */
 export function cacheEmployees(employees: Employee[]): void {
+  console.log(`儲存 ${employees.length} 名員工資料到緩存`);
   saveToCache<Employee[]>(CACHE_KEYS.EMPLOYEES, employees, CACHE_TTL.LONG);
 }
 
 export function getCachedEmployees(): Employee[] | null {
-  return getFromCache<Employee[]>(CACHE_KEYS.EMPLOYEES);
+  const cachedEmployees = getFromCache<Employee[]>(CACHE_KEYS.EMPLOYEES);
+  if (cachedEmployees) {
+    console.log(`從緩存取得 ${cachedEmployees.length} 名員工資料`);
+    // 打印一些員工信息以便驗證
+    if (cachedEmployees.length > 0) {
+      console.log('緩存中的第一位員工:', {
+        id: cachedEmployees[0].id,
+        name: cachedEmployees[0].name,
+        department: cachedEmployees[0].department
+      });
+    }
+  } else {
+    console.log('員工資料緩存為空或已過期');
+  }
+  return cachedEmployees;
 }
 
 /**
