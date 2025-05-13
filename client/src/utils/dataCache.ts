@@ -102,6 +102,10 @@ export interface Employee {
   position: string;
   isEncrypted: boolean;
   active: boolean;
+  hourlyRate: number;
+  note?: string;
+  joinDate?: string;
+  leaveDate?: string | null;
   phone?: string;
 }
 

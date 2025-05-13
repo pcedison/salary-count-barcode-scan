@@ -413,20 +413,9 @@ export default function AttendancePage() {
               )}
             </SelectContent>
           </Select>
-          {/* 調試信息 */}
-          {process.env.NODE_ENV !== 'production' && (
-            <div className="mt-1 text-xs text-gray-500">
-              員工加載狀態: {isLoadingEmployees ? '加載中' : '已完成'}, 
-              員工數量: {activeEmployees?.length || 0}
-            </div>
-          )}
+
           
-          <div className="flex justify-between items-center mt-2">
-            <p className="text-xs text-blue-600">
-              {!selectedEmployee 
-                ? "選擇特定員工以查看其考勤記錄，或使用條碼掃描功能自動切換" 
-                : `目前顯示 ${selectedEmployee.name} 的考勤記錄。條碼掃描打卡後也會自動切換到對應員工。`}
-            </p>
+          <div className="flex justify-end mt-2">
             <button 
               className="text-xs text-gray-500 hover:text-blue-600"
               onClick={(e) => {
@@ -436,7 +425,7 @@ export default function AttendancePage() {
                     .then(() => {
                       toast({
                         title: "員工資料已更新",
-                        description: `成功載入 ${activeEmployees.length} 名員工資料`,
+                        description: "員工資料已成功重新載入",
                         variant: "default",
                       });
                     })
@@ -450,7 +439,7 @@ export default function AttendancePage() {
                 }
               }}
             >
-              重新載入員工資料
+              <span className="underline">重新載入員工資料</span>
             </button>
           </div>
         </div>
