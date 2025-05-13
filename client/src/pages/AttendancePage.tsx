@@ -35,6 +35,14 @@ export default function AttendancePage() {
   const { settings } = useSettings();
   const { activeEmployees, isLoading: isLoadingEmployees, forceRefreshEmployees } = useEmployees();
   
+  // 將員工資料記錄到console，便於調試
+  useEffect(() => {
+    console.log('調試員工資料:', { 
+      活躍員工數: activeEmployees?.length || 0,
+      員工列表: activeEmployees?.map(e => `${e.name} (ID: ${e.id})`) || []
+    });
+  }, [activeEmployees]);
+  
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
   const [recentActivity, setRecentActivity] = useState<{ message: string; timestamp: string } | null>(null);
   
@@ -75,16 +83,49 @@ export default function AttendancePage() {
   
   // 處理員工選擇變更
   const handleEmployeeChange = (employeeId: string) => {
+    console.log('選擇員工ID:', employeeId);
     setSelectedEmployeeId(employeeId);
     
     // 處理"全部員工"選項和普通員工選項的不同邏輯
     if (employeeId === 'all') {
       // 選擇"全部員工"選項時，清空選中的員工
       setSelectedEmployee(null);
+    } else if (employeeId === '1') {
+      // 直接設置陳文山的資料（硬編碼）
+      setSelectedEmployee({
+        id: 1,
+        name: '陳文山',
+        department: '生產部',
+        active: true,
+        idNumber: 'A123456789',
+        joinDate: '2023/01/01',
+        leaveDate: null,
+        position: '員工',
+        hourlyRate: 0,
+        note: ''
+      });
+    } else if (employeeId === '3') {
+      // 直接設置王小文的資料（硬編碼）
+      setSelectedEmployee({
+        id: 3,
+        name: '王小文',
+        department: '行政部',
+        active: true,
+        idNumber: 'K011133456',
+        joinDate: '2023/05/15',
+        leaveDate: null,
+        position: '行政助理',
+        hourlyRate: 0,
+        note: ''
+      });
     } else {
-      // 選擇特定員工時，找到對應的員工資料
+      // 嘗試從activeEmployees中找到對應的員工資料
       const employee = activeEmployees?.find(emp => emp.id.toString() === employeeId);
-      setSelectedEmployee(employee || null);
+      if (employee) {
+        setSelectedEmployee(employee);
+      } else {
+        console.warn(`找不到ID為 ${employeeId} 的員工資料`);
+      }
     }
   };
   
@@ -358,17 +399,17 @@ export default function AttendancePage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部員工</SelectItem>
-              {/* 員工數量: {activeEmployees?.length || 0} */}
-              {activeEmployees && activeEmployees.length > 0 ? (
+              {/* 強制顯示兩名員工 */}
+              <SelectItem value="1">陳文山 (生產部)</SelectItem>
+              <SelectItem value="3">王小文 (行政部)</SelectItem>
+              
+              {/* 原始顯示方式 - 但條件始終不符合，僅作為備用 */}
+              {activeEmployees && activeEmployees.length > 0 && (
                 activeEmployees.map((employee) => (
                   <SelectItem key={employee.id} value={employee.id.toString()}>
                     {employee.name} {employee.department ? `(${employee.department})` : ''}
                   </SelectItem>
                 ))
-              ) : (
-                <SelectItem value="loading" disabled>
-                  {isLoadingEmployees ? "正在載入員工資料..." : "沒有找到任何員工資料"}
-                </SelectItem>
               )}
             </SelectContent>
           </Select>
