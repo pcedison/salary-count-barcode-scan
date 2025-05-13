@@ -336,12 +336,14 @@ export default function AttendancePage() {
           <Select
             value={selectedEmployeeId}
             onValueChange={handleEmployeeChange}
+            disabled={isLoadingEmployees}
           >
             <SelectTrigger className="w-full bg-white">
-              <SelectValue placeholder="選擇要查看的員工..." />
+              <SelectValue placeholder={isLoadingEmployees ? "加載員工資料中..." : "選擇要查看的員工..."} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部員工</SelectItem>
+              {/* 員工數量: {activeEmployees?.length || 0} */}
               {activeEmployees && activeEmployees.length > 0 ? (
                 activeEmployees.map((employee) => (
                   <SelectItem key={employee.id} value={employee.id.toString()}>
@@ -350,11 +352,18 @@ export default function AttendancePage() {
                 ))
               ) : (
                 <SelectItem value="loading" disabled>
-                  載入員工資料中...
+                  {isLoadingEmployees ? "正在載入員工資料..." : "沒有找到任何員工資料"}
                 </SelectItem>
               )}
             </SelectContent>
           </Select>
+          {/* 調試信息 */}
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="mt-1 text-xs text-gray-500">
+              員工加載狀態: {isLoadingEmployees ? '加載中' : '已完成'}, 
+              員工數量: {activeEmployees?.length || 0}
+            </div>
+          )}
           
           <p className="mt-2 text-xs text-blue-600">
             {!selectedEmployee 
