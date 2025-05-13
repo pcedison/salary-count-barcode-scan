@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
+import { useEmployees } from '@/hooks/useEmployees';
 import { constants } from '@/lib/constants';
 import { 
   calculateOvertime, 
@@ -103,16 +104,39 @@ export function useAttendanceData() {
     }
   }, [attendanceData, isLoading, error]);
   
-  // Sort attendance data by date
-  const sortedAttendanceData = useMemo(() => {
+  // 從useEmployees中獲取員工資料，用於關聯考勤記錄
+  const { employees } = useEmployees();
+  
+  // 增強考勤數據，添加員工姓名和部門信息
+  const enhancedAttendanceData = useMemo(() => {
     if (!Array.isArray(attendanceData) || attendanceData.length === 0) return [];
     
-    return [...attendanceData].sort((a, b) => {
+    return [...attendanceData].map(record => {
+      // 嘗試尋找員工信息
+      if (record.employeeId && employees.length > 0) {
+        const employee = employees.find(emp => emp.id === record.employeeId);
+        if (employee) {
+          return {
+            ...record,
+            _employeeName: employee.name,
+            _employeeDepartment: employee.department
+          };
+        }
+      }
+      return record;
+    });
+  }, [attendanceData, employees]);
+  
+  // Sort attendance data by date
+  const sortedAttendanceData = useMemo(() => {
+    if (enhancedAttendanceData.length === 0) return [];
+    
+    return [...enhancedAttendanceData].sort((a, b) => {
       const dateA = new Date(a.date.replace(/\//g, '-'));
       const dateB = new Date(b.date.replace(/\//g, '-'));
       return dateA.getTime() - dateB.getTime();
     });
-  }, [attendanceData]);
+  }, [enhancedAttendanceData]);
   
   // Create attendance record
   const createAttendanceMutation = useMutation({
