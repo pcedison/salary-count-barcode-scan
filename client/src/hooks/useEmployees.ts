@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { cacheEmployees, getCachedEmployees, Employee } from '../utils/dataCache';
@@ -10,8 +11,12 @@ async function fetchEmployees(): Promise<Employee[]> {
     // 嘗試從 API 獲取員工數據
     console.log('開始從 API 獲取員工數據');
     
-    // 使用 apiRequest 而不是直接 fetch
-    const response = await apiRequest('GET', '/api/employees');
+    // 使用直接fetch以確保獲取到數據
+    const response = await fetch('/api/employees');
+    
+    if (!response.ok) {
+      throw new Error(`獲取員工數據失敗: ${response.status} ${response.statusText}`);
+    }
     
     // 解析JSON回應
     const data = await response.json();
@@ -45,6 +50,7 @@ async function fetchEmployees(): Promise<Employee[]> {
 
 export function useEmployees() {
   const queryClient = useQueryClient();
+  const [isFetching, setIsFetching] = useState(false);
   
   // 獲取所有員工
   const { 
@@ -57,9 +63,10 @@ export function useEmployees() {
     queryFn: fetchEmployees,
     retry: 3,             // 增加重試次數
     retryDelay: attempt => Math.min(1000 * 2 ** attempt, 30000), // 指數回退重試
-    staleTime: 60 * 1000, // 1分鐘後數據過期
+    staleTime: 10 * 1000, // 10秒後數據過期
     refetchOnMount: true, // 每次組件掛載時重新獲取數據
     refetchOnWindowFocus: true, // 窗口獲得焦點時重新獲取數據
+    enabled: true, // 確保查詢自動運行
   });
 
   // 記錄員工數據獲取狀態
@@ -80,18 +87,63 @@ export function useEmployees() {
     console.log('活躍員工名單:', activeEmployees.map(emp => emp.name).join(', '));
   }
 
+  // 使用useEffect直接加載數據
+  useEffect(() => {
+    const loadEmployees = async () => {
+      console.log('初始化加載員工數據');
+      setIsFetching(true);
+      try {
+        // 直接使用fetch獲取員工數據
+        const response = await fetch('/api/employees');
+        if (!response.ok) throw new Error(`API回應不成功: ${response.status}`);
+        
+        const data = await response.json();
+        console.log(`直接獲取到 ${data.length} 名員工`);
+        
+        // 手動設置到查詢緩存中
+        queryClient.setQueryData(['/api/employees'], data);
+        
+        // 保存到localStorage緩存
+        cacheEmployees(data);
+      } catch (error) {
+        console.error('直接加載員工數據出錯:', error);
+      } finally {
+        setIsFetching(false);
+      }
+    };
+    
+    // 如果目前沒有員工數據，則加載
+    if (employees.length === 0 && !isLoading && !isFetching) {
+      loadEmployees();
+    }
+  }, [employees.length, isLoading, isFetching, queryClient]);
+  
   // 強制刷新員工數據的函數
   const forceRefreshEmployees = async () => {
     console.log('強制刷新員工數據...');
-    // 首先使緩存失效
-    queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
-    // 然後執行重新獲取
-    const result = await refetch();
-    console.log('強制刷新結果:', { 
-      success: !result.error, 
-      employeeCount: result.data?.length || 0 
-    });
-    return result;
+    setIsFetching(true);
+    
+    try {
+      // 直接使用fetch獲取員工數據
+      const response = await fetch('/api/employees');
+      if (!response.ok) throw new Error(`API回應不成功: ${response.status}`);
+      
+      const data = await response.json();
+      console.log(`強制刷新: 獲取到 ${data.length} 名員工`);
+      
+      // 手動設置到查詢緩存中
+      queryClient.setQueryData(['/api/employees'], data);
+      
+      // 保存到localStorage緩存
+      cacheEmployees(data);
+      
+      return { data, error: null };
+    } catch (error) {
+      console.error('強制刷新員工數據出錯:', error);
+      return { data: null, error };
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   return {
