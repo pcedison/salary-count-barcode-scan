@@ -539,9 +539,19 @@ export default function BarcodeScanPage() {
           // 服務器返回了訊息但尚未包含員工資料
           // 可能是正在處理中或暫時狀態
           console.log('服務器返回訊息但無完整資料:', scanResult.message);
+          // 創建一個完整的處理中結果對象
           setLastScan({
             timestamp: scanResult.timestamp || new Date().toISOString(),
             success: true,
+            employeeId: -1,
+            employeeName: '處理中',
+            action: 'clock-in',
+            isClockIn: false,
+            employee: {
+              id: -1,
+              name: '處理中',
+              department: ''
+            },
             statusMessage: scanResult.message || '處理中，請稍候...'
           });
           
