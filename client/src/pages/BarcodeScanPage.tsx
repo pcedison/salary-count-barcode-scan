@@ -431,6 +431,20 @@ export default function BarcodeScanPage() {
         const scanResult = await response.json();
         console.log('掃描結果:', scanResult);
         
+        // 處理進行中狀態的特殊情況
+        if (scanResult && scanResult.inProgress === true) {
+          console.log('打卡處理中，等待結果...');
+          // 保持處理中狀態，不需更新
+          // 5秒後刷新資料
+          setTimeout(() => {
+            queryClient.invalidateQueries({
+              queryKey: ['/api/attendance'],
+              refetchType: 'all'
+            });
+          }, 5000);
+          return;
+        }
+        
         if (scanResult && scanResult.employeeId && scanResult.employeeName) {
           // 確定打卡類型
           const isClockIn = typeof scanResult.isClockIn === 'boolean'
@@ -510,6 +524,34 @@ export default function BarcodeScanPage() {
           setTimeout(() => {
             setLastScan(null);
           }, 6000);
+        } else if (scanResult && scanResult.error) {
+          // API返回明確的錯誤信息
+          const errorMessage = scanResult.error || '掃描失敗，請重試';
+          console.error('API返回錯誤:', errorMessage);
+          setLastScan(createErrorScanResult(errorMessage));
+          
+          toast({
+            title: '打卡失敗',
+            description: errorMessage,
+            variant: 'destructive'
+          });
+        } else if (scanResult && scanResult.message) {
+          // 服務器返回了訊息但尚未包含員工資料
+          // 可能是正在處理中或暫時狀態
+          console.log('服務器返回訊息但無完整資料:', scanResult.message);
+          setLastScan({
+            timestamp: scanResult.timestamp || new Date().toISOString(),
+            success: true,
+            statusMessage: scanResult.message || '處理中，請稍候...'
+          });
+          
+          // 5秒後刷新資料
+          setTimeout(() => {
+            queryClient.invalidateQueries({
+              queryKey: ['/api/attendance'],
+              refetchType: 'all'
+            });
+          }, 3000);
         } else {
           // 掃描結果缺少必要信息
           console.error('掃描結果數據不完整:', scanResult);
