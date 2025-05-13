@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Lock, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Loader2 } from 'lucide-react';
 import { apiRequest, getQueryFn } from '@/lib/queryClient';
 import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
@@ -183,7 +182,6 @@ function useTodayAttendanceRecords() {
 // 當前頁面元件
 export default function BarcodeScanPage() {
   const { toast } = useToast();
-  const { isAdmin } = useAdmin();
   const queryClient = useQueryClient();
   
   // 狀態管理
@@ -724,19 +722,12 @@ export default function BarcodeScanPage() {
         <div className={`md:w-96 transition-all duration-300 ${showTodayRecords ? 'opacity-100' : 'opacity-50'}`}>
           <Card className="h-full">
             <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
-                <div className="flex-1">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <CalendarDays className="w-4 h-4" />
-                    今日打卡記錄
-                    <span className="text-sm font-normal text-muted-foreground">({todayAttendanceRecords.length})</span>
-                  </CardTitle>
-                </div>
-                {isAdmin && (
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Lock className="w-4 h-4" />
-                  </Button>
-                )}
+              <div className="flex items-center">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <CalendarDays className="w-4 h-4" />
+                  今日打卡記錄
+                  <span className="text-sm font-normal text-muted-foreground">({todayAttendanceRecords.length})</span>
+                </CardTitle>
               </div>
             </CardHeader>
             
