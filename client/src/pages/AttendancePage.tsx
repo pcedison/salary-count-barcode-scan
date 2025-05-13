@@ -54,12 +54,14 @@ export default function AttendancePage() {
     // 簡單延遲以確保其他資源已經加載
     const timer = setTimeout(() => {
       if (forceRefreshEmployees) {
-        forceRefreshEmployees();
+        forceRefreshEmployees().then(result => {
+          console.log('員工數據加載結果:', result);
+        });
       }
-    }, 500);
+    }, 1000);
     
     return () => clearTimeout(timer);
-  }, [forceRefreshEmployees]);
+  }, []);
   
   // 過濾特定員工的考勤記錄
   const filteredAttendanceData = (selectedEmployeeId && selectedEmployeeId !== 'all')
