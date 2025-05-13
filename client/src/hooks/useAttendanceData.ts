@@ -68,7 +68,7 @@ export function useAttendanceData() {
     data: attendanceData = [], 
     isLoading,
     error
-  } = useQuery({ 
+  } = useQuery<AttendanceRecord[]>({ 
     queryKey: ['/api/attendance'],
     refetchInterval: 30000, // 降低重新獲取間隔至30秒，減輕服務器負擔
     staleTime: 15000, // 延長緩存有效時間至15秒
@@ -105,25 +105,16 @@ export function useAttendanceData() {
   }, [attendanceData, isLoading, error]);
   
   // 從useEmployees中獲取員工資料，用於關聯考勤記錄
-  const { employees, activeEmployees, forceRefreshEmployees } = useEmployees();
-  
-  // 確保在需要員工資料時有最新的資料
-  useEffect(() => {
-    if (attendanceData.length > 0 && (!employees || employees.length === 0)) {
-      console.log('考勤數據需要員工資料，但尚未加載員工資料，嘗試重新獲取...');
-      if (forceRefreshEmployees) {
-        forceRefreshEmployees();
-      }
-    }
-  }, [attendanceData, employees, forceRefreshEmployees]);
+  const { employees, activeEmployees } = useEmployees();
   
   // 增強考勤數據，添加員工姓名和部門信息
   const enhancedAttendanceData = useMemo(() => {
-    console.log('重新計算增強考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attendanceData?.length || 0);
+    const attData = Array.isArray(attendanceData) ? attendanceData : [];
+    console.log('重新計算增強考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attData.length);
     
-    if (!Array.isArray(attendanceData) || attendanceData.length === 0) return [];
+    if (attData.length === 0) return [];
     
-    return [...attendanceData].map(record => {
+    return [...attData].map(record => {
       // 嘗試尋找員工信息
       if (record.employeeId && employees && employees.length > 0) {
         const employee = employees.find((emp) => emp.id === record.employeeId);
