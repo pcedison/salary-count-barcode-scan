@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAdmin } from '@/hooks/useAdmin';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { apiRequest, getQueryFn } from '@/lib/queryClient';
 import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { employeeCache, initEmployeeCache, getEmployeeFromCache } from '@/utils/employeeCache';
 
 // 常數定義
 const LAST_SCAN_STORAGE_KEY = 'last_barcode_scan';
@@ -93,31 +94,41 @@ function useTodayIncompleteRecords() {
   // 獲取今日日期
   const todayDate = getTodayDate();
   
-  // 使用常規考勤記錄 API，以確保獲取最完整的資料
+  // 使用常規考勤記錄 API，但降低請求頻率以減少服務器負載
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 5000, // 每 5 秒刷新一次，提高實時性
-    refetchOnWindowFocus: true, // 當窗口獲得焦點時刷新，確保數據最新
-    staleTime: 2000 // 數據 2 秒內不會被視為過期，增加響應速度
+    refetchInterval: 30000, // 從5秒增加到30秒，減少85%的請求數量
+    refetchOnWindowFocus: false, // 避免窗口聚焦時額外請求
+    staleTime: 25000, // 數據25秒內不會被視為過期，大幅減少請求
+    retry: 1 // 減少重試次數
   });
   
-  // 篩選今日且未完成下班打卡的記錄
-  const incompleteRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : []).filter((record: any) => {
-    // 只保留今天的記錄
-    const isToday = record.date === todayDate;
-    // 只保留未完成下班打卡的記錄
-    const isIncomplete = (!record.clockOut || record.clockOut === '') && record.isBarcodeScanned === true;
+  // 使用 useMemo 優化篩選和映射操作
+  const incompleteRecords = useMemo(() => {
+    // 初始化員工緩存（如果尚未初始化）
+    if (employees.length > 0 && employeeCache.size === 0) {
+      initEmployeeCache(employees);
+    }
     
-    return isToday && isIncomplete;
-  }).map(record => {
-    // 為每條記錄添加員工詳細信息
-    const employee = employees.find(emp => emp.id === record.employeeId);
-    return {
-      ...record,
-      _employeeName: employee?.name || '未知員工',
-      _employeeDepartment: employee?.department || '未指定部門'
-    };
-  });
+    return (Array.isArray(attendanceRecords) ? attendanceRecords : [])
+      .filter((record: any) => {
+        // 只保留今天未完成下班打卡的記錄
+        return record.date === todayDate && 
+              (!record.clockOut || record.clockOut === '') && 
+              record.isBarcodeScanned === true;
+      })
+      .map(record => {
+        // 優先使用緩存獲取員工信息
+        const employee = getEmployeeFromCache(record.employeeId) || 
+                        employees.find(emp => emp.id === record.employeeId);
+        
+        return {
+          ...record,
+          _employeeName: employee?.name || '未知員工',
+          _employeeDepartment: employee?.department || '未指定部門'
+        };
+      });
+  }, [attendanceRecords, employees, todayDate]);
   
   console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${todayDate}`);
   return incompleteRecords;
@@ -134,27 +145,36 @@ function useTodayAttendanceRecords() {
   // 獲取今日日期
   const todayDate = getTodayDate();
   
-  // 使用常規考勤記錄 API，並在前端篩選
+  // 使用常規考勤記錄 API，優化查詢參數以減少請求
   const { data: attendanceRecords = [] } = useQuery<any[]>({
     queryKey: ['/api/attendance'],
-    refetchInterval: 5000, // 每 5 秒刷新一次
-    staleTime: 2000, // 數據 2 秒內不會被視為過期，提高響應速度
-    refetchOnWindowFocus: true, // 當窗口獲得焦點時應該刷新
-    retry: 3  // 如果請求失敗，最多重試 3 次
+    refetchInterval: 30000, // 從5秒增加到30秒，顯著減少請求次數
+    staleTime: 25000, // 延長緩存有效期，減少請求頻率
+    refetchOnWindowFocus: false, // 避免切換窗口時重新請求
+    retry: 1  // 減少重試次數，從3減為1
   });
   
-  // 篩選今日記錄並添加員工信息
-  const todayRecords = (Array.isArray(attendanceRecords) ? attendanceRecords : [])
-    .filter(record => record.date === todayDate)
-    .map(record => {
-      // 為每條記錄添加員工詳細信息
-      const employee = employees.find(emp => emp.id === record.employeeId);
-      return {
-        ...record,
-        _employeeName: employee?.name || '未知員工',
-        _employeeDepartment: employee?.department || '未指定部門'
-      };
-    });
+  // 使用 useMemo 優化過濾和轉換，減少不必要的計算
+  const todayRecords = useMemo(() => {
+    // 初始化員工緩存（如果尚未初始化）
+    if (employees.length > 0 && employeeCache.size === 0) {
+      initEmployeeCache(employees);
+    }
+    
+    return (Array.isArray(attendanceRecords) ? attendanceRecords : [])
+      .filter(record => record.date === todayDate)
+      .map(record => {
+        // 優先從緩存中獲取員工信息，減少查找開銷
+        const employee = getEmployeeFromCache(record.employeeId) || 
+                        employees.find(emp => emp.id === record.employeeId);
+                        
+        return {
+          ...record,
+          _employeeName: employee?.name || '未知員工',
+          _employeeDepartment: employee?.department || '未指定部門'
+        };
+      });
+  }, [attendanceRecords, employees, todayDate]);
   
   console.log(`找到 ${todayRecords.length} 筆今日打卡記錄，日期: ${todayDate}`);
   return todayRecords;
