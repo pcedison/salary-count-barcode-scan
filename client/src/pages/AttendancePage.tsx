@@ -62,9 +62,15 @@ export default function AttendancePage() {
   const handleEmployeeChange = (employeeId: string) => {
     setSelectedEmployeeId(employeeId);
     
-    // 找到對應的員工資料
-    const employee = activeEmployees.find(emp => emp.id.toString() === employeeId);
-    setSelectedEmployee(employee || null);
+    // 處理"全部員工"選項和普通員工選項的不同邏輯
+    if (employeeId === 'all') {
+      // 選擇"全部員工"選項時，清空選中的員工
+      setSelectedEmployee(null);
+    } else {
+      // 選擇特定員工時，找到對應的員工資料
+      const employee = activeEmployees?.find(emp => emp.id.toString() === employeeId);
+      setSelectedEmployee(employee || null);
+    }
   };
   
   // 監聽打卡事件，當有新打卡時立即刷新數據
@@ -168,15 +174,35 @@ export default function AttendancePage() {
         });
       }
       
-      // 計算第一位員工的薪資並顯示結果
-      // 注意：finalizeAndSave 函數將處理所有員工的薪資結算
-      const firstEmployeeId = employeeIds[0];
-      const firstEmployeeData = attendanceData.filter(record => record.employeeId === firstEmployeeId);
-      const result = calculateSalary(firstEmployeeData);
-      
-      if (result) {
-        // 在這裡設置一個標記，表示這是"全部員工"模式
-        setShowSalaryResult(true);
+      try {
+        // 計算第一位員工的薪資並顯示結果
+        // 注意：finalizeAndSave 函數將處理所有員工的薪資結算
+        const firstEmployeeId = employeeIds[0];
+        
+        if (!firstEmployeeId) {
+          throw new Error("無法獲取有效的員工ID");
+        }
+        
+        const firstEmployeeData = attendanceData.filter(record => record.employeeId === firstEmployeeId);
+        
+        if (firstEmployeeData.length === 0) {
+          throw new Error(`ID為 ${firstEmployeeId} 的員工沒有完整考勤記錄`);
+        }
+        
+        const result = calculateSalary(firstEmployeeData);
+        
+        if (result) {
+          // 在這裡設置一個標記，表示這是"全部員工"模式
+          setShowSalaryResult(true);
+        }
+      } catch (error) {
+        console.error("計算薪資出錯:", error);
+        toast({
+          title: "計算錯誤",
+          description: error instanceof Error ? error.message : "無法計算薪資，請確認考勤數據是否完整",
+          variant: "destructive"
+        });
+        return;
       }
     }
   };
