@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-05-13T05:04:13.853Z",
-    "type": "daily",
-    "description": "初始每日備份 5/13/2025, 5:04:13 AM",
+    "timestamp": "2025-05-13T06:43:12.364Z",
+    "type": "monthly",
+    "description": "自動每月備份 5/13/2025, 6:43:12 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },

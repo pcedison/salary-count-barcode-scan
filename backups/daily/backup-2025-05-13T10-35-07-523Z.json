@@ -1,33 +1,58 @@
 {
   "metadata": {
-    "timestamp": "2025-05-09T12:24:30.485Z",
-    "type": "monthly",
-    "description": "自動每月備份 5/9/2025, 12:24:30 PM",
+    "timestamp": "2025-05-13T10:35:07.523Z",
+    "type": "daily",
+    "description": "初始每日備份 5/13/2025, 10:35:07 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
-  "employees": [],
+  "employees": [
+    {
+      "id": 3,
+      "name": "王小文",
+      "idNumber": "K011133456",
+      "isEncrypted": true,
+      "position": "約聘",
+      "department": "行政部",
+      "email": "",
+      "phone": "",
+      "active": true,
+      "createdAt": "2025-04-25T09:15:10.190Z"
+    },
+    {
+      "id": 1,
+      "name": "陳文山",
+      "idNumber": "N90728491",
+      "isEncrypted": true,
+      "position": "產線人員",
+      "department": "生產部",
+      "email": "",
+      "phone": "",
+      "active": true,
+      "createdAt": "2025-04-25T01:52:25.322Z"
+    }
+  ],
   "settings": {
     "id": 1,
     "baseHourlyRate": 119,
     "ot1Multiplier": 1.34,
     "ot2Multiplier": 1.67,
     "baseMonthSalary": 28590,
-    "welfareAllowance": 0,
+    "welfareAllowance": 2500,
     "deductions": [
       {
         "name": "勞保費",
-        "amount": 525,
+        "amount": 658,
         "description": "勞工保險費用"
       },
       {
         "name": "健保費",
-        "amount": 372,
+        "amount": 443,
         "description": "全民健康保險費用"
       }
     ],
-    "adminPin": "123456",
-    "updatedAt": "2025-05-09T11:19:04.192Z"
+    "adminPin": "010329",
+    "updatedAt": "2025-05-09T12:31:40.449Z"
   },
   "holidays": [],
   "salaryRecords": [
@@ -604,5 +629,66 @@
       "createdAt": "2025-05-09T11:26:01.874Z"
     }
   ],
-  "temporaryAttendance": []
+  "temporaryAttendance": [
+    {
+      "id": 1,
+      "employeeId": 1,
+      "date": "2025/05/02",
+      "clockIn": "07:40",
+      "clockOut": "19:02",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-09T13:46:23.069Z"
+    },
+    {
+      "id": 2,
+      "employeeId": 1,
+      "date": "2025/05/05",
+      "clockIn": "07:37",
+      "clockOut": "17:55",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-09T13:47:05.169Z"
+    },
+    {
+      "id": 3,
+      "employeeId": 1,
+      "date": "2025/05/06",
+      "clockIn": "07:40",
+      "clockOut": "18:01",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-09T13:48:22.193Z"
+    },
+    {
+      "id": 4,
+      "employeeId": 1,
+      "date": "2025/05/07",
+      "clockIn": "07:41",
+      "clockOut": "18:00",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-09T14:04:03.792Z"
+    },
+    {
+      "id": 63,
+      "employeeId": 1,
+      "date": "2025/05/13",
+      "clockIn": "11:11",
+      "clockOut": "11:12",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-13T03:11:48.829Z"
+    },
+    {
+      "id": 64,
+      "employeeId": 1,
+      "date": "2025/05/13",
+      "clockIn": "12:46",
+      "clockOut": "13:00",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-05-13T04:46:15.948Z"
+    }
+  ]
 }
