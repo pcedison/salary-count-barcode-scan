@@ -113,8 +113,8 @@ export function useAttendanceData() {
     
     return [...attendanceData].map(record => {
       // 嘗試尋找員工信息
-      if (record.employeeId && employees.length > 0) {
-        const employee = employees.find(emp => emp.id === record.employeeId);
+      if (record.employeeId && employees && employees.length > 0) {
+        const employee = employees.find((emp) => emp.id === record.employeeId);
         if (employee) {
           return {
             ...record,

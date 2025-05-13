@@ -130,7 +130,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
               return (
                 <tr key={record.id} className={index % 2 === 1 ? 'bg-gray-50' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {record._employeeName || '手動輸入'}
+                    {record._employeeName || (record.employeeId ? `員工 ID: ${record.employeeId}` : '手動輸入')}
                     {record.isBarcodeScanned && <span className="ml-1 px-1 py-0.5 bg-blue-100 text-blue-800 text-xs rounded">條碼</span>}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
