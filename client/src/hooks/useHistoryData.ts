@@ -343,11 +343,11 @@ export function useHistoryData() {
   // 此方法有bug - 只會下載最新月份，而不是使用者選擇的月份
   const exportSalaryRecordAsCsv = (record: SalaryRecord) => {
     try {
-      // 考勤數據CSV (基本版)
-      let attendanceCsvContent = "日期,上班時間,下班時間,工作小時,第一階段加班,第二階段加班,加班費\n";
-      
-      // 詳細薪資資料CSV (完整版) - 確保所有數值有效
-      let fullRecordCsvContent = `薪資年份,薪資月份,基本底薪,住宿津貼,福利津貼,加班總時數OT1,加班總時數OT2,加班總費用,假日天數,假日單日薪資,假日總薪資,總薪資,總扣除額,實領金額\n`;
+      // 統一的CSV格式 - 包含薪資摘要和詳細考勤記錄
+      let csvContent = `員工薪資記錄 - ${record.salaryYear}年${record.salaryMonth}月\n`;
+      csvContent += `員工姓名,${record.employeeName || ''}\n`;
+      csvContent += `薪資年份,${record.salaryYear}\n`;
+      csvContent += `薪資月份,${record.salaryMonth}\n\n`;
       
       // 安全數值轉換函數
       const safeNumber = (value: any): number => {
@@ -364,19 +364,33 @@ export function useHistoryData() {
         totalDeductions: record.totalDeductions
       });
       
-      fullRecordCsvContent += `${safeNumber(record.salaryYear)},${safeNumber(record.salaryMonth)},${safeNumber(record.baseSalary)},${safeNumber(record.housingAllowance)},${safeNumber(record.welfareAllowance)},${safeNumber(record.totalOT1Hours)},${safeNumber(record.totalOT2Hours)},${safeNumber(record.totalOvertimePay)},${safeNumber(record.holidayDays)},${safeNumber(record.holidayDailySalary)},${safeNumber(record.totalHolidayPay)},${safeNumber(record.grossSalary)},${safeNumber(record.totalDeductions)},${safeNumber(record.netSalary)}\n\n`;
+      // 薪資摘要
+      csvContent += "薪資摘要\n";
+      csvContent += `基本底薪,${safeNumber(record.baseSalary)}\n`;
+      csvContent += `住宿津貼,${safeNumber(record.housingAllowance)}\n`;
+      csvContent += `福利津貼,${safeNumber(record.welfareAllowance)}\n`;
+      csvContent += `加班總時數OT1,${safeNumber(record.totalOT1Hours)}\n`;
+      csvContent += `加班總時數OT2,${safeNumber(record.totalOT2Hours)}\n`;
+      csvContent += `加班總費用,${safeNumber(record.totalOvertimePay)}\n`;
+      csvContent += `假日天數,${safeNumber(record.holidayDays)}\n`;
+      csvContent += `假日總薪資,${safeNumber(record.totalHolidayPay)}\n`;
+      csvContent += `總薪資,${safeNumber(record.grossSalary)}\n`;
+      csvContent += `總扣除額,${safeNumber(record.totalDeductions)}\n`;
+      csvContent += `實領金額,${safeNumber(record.netSalary)}\n\n`;
       
-      // 添加扣除項
-      fullRecordCsvContent += "扣除項目,金額\n";
+      // 扣除項明細
+      csvContent += "扣除項明細\n";
+      csvContent += "項目,金額\n";
       if (record.deductions && Array.isArray(record.deductions)) {
         record.deductions.forEach(deduction => {
           const deductionName = deduction.name || '未知扣除項';
           const deductionAmount = safeNumber(deduction.amount);
-          fullRecordCsvContent += `${deductionName},${deductionAmount}\n`;
+          csvContent += `${deductionName},${deductionAmount}\n`;
         });
       }
       
-      fullRecordCsvContent += "\n考勤詳細記錄:\n日期,上班時間,下班時間,是否假日,OT1時數,OT2時數,加班費用\n";
+      csvContent += "\n考勤詳細記錄\n";
+      csvContent += "日期,上班時間,下班時間,是否假日,OT1時數,OT2時數,當日加班費\n";
       
       // 計算每條記錄的加班詳情
       record.attendanceData.forEach(attendance => {
@@ -416,45 +430,30 @@ export function useHistoryData() {
         const dailyOTPay = ot1Pay + ot2Pay;
         
         // 確保所有數值安全
-        const safeTotalHours = safeNumber(totalHours);
         const safeDailyOTPay = safeNumber(dailyOTPay);
         
-        // 基本版
-        attendanceCsvContent += `${attendance.date || ''},${attendance.clockIn || ''},${attendance.clockOut || ''},${safeTotalHours.toFixed(1)},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${safeDailyOTPay}\n`;
-        
-        // 完整版
-        fullRecordCsvContent += `${attendance.date || ''},${attendance.clockIn || ''},${attendance.clockOut || ''},${attendance.isHoliday ? "是" : "否"},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${safeDailyOTPay}\n`;
+        // 統一格式的考勤記錄行
+        csvContent += `${attendance.date || ''},${attendance.clockIn || ''},${attendance.clockOut || ''},${attendance.isHoliday ? "是" : "否"},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${safeDailyOTPay}\n`;
       });
       
-      // 建立兩個文件供下載
-      // 1. 簡易版 - 只包含考勤數據
-      const attendanceBlob = new Blob([attendanceCsvContent], { type: 'text/csv;charset=utf-8;' });
-      const attendanceUrl = URL.createObjectURL(attendanceBlob);
-      const attendanceLink = document.createElement('a');
-      attendanceLink.setAttribute('href', attendanceUrl);
-      attendanceLink.setAttribute('download', `考勤記錄_${record.salaryYear}年${record.salaryMonth}月.csv`);
-      attendanceLink.style.visibility = 'hidden';
-      document.body.appendChild(attendanceLink);
-      attendanceLink.click();
+      // 生成單一統一格式的CSV文件
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `薪資記錄_${record.employeeName}_${record.salaryYear}年${record.salaryMonth}月.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
       
-      // 2. 完整版 - 包含所有薪資數據與考勤記錄
-      const fullDataBlob = new Blob([fullRecordCsvContent], { type: 'text/csv;charset=utf-8;' });
-      const fullDataUrl = URL.createObjectURL(fullDataBlob);
-      const fullDataLink = document.createElement('a');
-      fullDataLink.setAttribute('href', fullDataUrl);
-      fullDataLink.setAttribute('download', `完整薪資記錄_${record.salaryYear}年${record.salaryMonth}月.csv`);
-      fullDataLink.style.visibility = 'hidden';
-      document.body.appendChild(fullDataLink);
-      
-      // 延遲下載第二個文件，避免瀏覽器阻擋
+      // 清理資源
       setTimeout(() => {
-        fullDataLink.click();
-        document.body.removeChild(attendanceLink);
-        document.body.removeChild(fullDataLink);
+        URL.revokeObjectURL(url);
+        document.body.removeChild(link);
         
         toast({
           title: "匯出成功",
-          description: `${record.salaryYear}年${record.salaryMonth}月薪資記錄已匯出為兩個CSV檔案，分別包含基本考勤資料和完整薪資記錄。`,
+          description: `${record.salaryYear}年${record.salaryMonth}月薪資記錄已匯出，包含完整薪資摘要和考勤詳細資料。`,
         });
       }, 500);
     } catch (error) {
