@@ -383,13 +383,19 @@ export function useHistoryData() {
         const baseHourlyRate = 119; // 基本時薪
         const ot1HourlyRate = baseHourlyRate * 1.34;
         const ot2HourlyRate = baseHourlyRate * 1.67;
-        const dailyOTPay = Math.round((ot1HourlyRate * ot1) + (ot2HourlyRate * ot2));
+        
+        // 確保所有計算值都是有效數字
+        const safeOt1 = isNaN(ot1) ? 0 : ot1;
+        const safeOt2 = isNaN(ot2) ? 0 : ot2;
+        const ot1Pay = Math.round(ot1HourlyRate * safeOt1);
+        const ot2Pay = Math.round(ot2HourlyRate * safeOt2);
+        const dailyOTPay = ot1Pay + ot2Pay;
         
         // 基本版
-        attendanceCsvContent += `${attendance.date},${attendance.clockIn},${attendance.clockOut},${totalHours.toFixed(1)},${ot1.toFixed(1)},${ot2.toFixed(1)},${dailyOTPay}\n`;
+        attendanceCsvContent += `${attendance.date},${attendance.clockIn},${attendance.clockOut},${totalHours.toFixed(1)},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${dailyOTPay}\n`;
         
         // 完整版
-        fullRecordCsvContent += `${attendance.date},${attendance.clockIn},${attendance.clockOut},${attendance.isHoliday ? "是" : "否"},${ot1.toFixed(1)},${ot2.toFixed(1)},${dailyOTPay}\n`;
+        fullRecordCsvContent += `${attendance.date},${attendance.clockIn},${attendance.clockOut},${attendance.isHoliday ? "是" : "否"},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${dailyOTPay}\n`;
       });
       
       // 建立兩個文件供下載
