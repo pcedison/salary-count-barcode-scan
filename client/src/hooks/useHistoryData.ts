@@ -67,6 +67,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   const isValid = validateSalaryRecord(
     record.salaryYear, 
     record.salaryMonth, 
+    employeeId, // 員工ID應該在第三個位置
     {
       totalOT1Hours: record.totalOT1Hours,
       totalOT2Hours: record.totalOT2Hours,
@@ -78,8 +79,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
       housingAllowance: record.housingAllowance
     }, 
     record.totalDeductions,
-    calculationSettings,
-    employeeId // 明確提供員工ID
+    calculationSettings
   );
   
   // 如果記錄已經是有效的，則直接返回
@@ -91,7 +91,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   const salaryResult = calculateSalary(
     record.salaryYear,
     record.salaryMonth,
-    employeeId, // 員工ID應該在第三個位置
+    employeeId, // 員工ID在第三個位置
     { 
       totalOT1Hours: record.totalOT1Hours, 
       totalOT2Hours: record.totalOT2Hours 
@@ -99,9 +99,9 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     record.baseSalary,
     record.totalDeductions,
     calculationSettings,
-    record.totalHolidayPay,
+    record.totalHolidayPay || 0,
     record.welfareAllowance,
-    record.housingAllowance
+    record.housingAllowance || 0
   );
   
   // 輸出日誌以供檢查 - 包含員工ID資訊
@@ -133,15 +133,11 @@ export function useHistoryData() {
     queryKey: ['/api/salary-records']
   });
   
-  // 使用會計部門的方法重新計算所有薪資記錄
+  // 暫時停用重新計算以修復CSV下載問題 - 直接使用資料庫中的正確數值
   const salaryRecords = useMemo(() => {
-    if (!settings || !rawSalaryRecords.length) return rawSalaryRecords;
-    
-    // 只進行前端顯示修正
-    return rawSalaryRecords.map(record => 
-      recalculateSalaryWithAccountingMethod(record, settings)
-    );
-  }, [rawSalaryRecords, settings]);
+    // 直接返回原始資料庫記錄，避免計算錯誤導致實發金額變為0
+    return rawSalaryRecords;
+  }, [rawSalaryRecords]);
   
   // Delete a salary record
   const deleteSalaryRecordMutation = useMutation({
