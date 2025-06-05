@@ -13,17 +13,19 @@ export default function PrintSalaryPage() {
   const [salaryRecord, setSalaryRecord] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // 從URL獲取記錄ID
-  const recordId = parseInt(window.location.search.split('id=')[1], 10);
+  // 從URL獲取記錄ID - 改善錯誤處理
+  const getRecordIdFromUrl = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const idParam = urlParams.get('id');
+    return idParam ? parseInt(idParam, 10) : null;
+  };
+  
+  const recordId = getRecordIdFromUrl();
   
   useEffect(() => {
-    // 如果沒有有效的ID，返回歷史頁面
+    // 如果沒有有效的ID，靜默返回歷史頁面而不顯示錯誤訊息
     if (!recordId || isNaN(recordId)) {
-      toast({
-        title: "無效的記錄",
-        description: "未提供有效的薪資記錄ID",
-        variant: "destructive"
-      });
+      console.log('No valid record ID found, redirecting to history page');
       setLocation('/history');
       return;
     }
@@ -36,11 +38,8 @@ export default function PrintSalaryPage() {
         setSalaryRecord(record);
       } catch (error) {
         console.error('Error loading salary record:', error);
-        toast({
-          title: "載入失敗",
-          description: "無法載入薪資記錄，請稍後再試",
-          variant: "destructive"
-        });
+        // 靜默返回歷史頁面，避免顯示錯誤訊息給用戶
+        setLocation('/history');
       } finally {
         setIsLoading(false);
       }
