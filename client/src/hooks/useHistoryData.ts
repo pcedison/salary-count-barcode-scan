@@ -355,15 +355,27 @@ export function useHistoryData() {
       // 考勤數據CSV (基本版)
       let attendanceCsvContent = "日期,上班時間,下班時間,工作小時,第一階段加班,第二階段加班,加班費\n";
       
-      // 詳細薪資資料CSV (完整版)
+      // 詳細薪資資料CSV (完整版) - 確保所有數值有效
       let fullRecordCsvContent = `薪資年份,薪資月份,基本底薪,住宿津貼,福利津貼,加班總時數OT1,加班總時數OT2,加班總費用,假日天數,假日單日薪資,假日總薪資,總薪資,總扣除額,實領金額\n`;
-      fullRecordCsvContent += `${record.salaryYear},${record.salaryMonth},${record.baseSalary},${record.housingAllowance || 0},${record.welfareAllowance || 0},${record.totalOT1Hours},${record.totalOT2Hours},${record.totalOvertimePay},${record.holidayDays},${record.holidayDailySalary},${record.totalHolidayPay},${record.grossSalary},${record.totalDeductions},${record.netSalary}\n\n`;
+      
+      // 安全數值轉換函數
+      const safeNumber = (value: any): number => {
+        if (value === null || value === undefined) return 0;
+        const num = Number(value);
+        return isNaN(num) ? 0 : num;
+      };
+      
+      fullRecordCsvContent += `${safeNumber(record.salaryYear)},${safeNumber(record.salaryMonth)},${safeNumber(record.baseSalary)},${safeNumber(record.housingAllowance)},${safeNumber(record.welfareAllowance)},${safeNumber(record.totalOT1Hours)},${safeNumber(record.totalOT2Hours)},${safeNumber(record.totalOvertimePay)},${safeNumber(record.holidayDays)},${safeNumber(record.holidayDailySalary)},${safeNumber(record.totalHolidayPay)},${safeNumber(record.grossSalary)},${safeNumber(record.totalDeductions)},${safeNumber(record.netSalary)}\n\n`;
       
       // 添加扣除項
       fullRecordCsvContent += "扣除項目,金額\n";
-      record.deductions.forEach(deduction => {
-        fullRecordCsvContent += `${deduction.name},${deduction.amount}\n`;
-      });
+      if (record.deductions && Array.isArray(record.deductions)) {
+        record.deductions.forEach(deduction => {
+          const deductionName = deduction.name || '未知扣除項';
+          const deductionAmount = safeNumber(deduction.amount);
+          fullRecordCsvContent += `${deductionName},${deductionAmount}\n`;
+        });
+      }
       
       fullRecordCsvContent += "\n考勤詳細記錄:\n日期,上班時間,下班時間,是否假日,OT1時數,OT2時數,加班費用\n";
       
@@ -372,12 +384,25 @@ export function useHistoryData() {
         // 計算加班時數
         const { ot1, ot2 } = calculateOvertime(attendance.clockIn, attendance.clockOut);
         
-        // 計算總工作時數
-        const [inHours, inMinutes] = attendance.clockIn.split(':').map(Number);
-        const [outHours, outMinutes] = attendance.clockOut.split(':').map(Number);
-        let totalMinutes = (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
-        if (totalMinutes < 0) totalMinutes += 24 * 60;
-        const totalHours = totalMinutes / 60;
+        // 計算總工作時數 - 增強錯誤處理
+        let totalHours = 0;
+        try {
+          if (attendance.clockIn && attendance.clockOut && 
+              attendance.clockIn.includes(':') && attendance.clockOut.includes(':')) {
+            const [inHours, inMinutes] = attendance.clockIn.split(':').map(Number);
+            const [outHours, outMinutes] = attendance.clockOut.split(':').map(Number);
+            
+            // 驗證時間格式
+            if (!isNaN(inHours) && !isNaN(inMinutes) && !isNaN(outHours) && !isNaN(outMinutes)) {
+              let totalMinutes = (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
+              if (totalMinutes < 0) totalMinutes += 24 * 60;
+              totalHours = totalMinutes / 60;
+            }
+          }
+        } catch (error) {
+          console.error('Error calculating total hours:', error);
+          totalHours = 0;
+        }
         
         // 使用會計部門計算方法計算加班費
         const baseHourlyRate = 119; // 基本時薪
@@ -391,11 +416,15 @@ export function useHistoryData() {
         const ot2Pay = Math.round(ot2HourlyRate * safeOt2);
         const dailyOTPay = ot1Pay + ot2Pay;
         
+        // 確保所有數值安全
+        const safeTotalHours = safeNumber(totalHours);
+        const safeDailyOTPay = safeNumber(dailyOTPay);
+        
         // 基本版
-        attendanceCsvContent += `${attendance.date},${attendance.clockIn},${attendance.clockOut},${totalHours.toFixed(1)},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${dailyOTPay}\n`;
+        attendanceCsvContent += `${attendance.date || ''},${attendance.clockIn || ''},${attendance.clockOut || ''},${safeTotalHours.toFixed(1)},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${safeDailyOTPay}\n`;
         
         // 完整版
-        fullRecordCsvContent += `${attendance.date},${attendance.clockIn},${attendance.clockOut},${attendance.isHoliday ? "是" : "否"},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${dailyOTPay}\n`;
+        fullRecordCsvContent += `${attendance.date || ''},${attendance.clockIn || ''},${attendance.clockOut || ''},${attendance.isHoliday ? "是" : "否"},${safeOt1.toFixed(1)},${safeOt2.toFixed(1)},${safeDailyOTPay}\n`;
       });
       
       // 建立兩個文件供下載
