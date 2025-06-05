@@ -89,12 +89,12 @@ export default function HistoryPage() {
   
   // 已移除查看詳情功能
   
-  // 直接跳轉到列印頁面而不是通過API路由
+  // CSV下載功能 - 使用正確的exportSalaryRecordAsCsv函數
   const handleDownloadPdf = (record: any) => {
-    console.log('Redirecting to print view for record:', record);
+    console.log('Downloading CSV for record:', record);
     
-    // 直接跳轉到打印頁面
-    window.open(`/print-salary?id=${record.id}`, '_blank');
+    // 調用真正的CSV下載功能
+    exportSalaryRecordAsCsv(record);
   };
   
   // Handle delete record confirmation
