@@ -36,6 +36,13 @@ function timeToMinutesForPrint(timeStr: string): number {
 
 export default function PrintableSalarySheet({ result }: PrintableSalarySheetProps) {
 
+// 安全數值處理函數
+const safeNumber = (value: any): number => {
+  if (value === null || value === undefined) return 0;
+  const num = Number(value);
+  return isNaN(num) ? 0 : num;
+};
+
 // 計算日期對應加班費 - 使用統一模組
 const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2: number, pay: number} => {
   if (!clockIn || !clockOut) return { ot1: 0, ot2: 0, pay: 0 };
@@ -47,9 +54,9 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
   const dailyOTPay = calculateDailyOvertimePay(clockIn, clockOut, result.baseSalary);
     
   return { 
-    ot1, 
-    ot2, 
-    pay: dailyOTPay
+    ot1: safeNumber(ot1), 
+    ot2: safeNumber(ot2), 
+    pay: safeNumber(dailyOTPay)
   };
   };
   
@@ -76,10 +83,10 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
   };
 
   // 計算合計加班時數
-  const totalOT1 = attendanceWithOT.reduce((sum, record) => sum + record.ot1, 0);
-  const totalOT2 = attendanceWithOT.reduce((sum, record) => sum + record.ot2, 0);
+  const totalOT1 = safeNumber(attendanceWithOT.reduce((sum, record) => sum + safeNumber(record.ot1), 0));
+  const totalOT2 = safeNumber(attendanceWithOT.reduce((sum, record) => sum + safeNumber(record.ot2), 0));
   // 總加班費
-  const totalOTPay = attendanceWithOT.reduce((sum, record) => sum + record.pay, 0);
+  const totalOTPay = safeNumber(attendanceWithOT.reduce((sum, record) => sum + safeNumber(record.pay), 0));
 
   // 渲染出勤記錄行
   const renderAttendanceRows = () => {
@@ -97,11 +104,12 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
 
   // 渲染住宿津貼行（如果存在）
   const renderHousingAllowanceRow = () => {
-    if (result.housingAllowance && result.housingAllowance > 0) {
+    const housingAmount = safeNumber(result.housingAllowance);
+    if (housingAmount > 0) {
       return (
         <tr className="summary-size-row">
           <td colSpan={5}>住宿津貼：</td>
-          <td className="amount-cell">{result.housingAllowance}</td>
+          <td className="amount-cell">{housingAmount}</td>
         </tr>
       );
     }
@@ -110,11 +118,12 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
 
   // 渲染福利津貼行（如果存在）- 粗體顯示
   const renderWelfareAllowanceRow = () => {
-    if (result.welfareAllowance && result.welfareAllowance > 0) {
+    const welfareAmount = safeNumber(result.welfareAllowance);
+    if (welfareAmount > 0) {
       return (
         <tr className="summary-size-row welfare-row" style={{ fontWeight: 'bold' }}>
           <td colSpan={5}>福利津貼：</td>
-          <td className="amount-cell">{result.welfareAllowance}</td>
+          <td className="amount-cell">{welfareAmount}</td>
         </tr>
       );
     }
@@ -337,11 +346,11 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
             </tr>
             <tr className="summary-size-row">
               <td colSpan={5}>假日給薪總計：</td>
-              <td className="amount-cell">{result.holidayDays > 0 ? result.totalHolidayPay : '0'}</td>
+              <td className="amount-cell">{result.holidayDays > 0 ? safeNumber(result.totalHolidayPay) : '0'}</td>
             </tr>
             <tr className="base-salary-row">
               <td colSpan={5}>基本底薪：</td>
-              <td className="amount-cell">{result.baseSalary}</td>
+              <td className="amount-cell">{safeNumber(result.baseSalary)}</td>
             </tr>
             {renderHousingAllowanceRow()}
             {renderWelfareAllowanceRow()}
@@ -363,7 +372,7 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
             </tr>
             <tr className="total-amount summary-size-row">
               <td colSpan={5}>實領金額：</td>
-              <td className="amount-cell">{result.netSalary}</td>
+              <td className="amount-cell">{safeNumber(result.netSalary)}</td>
             </tr>
           </tbody>
         </table>

@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-06-05T05:24:30.035Z",
+    "timestamp": "2025-06-05T06:16:43.084Z",
     "type": "daily",
-    "description": "初始每日備份 6/5/2025, 5:24:30 AM",
+    "description": "初始每日備份 6/5/2025, 6:16:43 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -49,6 +49,16 @@
         "name": "健保費",
         "amount": 443,
         "description": "全民健康保險費用"
+      },
+      {
+        "name": "服務費",
+        "amount": 1800,
+        "description": "公司服務費"
+      },
+      {
+        "name": "宿舍費",
+        "amount": 2500,
+        "description": "員工宿舍住宿費"
       }
     ],
     "adminPin": "010329",
@@ -80,10 +90,18 @@
         {
           "name": "健保費",
           "amount": 443
+        },
+        {
+          "name": "服務費",
+          "amount": 1800
+        },
+        {
+          "name": "宿舍費",
+          "amount": 2500
         }
       ],
-      "totalDeductions": 1101,
-      "netSalary": 37200,
+      "totalDeductions": 5401,
+      "netSalary": 32900,
       "attendanceData": [
         {
           "id": 1,
