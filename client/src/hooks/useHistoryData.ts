@@ -365,6 +365,14 @@ export function useHistoryData() {
         return isNaN(num) ? 0 : num;
       };
       
+      // 調試記錄實發金額
+      console.log('CSV 下載 - 檢查實發金額:', {
+        netSalary: record.netSalary,
+        safeNetSalary: safeNumber(record.netSalary),
+        grossSalary: record.grossSalary,
+        totalDeductions: record.totalDeductions
+      });
+      
       fullRecordCsvContent += `${safeNumber(record.salaryYear)},${safeNumber(record.salaryMonth)},${safeNumber(record.baseSalary)},${safeNumber(record.housingAllowance)},${safeNumber(record.welfareAllowance)},${safeNumber(record.totalOT1Hours)},${safeNumber(record.totalOT2Hours)},${safeNumber(record.totalOvertimePay)},${safeNumber(record.holidayDays)},${safeNumber(record.holidayDailySalary)},${safeNumber(record.totalHolidayPay)},${safeNumber(record.grossSalary)},${safeNumber(record.totalDeductions)},${safeNumber(record.netSalary)}\n\n`;
       
       // 添加扣除項
