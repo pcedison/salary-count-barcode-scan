@@ -308,19 +308,14 @@ export function useHistoryData() {
     }
   }, [isLoading, rawSalaryRecords, settings]);
   
-  // Fetch a specific salary record by ID and recalculate using the accounting method
+  // Fetch a specific salary record by ID - 直接返回資料庫原始數據
   const getSalaryRecordById = async (id: number) => {
     try {
       const response = await apiRequest('GET', `/api/salary-records/${id}`, undefined);
       const record = await response.json() as SalaryRecord;
       
-      // 如果設定可用，使用會計部門的方法重新計算薪資
-      if (settings) {
-        console.log('使用會計部門計算方法重新計算薪資');
-        // 返回使用會計部門計算方法重新計算的薪資
-        return recalculateSalaryWithAccountingMethod(record, settings);
-      }
-      
+      // 直接返回原始資料庫記錄，避免計算錯誤
+      console.log('獲取薪資記錄ID:', id, '實發金額:', record.netSalary);
       return record;
     } catch (error) {
       console.error('Error fetching salary record:', error);
