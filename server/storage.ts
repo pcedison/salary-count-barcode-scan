@@ -476,7 +476,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSalaryRecord(record: InsertSalaryRecord): Promise<SalaryRecord> {
-    const [newRecord] = await db.insert(salaryRecords).values(record).returning();
+    // 確保移除 ID 欄位以避免主鍵衝突
+    const { id, ...recordWithoutId } = record as any;
+    const [newRecord] = await db.insert(salaryRecords).values(recordWithoutId).returning();
     return newRecord;
   }
   
