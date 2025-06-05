@@ -22,10 +22,10 @@ const DEFAULT_CONFIG = {
   
   // 預設扣除項
   DEDUCTIONS: [
-    { id: 1, name: '勞保費', amount: 1077, description: '勞工保險費用' },
-    { id: 2, name: '健保費', amount: 932, description: '健康保險費用' },
-    { id: 3, name: '服務費', amount: 3392, description: '管理服務費' },
-    { id: 4, name: '宿舍費', amount: 0, description: '宿舍住宿費' }
+    { id: 1, name: '勞保費', amount: 658, description: '勞工保險費用' },
+    { id: 2, name: '健保費', amount: 443, description: '全民健康保險費用' },
+    { id: 3, name: '服務費', amount: 1800, description: '公司服務費' },
+    { id: 4, name: '宿舍費', amount: 2500, description: '員工宿舍住宿費' }
   ]
 };
 
