@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-06-05T05:36:41.816Z",
+    "timestamp": "2025-06-05T06:21:04.826Z",
     "type": "daily",
-    "description": "初始每日備份 6/5/2025, 5:36:41 AM",
+    "description": "初始每日備份 6/5/2025, 6:21:04 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -90,10 +90,18 @@
         {
           "name": "健保費",
           "amount": 443
+        },
+        {
+          "name": "服務費",
+          "amount": 1800
+        },
+        {
+          "name": "宿舍費",
+          "amount": 2500
         }
       ],
-      "totalDeductions": 1101,
-      "netSalary": 37200,
+      "totalDeductions": 5401,
+      "netSalary": 32900,
       "attendanceData": [
         {
           "id": 1,

@@ -91,6 +91,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   const salaryResult = calculateSalary(
     record.salaryYear,
     record.salaryMonth,
+    employeeId, // 員工ID應該在第三個位置
     { 
       totalOT1Hours: record.totalOT1Hours, 
       totalOT2Hours: record.totalOT2Hours 
@@ -100,8 +101,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     calculationSettings,
     record.totalHolidayPay,
     record.welfareAllowance,
-    record.housingAllowance,
-    employeeId // 明確提供員工ID
+    record.housingAllowance
   );
   
   // 輸出日誌以供檢查 - 包含員工ID資訊
