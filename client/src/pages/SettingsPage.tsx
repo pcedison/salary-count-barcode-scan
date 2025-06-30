@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from '@/hooks/useSettings';
 import { useAdmin } from '@/hooks/useAdmin';
+import { useEmployees } from '@/hooks/useEmployees';
 import SettingsForm from '@/components/SettingsForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,6 +40,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
+  const { employees } = useEmployees();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
   const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.BASE_MONTH_SALARY);
@@ -48,6 +50,7 @@ export default function SettingsPage() {
   const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
