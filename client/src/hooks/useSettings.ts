@@ -130,12 +130,12 @@ export function useSettings() {
       
       // Use default settings from constants
       setLocalSettings({
-        baseHourlyRate: constants.DEFAULT_BASE_HOURLY_RATE,
-        ot1Multiplier: constants.DEFAULT_OT1_MULTIPLIER,
-        ot2Multiplier: constants.DEFAULT_OT2_MULTIPLIER,
-        baseMonthSalary: constants.DEFAULT_BASE_MONTH_SALARY,
+        baseHourlyRate: constants.BASE_HOURLY_RATE,
+        ot1Multiplier: constants.OT1_MULTIPLIER,
+        ot2Multiplier: constants.OT2_MULTIPLIER,
+        baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_HOURS * constants.STANDARD_WORK_DAYS,
         welfareAllowance: constants.DEFAULT_WELFARE_ALLOWANCE,
-        deductions: constants.DEFAULT_DEDUCTIONS
+        deductions: []
       });
     }
   }, [error, toast]);

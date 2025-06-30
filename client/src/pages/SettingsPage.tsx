@@ -537,21 +537,24 @@ export default function SettingsPage() {
     }
     
     try {
-      // 暫時使用本地狀態，稍後整合到資料庫
       const newHoliday = {
-        id: Date.now(),
         date: newHolidayDate,
+        name: newHolidayDescription || '假日',
+        type: 'national_holiday' as const,
+        isPaid: true,
         description: newHolidayDescription || ''
       };
       
-      setHolidays([...holidays, newHoliday]);
-      setNewHolidayDate('');
-      setNewHolidayDescription('');
+      const addedHoliday = await addHoliday(newHoliday);
       
-      toast({
-        title: "新增成功",
-        description: "假日已成功新增。",
-      });
+      if (addedHoliday) {
+        toast({
+          title: "新增成功",
+          description: "假日已成功新增。",
+        });
+        setNewHolidayDate('');
+        setNewHolidayDescription('');
+      }
     } catch (error) {
       console.error('Failed to add holiday:', error);
       toast({
@@ -797,7 +800,7 @@ export default function SettingsPage() {
         ot1Multiplier={ot1Multiplier}
         ot2Multiplier={ot2Multiplier}
         deductions={deductions}
-        holidays={holidays}
+        holidays={Array.isArray(holidays) ? holidays : []}
         newHolidayDate={newHolidayDate}
         newHolidayDescription={newHolidayDescription}
         supabaseUrl={supabaseUrl}
