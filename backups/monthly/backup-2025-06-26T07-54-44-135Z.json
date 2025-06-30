@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-06-05T07:03:49.154Z",
-    "type": "daily",
-    "description": "初始每日備份 6/5/2025, 7:03:49 AM",
+    "timestamp": "2025-06-26T07:54:44.135Z",
+    "type": "monthly",
+    "description": "自動每月備份 6/26/2025, 7:54:44 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -53,7 +53,7 @@
       {
         "name": "服務費",
         "amount": 1800,
-        "description": "公司服務費"
+        "description": "仲介公司服務費"
       },
       {
         "name": "宿舍費",
@@ -62,7 +62,7 @@
       }
     ],
     "adminPin": "010329",
-    "updatedAt": "2025-05-09T12:31:40.449Z"
+    "updatedAt": "2025-06-05T08:22:17.190Z"
   },
   "holidays": [],
   "salaryRecords": [

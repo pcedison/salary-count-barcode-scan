@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-06-05T06:58:51.285Z",
+    "timestamp": "2025-06-30T11:56:07.327Z",
     "type": "daily",
-    "description": "初始每日備份 6/5/2025, 6:58:51 AM",
+    "description": "初始每日備份 6/30/2025, 11:56:07 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -53,7 +53,7 @@
       {
         "name": "服務費",
         "amount": 1800,
-        "description": "公司服務費"
+        "description": "仲介公司服務費"
       },
       {
         "name": "宿舍費",
@@ -62,7 +62,7 @@
       }
     ],
     "adminPin": "010329",
-    "updatedAt": "2025-05-09T12:31:40.449Z"
+    "updatedAt": "2025-06-05T08:22:17.190Z"
   },
   "holidays": [],
   "salaryRecords": [
@@ -919,5 +919,186 @@
       "createdAt": "2025-05-09T11:26:01.874Z"
     }
   ],
-  "temporaryAttendance": []
+  "temporaryAttendance": [
+    {
+      "id": 81,
+      "employeeId": 1,
+      "date": "2025/06/02",
+      "clockIn": "07:36",
+      "clockOut": "18:15",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:26:59.279Z"
+    },
+    {
+      "id": 82,
+      "employeeId": 1,
+      "date": "2025/06/03",
+      "clockIn": "07:40",
+      "clockOut": "16:57",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:28:00.953Z"
+    },
+    {
+      "id": 83,
+      "employeeId": 1,
+      "date": "2025/06/04",
+      "clockIn": "07:38",
+      "clockOut": "15:59",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:30:32.890Z"
+    },
+    {
+      "id": 84,
+      "employeeId": 1,
+      "date": "2025/06/05",
+      "clockIn": "07:40",
+      "clockOut": "16:05",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:31:16.137Z"
+    },
+    {
+      "id": 85,
+      "employeeId": 1,
+      "date": "2025/06/06",
+      "clockIn": "07:45",
+      "clockOut": "16:04",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:31:59.505Z"
+    },
+    {
+      "id": 86,
+      "employeeId": 1,
+      "date": "2025/06/09",
+      "clockIn": "07:35",
+      "clockOut": "16:01",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:33:01.305Z"
+    },
+    {
+      "id": 87,
+      "employeeId": 1,
+      "date": "2025/06/10",
+      "clockIn": "07:41",
+      "clockOut": "15:57",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:33:44.100Z"
+    },
+    {
+      "id": 88,
+      "employeeId": 1,
+      "date": "2025/06/11",
+      "clockIn": "07:40",
+      "clockOut": "19:08",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:34:18.287Z"
+    },
+    {
+      "id": 89,
+      "employeeId": 1,
+      "date": "2025/06/12",
+      "clockIn": "07:41",
+      "clockOut": "17:55",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:35:03.555Z"
+    },
+    {
+      "id": 90,
+      "employeeId": 1,
+      "date": "2025/06/18",
+      "clockIn": "07:40",
+      "clockOut": "16:00",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:35:54.705Z"
+    },
+    {
+      "id": 91,
+      "employeeId": 1,
+      "date": "2025/06/19",
+      "clockIn": "07:40",
+      "clockOut": "18:01",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:36:31.998Z"
+    },
+    {
+      "id": 92,
+      "employeeId": 1,
+      "date": "2025/06/20",
+      "clockIn": "07:38",
+      "clockOut": "15:56",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:37:25.522Z"
+    },
+    {
+      "id": 93,
+      "employeeId": 1,
+      "date": "2025/06/23",
+      "clockIn": "07:39",
+      "clockOut": "15:55",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:37:59.704Z"
+    },
+    {
+      "id": 94,
+      "employeeId": 1,
+      "date": "2025/06/24",
+      "clockIn": "07:43",
+      "clockOut": "18:57",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:38:32.648Z"
+    },
+    {
+      "id": 95,
+      "employeeId": 1,
+      "date": "2025/06/25",
+      "clockIn": "07:42",
+      "clockOut": "16:04",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:39:15.442Z"
+    },
+    {
+      "id": 96,
+      "employeeId": 1,
+      "date": "2025/06/26",
+      "clockIn": "07:39",
+      "clockOut": "15:58",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:39:48.646Z"
+    },
+    {
+      "id": 97,
+      "employeeId": 1,
+      "date": "2025/06/27",
+      "clockIn": "07:39",
+      "clockOut": "16:04",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:40:28.050Z"
+    },
+    {
+      "id": 98,
+      "employeeId": 1,
+      "date": "2025/06/30",
+      "clockIn": "07:38",
+      "clockOut": "18:57",
+      "isHoliday": false,
+      "isBarcodeScanned": true,
+      "createdAt": "2025-06-30T11:40:59.768Z"
+    }
+  ]
 }

@@ -108,12 +108,27 @@ export type SalaryRecord = typeof salaryRecords.$inferSelect;
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   date: text("date").notNull().unique(),
-  description: text("description"),
+  name: text("name").notNull(), // 假日名稱/事由
+  type: text("type", { 
+    enum: ["national_holiday", "sick_leave", "personal_leave", "annual_leave", "typhoon_day", "other"] 
+  }).notNull().default("national_holiday"), // 假日類型
+  isPaid: boolean("is_paid").notNull().default(true), // 是否有薪
+  description: text("description"), // 額外描述
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const insertHolidaySchema = createInsertSchema(holidays)
   .omit({ id: true, createdAt: true });
+
+// 假日類型選項
+export const holidayTypeOptions = [
+  { value: "national_holiday", label: "國定假日", paid: true },
+  { value: "sick_leave", label: "病假", paid: false },
+  { value: "personal_leave", label: "事假", paid: false },
+  { value: "annual_leave", label: "特休", paid: true },
+  { value: "typhoon_day", label: "颱風假", paid: true },
+  { value: "other", label: "其他", paid: false }
+] as const;
 
 export type InsertHoliday = z.infer<typeof insertHolidaySchema>;
 export type Holiday = typeof holidays.$inferSelect;

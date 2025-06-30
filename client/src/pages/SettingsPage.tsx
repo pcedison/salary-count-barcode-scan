@@ -46,8 +46,18 @@ export default function SettingsPage() {
   const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.OT1_MULTIPLIER);
   const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.OT2_MULTIPLIER);
   const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
-  const [holidays, setHolidays] = useState<Array<{ id: number; date: string; description: string }>>([]);
+  const [holidays, setHolidays] = useState<Array<{ 
+    id: number; 
+    date: string; 
+    name: string;
+    type: string;
+    isPaid: boolean;
+    description?: string;
+  }>>([]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
+  const [newHolidayName, setNewHolidayName] = useState<string>('');
+  const [newHolidayType, setNewHolidayType] = useState<string>('national_holiday');
+  const [newHolidayPaid, setNewHolidayPaid] = useState<boolean>(true);
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
