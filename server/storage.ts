@@ -69,6 +69,7 @@ export interface IStorage {
   getAllHolidays(): Promise<Holiday[]>;
   createHoliday(holiday: InsertHoliday): Promise<Holiday>;
   deleteHoliday(id: number): Promise<boolean>;
+  deleteAllHolidays(): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -515,6 +516,16 @@ export class DatabaseStorage implements IStorage {
       .where(eq(holidays.id, id))
       .returning();
     return !!deleted;
+  }
+
+  async deleteAllHolidays(): Promise<boolean> {
+    try {
+      await db.delete(holidays);
+      return true;
+    } catch (error) {
+      console.error('Error deleting all holidays:', error);
+      return false;
+    }
   }
 }
 

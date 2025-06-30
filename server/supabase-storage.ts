@@ -816,4 +816,27 @@ export class SupabaseStorage implements IStorage {
     
     return result;
   }
+
+  async deleteAllHolidays(): Promise<boolean> {
+    try {
+      const client = await getSupabaseClient();
+      const { error } = await client
+        .from('holidays')
+        .delete()
+        .gte('id', 0); // 刪除所有記錄
+      
+      if (error) {
+        console.error('Error deleting all holidays:', error);
+        return false;
+      }
+      
+      // 使緩存失效
+      queryCache.invalidate('holidays:');
+      
+      return true;
+    } catch (error) {
+      console.error('Error in deleteAllHolidays:', error);
+      return false;
+    }
+  }
 }

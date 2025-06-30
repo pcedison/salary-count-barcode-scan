@@ -595,6 +595,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // 清空所有假日設定 (用於計算薪資後重置)
+  app.delete("/api/holidays", async (_req, res) => {
+    try {
+      await storage.deleteAllHolidays();
+      res.status(204).end();
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
   // 測試薪資計算路由 - 使用標準化計算模組
   app.get("/api/test-salary-calculation", async (_req, res) => {
     try {
