@@ -570,6 +570,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertHolidaySchema.parse(req.body);
       const holiday = await storage.createHoliday(validatedData);
+      
+      // 如果是有薪假日，為所有活躍員工自動創建考勤記錄
+      if (holiday.isPaid) {
+        const employees = await storage.getAllEmployees();
+        const activeEmployees = employees.filter(emp => emp.isActive);
+        
+        for (const employee of activeEmployees) {
+          // 檢查該員工在該日期是否已有考勤記錄
+          const existingRecord = await db
+            .select()
+            .from(temporaryAttendance)
+            .where(
+              and(
+                eq(temporaryAttendance.date, holiday.date),
+                eq(temporaryAttendance.employeeId, employee.id)
+              )
+            );
+          
+          // 如果沒有現有記錄，創建假日考勤記錄
+          if (existingRecord.length === 0) {
+            await storage.createTemporaryAttendance({
+              employeeId: employee.id,
+              date: holiday.date,
+              clockIn: '08:00',
+              clockOut: '16:00',
+              isHoliday: true,
+              isBarcodeScanned: false
+            });
+            console.log(`為員工 ${employee.name} 創建假日考勤記錄: ${holiday.date}`);
+          }
+        }
+      }
+      
       res.status(201).json(holiday);
     } catch (err) {
       handleError(err, res);
