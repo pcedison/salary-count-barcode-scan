@@ -79,6 +79,7 @@ export function useSettings() {
   // Add holiday mutation
   const addHolidayMutation = useMutation({
     mutationFn: async (holiday: { 
+      employeeId: number;
       date: string; 
       name: string; 
       type: string; 
@@ -152,6 +153,7 @@ export function useSettings() {
   
   // Add holiday
   const addHoliday = async (holiday: { 
+    employeeId: number;
     date: string; 
     name: string; 
     type: string; 

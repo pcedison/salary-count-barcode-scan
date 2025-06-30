@@ -539,8 +539,18 @@ export default function SettingsPage() {
       return;
     }
     
+    if (!selectedEmployeeId) {
+      toast({
+        title: "員工必選",
+        description: "請選擇要新增假日的員工。",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     try {
       const newHoliday = {
+        employeeId: selectedEmployeeId,
         date: newHolidayDate,
         name: newHolidayDescription || '假日',
         type: 'national_holiday' as const,
@@ -554,12 +564,14 @@ export default function SettingsPage() {
         // 自動儲存設定
         await handleSaveSettings();
         
+        const selectedEmployee = employees?.find(emp => emp.id === selectedEmployeeId);
         toast({
           title: "新增成功",
-          description: "假日已新增並自動儲存",
+          description: `已為員工 ${selectedEmployee?.name} 新增假日並自動儲存`,
         });
         setNewHolidayDate('');
         setNewHolidayDescription('');
+        setSelectedEmployeeId(null);
       }
     } catch (error) {
       console.error('Failed to add holiday:', error);
@@ -807,8 +819,10 @@ export default function SettingsPage() {
         ot2Multiplier={ot2Multiplier}
         deductions={deductions}
         holidays={Array.isArray(holidays) ? holidays : []}
+        employees={employees || []}
         newHolidayDate={newHolidayDate}
         newHolidayDescription={newHolidayDescription}
+        selectedEmployeeId={selectedEmployeeId}
         supabaseUrl={supabaseUrl}
         supabaseAnonKey={supabaseAnonKey}
         connectionStatus={connectionStatus}

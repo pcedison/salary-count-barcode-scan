@@ -9,9 +9,11 @@ interface SettingsFormProps {
   ot1Multiplier: number;
   ot2Multiplier: number;
   deductions: Array<{ name: string; amount: number; description: string }>;
-  holidays: Array<{ id: number; date: string; description: string }>;
+  holidays: Array<{ id: number; date: string; description: string; employeeId?: number }>;
+  employees: Array<{ id: number; name: string; department: string }>;
   newHolidayDate: string;
   newHolidayDescription: string;
+  selectedEmployeeId: number | null;
   supabaseUrl: string;
   supabaseAnonKey: string;
   connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
@@ -28,6 +30,7 @@ interface SettingsFormProps {
   onDeleteDeduction: (index: number) => void;
   onNewHolidayDateChange: (value: string) => void;
   onNewHolidayDescriptionChange: (value: string) => void;
+  onSelectedEmployeeChange: (employeeId: number | null) => void;
   onAddHoliday: () => void;
   onDeleteHoliday: (id: number) => void;
   onSupabaseUrlChange: (value: string) => void;
@@ -45,8 +48,10 @@ export default function SettingsForm({
   ot2Multiplier,
   deductions,
   holidays,
+  employees,
   newHolidayDate,
   newHolidayDescription,
+  selectedEmployeeId,
   supabaseUrl,
   supabaseAnonKey,
   connectionStatus,
@@ -62,6 +67,7 @@ export default function SettingsForm({
   onDeleteDeduction,
   onNewHolidayDateChange,
   onNewHolidayDescriptionChange,
+  onSelectedEmployeeChange,
   onAddHoliday,
   onDeleteHoliday,
   onSupabaseUrlChange,
