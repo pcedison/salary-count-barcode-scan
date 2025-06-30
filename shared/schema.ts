@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json, doublePrecision, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json, doublePrecision, varchar, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -107,7 +107,8 @@ export type SalaryRecord = typeof salaryRecords.$inferSelect;
 // Holiday settings
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
-  date: text("date").notNull().unique(),
+  employeeId: integer("employee_id").references(() => employees.id).notNull(), // 員工ID - 必填
+  date: text("date").notNull(),
   name: text("name").notNull(), // 假日名稱/事由
   type: text("type", { 
     enum: ["national_holiday", "sick_leave", "personal_leave", "annual_leave", "typhoon_day", "other"] 
