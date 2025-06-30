@@ -37,7 +37,7 @@ interface DeductionItem {
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { settings, isLoading, updateSettings } = useSettings();
+  const { settings, isLoading, updateSettings, holidays, addHoliday, deleteHoliday } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
@@ -46,14 +46,6 @@ export default function SettingsPage() {
   const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.OT1_MULTIPLIER);
   const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.OT2_MULTIPLIER);
   const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
-  const [holidays, setHolidays] = useState<Array<{ 
-    id: number; 
-    date: string; 
-    name: string;
-    type: string;
-    isPaid: boolean;
-    description?: string;
-  }>>([]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayName, setNewHolidayName] = useState<string>('');
   const [newHolidayType, setNewHolidayType] = useState<string>('national_holiday');
@@ -538,33 +530,37 @@ export default function SettingsPage() {
   
   // Add a holiday
   const handleAddHoliday = async () => {
-    if (!newHolidayDate) {
+    if (!newHolidayDate || !newHolidayName) {
       toast({
-        title: "日期必填",
-        description: "請選擇假日日期。",
+        title: "必填欄位未完成",
+        description: "請填寫日期和假日名稱。",
         variant: "destructive"
       });
       return;
     }
     
     try {
-      // Implementation would use holidaysTable.add from supabase.ts
-      const newHoliday = {
+      const success = await addHoliday({
         date: newHolidayDate,
-        description: newHolidayDescription || ''
-      };
-      
-      // In a real implementation, this would add to the database
-      // For now, just add to local state
-      setHolidays([...holidays, { id: Date.now(), ...newHoliday }]);
-      
-      setNewHolidayDate('');
-      setNewHolidayDescription('');
-      
-      toast({
-        title: "新增成功",
-        description: "假日已成功新增。",
+        name: newHolidayName,
+        type: newHolidayType,
+        isPaid: newHolidayPaid,
+        description: newHolidayDescription || undefined
       });
+      
+      if (success) {
+        // 清空表單
+        setNewHolidayDate('');
+        setNewHolidayName('');
+        setNewHolidayType('national_holiday');
+        setNewHolidayPaid(true);
+        setNewHolidayDescription('');
+        
+        toast({
+          title: "新增成功",
+          description: "假日已成功新增。",
+        });
+      }
     } catch (error) {
       console.error('Failed to add holiday:', error);
       toast({

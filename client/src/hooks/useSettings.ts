@@ -78,7 +78,13 @@ export function useSettings() {
   
   // Add holiday mutation
   const addHolidayMutation = useMutation({
-    mutationFn: async (holiday: { date: string; description: string }) => {
+    mutationFn: async (holiday: { 
+      date: string; 
+      name: string; 
+      type: string; 
+      isPaid: boolean; 
+      description?: string; 
+    }) => {
       return await apiRequest('POST', '/api/holidays', holiday);
     },
     onSuccess: () => {
@@ -145,7 +151,13 @@ export function useSettings() {
   };
   
   // Add holiday
-  const addHoliday = async (holiday: { date: string; description: string }) => {
+  const addHoliday = async (holiday: { 
+    date: string; 
+    name: string; 
+    type: string; 
+    isPaid: boolean; 
+    description?: string; 
+  }) => {
     try {
       await addHolidayMutation.mutateAsync(holiday);
       return true;
