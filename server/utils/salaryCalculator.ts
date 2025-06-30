@@ -499,36 +499,51 @@ export function validateSalaryRecordByDaily(
  * 根據上下班時間計算標準加班時數
  */
 export function calculateOvertime(clockIn: string, clockOut: string): { ot1: number; ot2: number } {
-  // 這個函數假設工作日正常工作時間為8小時
-  const STANDARD_HOURS = 8;
+  if (!clockIn || !clockOut) return { ot1: 0, ot2: 0 };
   
-  // 解析上班和下班時間
-  const [inHours, inMinutes] = clockIn.split(':').map(Number);
-  const [outHours, outMinutes] = clockOut.split(':').map(Number);
+  // 時間轉換函數
+  const timeToMinutes = (timeStr: string): number => {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
   
-  // 計算工作總分鐘數
-  let totalMinutes = (outHours * 60 + outMinutes) - (inHours * 60 + inMinutes);
-  if (totalMinutes < 0) totalMinutes += 24 * 60; // 處理跨日情況
+  let inTime = timeToMinutes(clockIn);
+  const outTime = timeToMinutes(clockOut);
   
-  // 總工作小時
-  const totalHours = totalMinutes / 60;
+  // 1. 早到處理：如果早於8:00上班，從8:00開始記薪
+  const WORK_START = timeToMinutes('08:00'); // 480分鐘
+  if (inTime < WORK_START) {
+    inTime = WORK_START;
+  }
   
-  // 計算加班時數
-  let ot1 = 0; // 1.34倍加班時數
-  let ot2 = 0; // 1.67倍加班時數
+  const STANDARD_END = timeToMinutes('16:00'); // 正常下班時間 16:00
+  const OT1_END = timeToMinutes('18:00');     // 第一階段加班結束 18:00
   
-  if (totalHours > STANDARD_HOURS) {
-    // 計算總加班時數
-    const totalOTHours = totalHours - STANDARD_HOURS;
+  let ot1 = 0;
+  let ot2 = 0;
+  const bufferMinutes = 10; // 10分鐘緩衝時間
+  
+  // 2. 16:00後才開始計算加班
+  if (outTime > STANDARD_END + bufferMinutes) {
+    const totalOvertimeMinutes = outTime - STANDARD_END;
     
-    // 分配到不同級別的加班
-    if (totalOTHours <= 2) {
-      // 前兩小時按1.34倍計算
-      ot1 = totalOTHours;
+    // 3. 階梯式計算OT1：10→40→70→100分鐘
+    if (totalOvertimeMinutes <= (120 + bufferMinutes)) { // 不超過18:00
+      // 全部算OT1 (1.34倍)
+      if (totalOvertimeMinutes > (100 + bufferMinutes)) {
+        ot1 = 2.0; // 超過100分鐘 -> 2.0小時
+      } else if (totalOvertimeMinutes > (70 + bufferMinutes)) {
+        ot1 = 1.5; // 超過70分鐘 -> 1.5小時
+      } else if (totalOvertimeMinutes > (40 + bufferMinutes)) {
+        ot1 = 1.0; // 超過40分鐘 -> 1.0小時
+      } else if (totalOvertimeMinutes > (10 + bufferMinutes)) {
+        ot1 = 0.5; // 超過10分鐘 -> 0.5小時
+      }
     } else {
-      // 前兩小時按1.34倍，超過部分按1.67倍
-      ot1 = 2;
-      ot2 = totalOTHours - 2;
+      // 4. 超過18:00：前2小時算OT1，18:00後全部算OT2 (1.67倍)
+      ot1 = 2.0; // 16:00-18:00固定2小時OT1
+      const ot2Minutes = totalOvertimeMinutes - 120; // 18:00後的分鐘數
+      ot2 = ot2Minutes / 60; // 18:00後全部按實際時間計算，使用1.67倍
     }
   }
   

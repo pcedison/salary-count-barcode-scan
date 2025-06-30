@@ -16,7 +16,7 @@ export const constants = {
   STANDARD_END_TIME: '16:00',   // 正常下班時間
   OT1_END_TIME: '18:00',        // 第一階段加班結束時間
   OT2_END_TIME: '20:00',        // 第二階段加班基準時間
-  BUFFER_MINUTES: 7,            // 加班計算緩衝時間（分鐘）
+  BUFFER_MINUTES: 10,           // 加班計算緩衝時間（分鐘）
   
   // 打卡相關常量
   MIN_WORK_HOURS: 8,            // 最少工作時數視為全天
