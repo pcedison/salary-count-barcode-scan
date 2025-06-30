@@ -586,6 +586,19 @@ export function useAttendanceData() {
         console.log('所有臨時考勤記錄已清除');
       }
       
+      // 清空假日設定（但不影響歷史記錄中的假日）
+      try {
+        const response = await fetch('/api/holidays', { method: 'DELETE' });
+        if (response.ok) {
+          console.log('假日設定已清空，以便下次考勤週期使用');
+          // 刷新假日查詢
+          queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
+        }
+      } catch (error) {
+        console.error('清空假日設定時發生錯誤:', error);
+        // 不讓假日清空失敗影響整個結算流程
+      }
+      
       // 重置薪資結果
       setSalaryResult(null);
       

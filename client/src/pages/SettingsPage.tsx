@@ -548,9 +548,12 @@ export default function SettingsPage() {
       const addedHoliday = await addHoliday(newHoliday);
       
       if (addedHoliday) {
+        // 自動儲存設定
+        await handleSaveSettings();
+        
         toast({
           title: "新增成功",
-          description: "假日已成功新增。",
+          description: "假日已新增並自動儲存",
         });
         setNewHolidayDate('');
         setNewHolidayDescription('');

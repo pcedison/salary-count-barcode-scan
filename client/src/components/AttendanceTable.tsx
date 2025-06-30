@@ -153,7 +153,14 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                         className="w-full"
                       />
                     ) : (
-                      record.date
+                      <div className="flex items-center gap-2">
+                        {record.date}
+                        {record.isHoliday && (
+                          <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                            假日
+                          </span>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap font-['Roboto_Mono']">
