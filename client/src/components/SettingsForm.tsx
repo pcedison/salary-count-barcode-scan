@@ -255,153 +255,54 @@ export default function SettingsForm({
           )}
         </div>
         {isAdmin ? (
-          <div className="space-y-4 mb-6 p-4 bg-gray-50 rounded-md">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">日期</label>
-                <DateTimePicker
-                  mode="date"
-                  value={newHolidayDate}
-                  onChange={onNewHolidayDateChange}
-                  placeholder="選擇日期..."
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">假日名稱/事由</label>
-                <Input
-                  value={newHolidayName}
-                  onChange={(e) => onNewHolidayNameChange(e.target.value)}
-                  placeholder="例：元旦、病假、特休"
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">假日類型</label>
-                <select
-                  value={newHolidayType}
-                  onChange={(e) => onNewHolidayTypeChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                >
-                  <option value="national_holiday">國定假日</option>
-                  <option value="sick_leave">病假</option>
-                  <option value="personal_leave">事假</option>
-                  <option value="annual_leave">特休</option>
-                  <option value="typhoon_day">颱風假</option>
-                  <option value="other">其他</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-700">薪資計算</label>
-                <select
-                  value={newHolidayPaid ? "paid" : "unpaid"}
-                  onChange={(e) => onNewHolidayPaidChange(e.target.value === "paid")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                >
-                  <option value="paid">有薪</option>
-                  <option value="unpaid">無薪</option>
-                </select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-700">額外說明（選填）</label>
-              <Input
-                value={newHolidayDescription}
-                onChange={(e) => onNewHolidayDescriptionChange(e.target.value)}
-                placeholder="額外說明或備註"
+          <div className="flex mb-4">
+            <div className="relative flex-grow mr-2">
+              <DateTimePicker
+                mode="date"
+                value={newHolidayDate}
+                onChange={onNewHolidayDateChange}
+                placeholder="選擇日期..."
                 className="w-full"
               />
             </div>
-            <div className="flex justify-end">
-              <Button 
-                onClick={onAddHoliday}
-                disabled={!newHolidayDate || !newHolidayName}
-                className="bg-primary hover:bg-blue-700 text-white px-6 py-2 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                新增假日
-              </Button>
-            </div>
+            <Input
+              value={newHolidayDescription}
+              onChange={(e) => onNewHolidayDescriptionChange(e.target.value)}
+              placeholder="描述 (選填)"
+              className="flex-grow mx-2"
+            />
+            <Button 
+              onClick={onAddHoliday}
+              className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+            >
+              新增假日
+            </Button>
           </div>
         ) : (
           <div className="mb-4 text-sm text-gray-500 italic">
             登入管理員後方可新增假日
           </div>
         )}
-        
-        {/* Holiday List */}
-        <div className="space-y-3">
+        <div className="bg-gray-50 p-4 rounded-md flex flex-wrap gap-2">
           {holidays.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-md">
-              <span className="material-icons text-3xl mb-2 block text-gray-400">event_note</span>
-              尚未設定假日
-            </div>
+            <div className="w-full text-center py-4 text-gray-500">尚未設定假日</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名稱/事由</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">類型</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">薪資</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">說明</th>
-                    {isAdmin && (
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {holidays.map((holiday, index) => (
-                    <tr key={holiday.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="px-6 py-4 whitespace-nowrap font-['Roboto_Mono'] text-sm">
-                        {holiday.date}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {holiday.name || holiday.description || '假日'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          holiday.type === 'national_holiday' ? 'bg-blue-100 text-blue-800' :
-                          holiday.type === 'sick_leave' ? 'bg-red-100 text-red-800' :
-                          holiday.type === 'personal_leave' ? 'bg-gray-100 text-gray-800' :
-                          holiday.type === 'annual_leave' ? 'bg-green-100 text-green-800' :
-                          holiday.type === 'typhoon_day' ? 'bg-orange-100 text-orange-800' :
-                          'bg-purple-100 text-purple-800'
-                        }`}>
-                          {holiday.type === 'national_holiday' ? '國定假日' :
-                           holiday.type === 'sick_leave' ? '病假' :
-                           holiday.type === 'personal_leave' ? '事假' :
-                           holiday.type === 'annual_leave' ? '特休' :
-                           holiday.type === 'typhoon_day' ? '颱風假' :
-                           '其他'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          holiday.isPaid ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {holiday.isPaid ? '有薪' : '無薪'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                        {holiday.description || '-'}
-                      </td>
-                      {isAdmin && (
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <button 
-                            className="text-error hover:text-red-700 transition-colors"
-                            onClick={() => onDeleteHoliday(holiday.id)}
-                            title="刪除假日"
-                          >
-                            <span className="material-icons text-sm">delete</span>
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            holidays.map((holiday) => (
+              <div key={holiday.id} className="bg-white px-3 py-1 rounded-md border border-gray-200 flex items-center">
+                <span className="font-['Roboto_Mono'] mr-2">{holiday.date}</span>
+                {holiday.description && (
+                  <span className="text-xs text-gray-500 mr-2">{holiday.description}</span>
+                )}
+                {isAdmin && (
+                  <button 
+                    className="text-error hover:text-red-700"
+                    onClick={() => onDeleteHoliday(holiday.id)}
+                  >
+                    <span className="material-icons text-sm">close</span>
+                  </button>
+                )}
+              </div>
+            ))
           )}
         </div>
       </div>

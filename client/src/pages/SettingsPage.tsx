@@ -37,7 +37,7 @@ interface DeductionItem {
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { settings, isLoading, updateSettings, holidays, addHoliday, deleteHoliday } = useSettings();
+  const { settings, isLoading, updateSettings } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
@@ -46,10 +46,8 @@ export default function SettingsPage() {
   const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.OT1_MULTIPLIER);
   const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.OT2_MULTIPLIER);
   const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
+  const [holidays, setHolidays] = useState<Array<{ id: number; date: string; description: string }>>([]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
-  const [newHolidayName, setNewHolidayName] = useState<string>('');
-  const [newHolidayType, setNewHolidayType] = useState<string>('national_holiday');
-  const [newHolidayPaid, setNewHolidayPaid] = useState<boolean>(true);
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
@@ -530,37 +528,31 @@ export default function SettingsPage() {
   
   // Add a holiday
   const handleAddHoliday = async () => {
-    if (!newHolidayDate || !newHolidayName) {
+    if (!newHolidayDate) {
       toast({
-        title: "必填欄位未完成",
-        description: "請填寫日期和假日名稱。",
+        title: "日期必填",
+        description: "請選擇假日日期。",
         variant: "destructive"
       });
       return;
     }
     
     try {
-      const success = await addHoliday({
+      // 暫時使用本地狀態，稍後整合到資料庫
+      const newHoliday = {
+        id: Date.now(),
         date: newHolidayDate,
-        name: newHolidayName,
-        type: newHolidayType,
-        isPaid: newHolidayPaid,
-        description: newHolidayDescription || undefined
-      });
+        description: newHolidayDescription || ''
+      };
       
-      if (success) {
-        // 清空表單
-        setNewHolidayDate('');
-        setNewHolidayName('');
-        setNewHolidayType('national_holiday');
-        setNewHolidayPaid(true);
-        setNewHolidayDescription('');
-        
-        toast({
-          title: "新增成功",
-          description: "假日已成功新增。",
-        });
-      }
+      setHolidays([...holidays, newHoliday]);
+      setNewHolidayDate('');
+      setNewHolidayDescription('');
+      
+      toast({
+        title: "新增成功",
+        description: "假日已成功新增。",
+      });
     } catch (error) {
       console.error('Failed to add holiday:', error);
       toast({
@@ -574,9 +566,6 @@ export default function SettingsPage() {
   // Delete a holiday
   const handleDeleteHoliday = async (id: number) => {
     try {
-      // Implementation would use holidaysTable.delete from supabase.ts
-      
-      // For now, just remove from local state
       setHolidays(holidays.filter(holiday => holiday.id !== id));
       
       toast({
