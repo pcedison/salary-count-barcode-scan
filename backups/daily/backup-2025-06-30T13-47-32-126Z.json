@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-06-30T12:14:57.478Z",
+    "timestamp": "2025-06-30T13:47:32.126Z",
     "type": "daily",
-    "description": "初始每日備份 6/30/2025, 12:14:57 PM",
+    "description": "初始每日備份 6/30/2025, 1:47:32 PM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -62,9 +62,20 @@
       }
     ],
     "adminPin": "010329",
-    "updatedAt": "2025-06-05T08:22:17.190Z"
+    "updatedAt": "2025-06-30T13:34:15.034Z"
   },
-  "holidays": [],
+  "holidays": [
+    {
+      "id": 3,
+      "employeeId": 1,
+      "date": "2025/06/13",
+      "name": "老闆出國，員工特休",
+      "type": "national_holiday",
+      "isPaid": true,
+      "description": "老闆出國，員工特休",
+      "createdAt": "2025-06-30T13:34:13.796Z"
+    }
+  ],
   "salaryRecords": [
     {
       "id": 2,

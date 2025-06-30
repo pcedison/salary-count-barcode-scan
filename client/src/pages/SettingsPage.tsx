@@ -838,6 +838,7 @@ export default function SettingsPage() {
         onDeleteDeduction={handleDeleteDeduction}
         onNewHolidayDateChange={setNewHolidayDate}
         onNewHolidayDescriptionChange={setNewHolidayDescription}
+        onSelectedEmployeeChange={setSelectedEmployeeId}
         onAddHoliday={handleAddHoliday}
         onDeleteHoliday={handleDeleteHoliday}
         onSupabaseUrlChange={setSupabaseUrl}

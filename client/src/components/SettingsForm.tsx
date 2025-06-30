@@ -261,28 +261,47 @@ export default function SettingsForm({
           )}
         </div>
         {isAdmin ? (
-          <div className="flex mb-4">
-            <div className="relative flex-grow mr-2">
-              <DateTimePicker
-                mode="date"
-                value={newHolidayDate}
-                onChange={onNewHolidayDateChange}
-                placeholder="選擇日期..."
-                className="w-full"
-              />
+          <div className="space-y-3 mb-4">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <select
+                  value={selectedEmployeeId || ''}
+                  onChange={(e) => onSelectedEmployeeChange(e.target.value ? Number(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">選擇員工...</option>
+                  {employees?.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name} ({employee.department})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <DateTimePicker
+                  mode="date"
+                  value={newHolidayDate}
+                  onChange={onNewHolidayDateChange}
+                  placeholder="選擇日期..."
+                  className="w-full"
+                />
+              </div>
             </div>
-            <Input
-              value={newHolidayDescription}
-              onChange={(e) => onNewHolidayDescriptionChange(e.target.value)}
-              placeholder="描述 (選填)"
-              className="flex-grow mx-2"
-            />
-            <Button 
-              onClick={onAddHoliday}
-              className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-            >
-              新增假日
-            </Button>
+            <div className="flex gap-2">
+              <Input
+                value={newHolidayDescription}
+                onChange={(e) => onNewHolidayDescriptionChange(e.target.value)}
+                placeholder="假日描述 (選填)"
+                className="flex-1"
+              />
+              <Button 
+                onClick={onAddHoliday}
+                disabled={!selectedEmployeeId || !newHolidayDate}
+                className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-50"
+              >
+                新增假日
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="mb-4 text-sm text-gray-500 italic">
@@ -293,22 +312,28 @@ export default function SettingsForm({
           {holidays.length === 0 ? (
             <div className="w-full text-center py-4 text-gray-500">尚未設定假日</div>
           ) : (
-            holidays.map((holiday) => (
-              <div key={holiday.id} className="bg-white px-3 py-1 rounded-md border border-gray-200 flex items-center">
-                <span className="font-['Roboto_Mono'] mr-2">{holiday.date}</span>
-                {holiday.description && (
-                  <span className="text-xs text-gray-500 mr-2">{holiday.description}</span>
-                )}
-                {isAdmin && (
-                  <button 
-                    className="text-error hover:text-red-700"
-                    onClick={() => onDeleteHoliday(holiday.id)}
-                  >
-                    <span className="material-icons text-sm">close</span>
-                  </button>
-                )}
-              </div>
-            ))
+            holidays.map((holiday) => {
+              const employee = employees?.find(emp => emp.id === holiday.employeeId);
+              return (
+                <div key={holiday.id} className="bg-white px-3 py-1 rounded-md border border-gray-200 flex items-center">
+                  <span className="font-['Roboto_Mono'] mr-2">{holiday.date}</span>
+                  {employee && (
+                    <span className="text-sm font-medium text-blue-600 mr-2">{employee.name}</span>
+                  )}
+                  {holiday.description && (
+                    <span className="text-xs text-gray-500 mr-2">{holiday.description}</span>
+                  )}
+                  {isAdmin && (
+                    <button 
+                      className="text-error hover:text-red-700"
+                      onClick={() => onDeleteHoliday(holiday.id)}
+                    >
+                      <span className="material-icons text-sm">close</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </div>
