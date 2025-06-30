@@ -37,7 +37,7 @@ interface DeductionItem {
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { settings, isLoading, updateSettings } = useSettings();
+  const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
@@ -46,7 +46,6 @@ export default function SettingsPage() {
   const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.OT1_MULTIPLIER);
   const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.OT2_MULTIPLIER);
   const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
-  const [holidays, setHolidays] = useState<Array<{ id: number; date: string; description: string }>>([]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
@@ -566,12 +565,14 @@ export default function SettingsPage() {
   // Delete a holiday
   const handleDeleteHoliday = async (id: number) => {
     try {
-      setHolidays(holidays.filter(holiday => holiday.id !== id));
+      const success = await deleteHoliday(id);
       
-      toast({
-        title: "刪除成功",
-        description: "假日已成功刪除。",
-      });
+      if (success) {
+        toast({
+          title: "刪除成功",
+          description: "假日已成功刪除。",
+        });
+      }
     } catch (error) {
       console.error('Failed to delete holiday:', error);
       toast({
