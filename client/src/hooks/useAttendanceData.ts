@@ -438,6 +438,14 @@ export function useAttendanceData() {
       console.log('每日加班費計算詳情:', dailyOvertimeDetails);
       console.log('加班費總計:', totalOvertimePay);
       
+      // 調試：輸出假日記錄的詳細資訊
+      console.log('假日記錄詳情:', holidayDays.map(day => ({
+        date: day.date,
+        clockIn: day.clockIn,
+        clockOut: day.clockOut,
+        isHoliday: day.isHoliday
+      })));
+      
       // 區分真正的假日加班和有薪特休假
       // 假日加班：週六日且有上下班時間記錄的才算加班
       // 有薪特休：週一到週五且標記為假日的記錄
@@ -450,6 +458,9 @@ export function useAttendanceData() {
         // 沒有上下班時間記錄的假日記錄視為有薪特休
         return !day.clockIn || !day.clockOut || day.clockIn === '' || day.clockOut === '';
       });
+      
+      console.log('真正假日加班:', actualHolidayWork.length, '天');
+      console.log('有薪特休:', paidLeave.length, '天');
       
       // 假日加班費只計算真正有工作的假日
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
