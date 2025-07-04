@@ -42,6 +42,8 @@ interface SalaryResult {
   totalOT1Hours: number;
   totalOT2Hours: number;
   totalOvertimePay: number;
+  paidLeaveDays?: number;        // 有薪特休天數
+  paidLeavePay?: number;         // 有薪特休薪資（通常為0）
   holidayDays: number;
   holidayDailySalary: number;
   totalHolidayPay: number;
@@ -436,9 +438,22 @@ export function useAttendanceData() {
       console.log('每日加班費計算詳情:', dailyOvertimeDetails);
       console.log('加班費總計:', totalOvertimePay);
       
-      // Calculate holiday pay - 精確計算假日薪資
+      // 區分真正的假日加班和有薪特休假
+      // 假日加班：週六日且有上下班時間記錄的才算加班
+      // 有薪特休：週一到週五且標記為假日的記錄
+      const actualHolidayWork = holidayDays.filter(day => {
+        // 檢查是否有實際上下班時間（真正的假日加班）
+        return day.clockIn && day.clockOut && day.clockIn !== '' && day.clockOut !== '';
+      });
+      
+      const paidLeave = holidayDays.filter(day => {
+        // 沒有上下班時間記錄的假日記錄視為有薪特休
+        return !day.clockIn || !day.clockOut || day.clockIn === '' || day.clockOut === '';
+      });
+      
+      // 假日加班費只計算真正有工作的假日
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
-      const totalHolidayPay = holidayDays.length * holidayDailySalary; // 保持精確計算，不提前四捨五入
+      const totalHolidayPay = actualHolidayWork.length * holidayDailySalary;
       
       // Calculate gross salary - 精確計算總薪資，避免四捨五入帶來的誤差
       const grossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay;
@@ -461,9 +476,11 @@ export function useAttendanceData() {
         totalOT1Hours,
         totalOT2Hours,
         totalOvertimePay,
-        holidayDays: holidayDays.length,
+        holidayDays: actualHolidayWork.length,  // 只計算真正的假日加班天數
         holidayDailySalary,
         totalHolidayPay,
+        paidLeaveDays: paidLeave.length,  // 有薪特休天數
+        paidLeavePay: 0,  // 有薪特休不額外計費，已包含在基本薪資中
         grossSalary,
         deductions: deductions.map((d: { name: string; amount: number; description?: string }) => ({ name: d.name, amount: d.amount })),
         totalDeductions,

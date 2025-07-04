@@ -13,6 +13,8 @@ interface SalaryResultTableProps {
     totalOT1Hours: number;
     totalOT2Hours: number;
     totalOvertimePay: number;
+    paidLeaveDays?: number;
+    paidLeavePay?: number;
     holidayDays: number;
     holidayDailySalary: number;
     totalHolidayPay: number;
@@ -106,8 +108,16 @@ export default function SalaryResultTable({ result, settings, onFinalize }: Sala
               <td className="px-6 py-4 whitespace-nowrap text-right font-['Roboto_Mono']">{formatCurrency(result.totalOvertimePay)}</td>
             </tr>
             
+            {result.paidLeaveDays && result.paidLeaveDays > 0 ? (
+              <tr className="bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap font-medium">特休</td>
+                <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">{result.paidLeaveDays}天</td>
+                <td className="px-6 py-4 whitespace-nowrap text-right font-['Roboto_Mono']">已含基本薪資</td>
+              </tr>
+            ) : null}
+            
             {result.holidayDays > 0 ? (
-              <tr className={result.housingAllowance && result.housingAllowance > 0 ? 'bg-gray-50' : ''}>
+              <tr className={result.paidLeaveDays && result.paidLeaveDays > 0 ? '' : 'bg-gray-50'}>
                 <td className="px-6 py-4 whitespace-nowrap font-medium">假日加班</td>
                 <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">{result.holidayDays}天</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right font-['Roboto_Mono']">{formatCurrency(result.totalHolidayPay)}</td>
