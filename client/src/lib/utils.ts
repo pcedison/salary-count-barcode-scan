@@ -88,10 +88,16 @@ export function calculateOvertime(clockIn: string, clockOut: string): {
           ot1 = 0.5; // 超過10分鐘 -> 0.5小時
         }
       } else {
-        // 4. 超過18:00：前2小時算OT1，18:00後全部算OT2 (1.67倍)
+        // 4. 超過18:00：前2小時算OT1，18:00後按0.5小時遞增計算OT2
         ot1 = 2.0; // 16:00-18:00固定2小時OT1
         const ot2Minutes = totalOvertimeMinutes - 120; // 18:00後的分鐘數
-        ot2 = ot2Minutes / 60; // 18:00後全部按實際時間計算，使用1.67倍
+        
+        // 重要：18:00後的時數必須按0.5小時遞增
+        // 超過緩衝時間後，每30分鐘算0.5小時
+        if (ot2Minutes > bufferMinutes) {
+          const actualOT2Minutes = ot2Minutes - bufferMinutes;
+          ot2 = Math.ceil(actualOT2Minutes / 30) * 0.5; // 每30分鐘或不足30分鐘都算0.5小時
+        }
       }
     }
     
