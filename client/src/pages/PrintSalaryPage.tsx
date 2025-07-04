@@ -193,7 +193,18 @@ export default function PrintSalaryPage() {
   <td class="number-cell">${totalOT1.toFixed(1)}</td>
   <td class="number-cell">${totalOT2.toFixed(1)}</td>
   <td class="amount-cell">${totalOTPay}</td>
-</tr>
+</tr>`;
+
+    // 添加特休項目（如果存在）
+    if (salaryRecord.paidLeaveDays && salaryRecord.paidLeaveDays > 0) {
+      summaryRowsHtml += `
+<tr class="summary-size-row">
+  <td colspan="5">特休：</td>
+  <td class="amount-cell">${salaryRecord.paidLeaveDays}天 (已含基本薪資)</td>
+</tr>`;
+    }
+
+    summaryRowsHtml += `
 <tr class="summary-size-row">
   <td colspan="5">假日給薪總計：</td>
   <td class="amount-cell">${salaryRecord.holidayDays > 0 ? salaryRecord.totalHolidayPay : '0'}</td>
