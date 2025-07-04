@@ -200,7 +200,7 @@ export default function PrintSalaryPage() {
       summaryRowsHtml += `
 <tr class="summary-size-row">
   <td colspan="5">特休：</td>
-  <td class="amount-cell">${salaryRecord.paidLeaveDays}天 (已含基本薪資)</td>
+  <td class="amount-cell">${salaryRecord.paidLeaveDays}天 (有薪假)</td>
 </tr>`;
     }
 
