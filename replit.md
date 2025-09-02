@@ -141,4 +141,4 @@ The system supports multiple deployment scenarios:
 
 ## User Preferences
 
-Preferred communication style: Simple, everyday language.
+Preferred communication style: Neutral, professional tone without excessive praise or emojis. Focus on task completion and technical accuracy.
