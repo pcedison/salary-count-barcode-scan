@@ -1,93 +1,176 @@
-# 薪資計算系統
+# Employee Salary Management System
 
-## 專案概述
-這是一個專為中小型企業設計的薪資計算網絡應用程序，提供完整的考勤追蹤、加班計算和薪資報告功能。系統採用兩層存儲架構，支持臨時數據與永久數據記錄，確保數據在各設備間持久性保存，並允許詳細的歷史記錄編輯。
+一個全功能的員工薪資計算與考勤管理系統，專為中小型企業設計。
 
-## 主要功能
-- **考勤記錄**：靈活記錄員工上下班時間，支持精確時間輸入
-- **加班計算**：根據兩階段加班倍率（1.34x和1.67x）自動計算加班費
-- **假日工作**：支持假日工作的額外薪資計算和假日設置管理
-- **薪資報表**：生成詳細的月度薪資報表，支持打印和CSV匯出
-- **歷史記錄**：保存和查看過去的薪資記錄，支持恢復編輯功能
-- **設置管理**：自定義基本工資、加班費率、福利和扣除項目
-- **管理員功能**：通過PIN碼認證的管理員權限控制
-- **數據持久化**：使用Supabase確保跨設備數據一致性
+## ✨ 主要功能
 
-## 薪資計算邏輯
-- **基本月薪**：默認為28,590元
-- **基本時薪**：119元（計算方式：月薪÷30天÷8小時）
-- **加班費率**：
-  - 第一階段（16:00-18:00）：1.34倍基本時薪
-  - 第二階段（18:00以後）：1.67倍基本時薪
-- **加班計算規則**：
-  - 最小加班單位為0.5小時
-  - 第一階段加班最多計算2小時
-  - 第二階段加班沒有上限
-  - 加班計算採用四捨五入到最接近的0.5小時
-  - 下班時間超過16:00後有7分鐘緩衝時間不計入加班
-- **假日薪資**：基本月薪÷30（四捨五入到整數）×假日天數
-- **總薪資計算**：月薪+加班費+假日薪資+福利津貼-扣除項目
+### 📊 薪資計算
+- **多層加班費計算**：支援 OT1 (1.34x) 和 OT2 (1.67x) 費率
+- **每日計算法**：符合勞動法規的每日加班計算後匯總
+- **假日工作費**：週末和國定假日的特殊費率
+- **扣款管理**：支援勞保、健保等各項扣款
+- **津貼補助**：福利金、房屋津貼等額外給付
 
-## 技術棧
-- **前端**：React, TypeScript, Tailwind CSS, Shadcn UI
-- **後端**：Node.js, Express
-- **數據庫**：PostgreSQL, Drizzle ORM
-- **雲存儲**：Supabase（或本地PostgreSQL）
-- **狀態管理**：React Query
-- **身份驗證**：自定義PIN碼認證
+### 👥 員工管理
+- **完整員工資料**：包含部門、職位追蹤
+- **資料加密**：敏感個資（身分證號）採用 Caesar 加密
+- **狀態管理**：在職/離職狀態管理
 
-## 安裝與部署
-詳細的安裝和部署步驟請參閱 [DEPLOYMENT.md](./DEPLOYMENT.md)。
+### ⏰ 考勤系統
+- **條碼掃描器整合**：支援實體條碼掃描器快速打卡
+- **手動時間輸入**：網頁介面手動記錄考勤
+- **即時追蹤**：即時顯示目前考勤狀態
+- **彈性記錄**：支援半日、加班、假日工作
 
-### 快速開始
-1. 克隆此存儲庫
-   ```bash
-   git clone https://github.com/pcedison/Salary-counting.git
-   cd Salary-counting
-   ```
+### 📈 報表功能
+- **月度薪資報表**：詳細薪資計算明細
+- **CSV 匯出**：完整資料匯出供外部分析
+- **列印友善**：最佳化的列印版面
+- **歷史記錄**：完整的薪資計算審計軌跡
 
-2. 安裝所有依賴
-   ```bash
-   npm install
-   ```
+## 🛠️ 技術架構
 
-3. 設置環境變數（創建.env文件）
-   ```
-   DATABASE_URL=postgres://username:password@host:5432/database
-   SESSION_SECRET=your_secure_session_secret
-   ```
+### 前端
+- **React 18** with TypeScript
+- **Vite** 快速開發工具
+- **Tailwind CSS + shadcn/ui** 現代化 UI 設計
+- **TanStack Query** 高效資料獲取與狀態管理
+- **React Hook Form + Zod** 表單處理與驗證
+- **Wouter** 輕量級路由
 
-4. 初始化數據庫
-   ```bash
-   node setup-db.js
-   ```
+### 後端
+- **Node.js + Express.js** RESTful API 服務
+- **TypeScript** 類型安全的伺服器開發
+- **Drizzle ORM** 現代化資料庫操作
+- **Passport.js** 基於會話的身份驗證
+- **自訂管理員驗證** PIN 碼存取控制
 
-5. 啟動應用程序
-   ```bash
-   npm run dev
-   ```
+### 資料庫
+- **PostgreSQL** 主要資料庫（支援 Neon/Supabase）
+- **自動備份系統** 每日、每週、每月備份
+- **資料完整性檢查** 自動監控和恢復
 
-6. 訪問 `http://localhost:3000` 開始使用
+## 🚀 快速開始
 
-## 系統要求
+### 前置需求
 - Node.js 18+
-- PostgreSQL 15+（或Supabase帳戶）
-- 現代網絡瀏覽器（Chrome, Firefox, Safari）
+- PostgreSQL 資料庫
+- Git
 
-## 管理員訪問
-- 默認管理員PIN：`123456`
-- 管理員可以訪問和修改系統設置、歷史記錄等敏感功能
-- 建議初次使用後立即更改默認PIN碼
-- PIN碼修改位於設置頁面的管理員區域
+### 安裝步驟
 
-## 常見問題
-1. **數據無法保存？** - 確認數據庫連接字符串正確，且數據庫服務運行中
-2. **加班計算不準確？** - 檢查設置頁面的加班倍率設置
-3. **打印頁面不完整？** - 使用Chrome瀏覽器獲得最佳打印效果
+1. **克隆專案**
+```bash
+git clone https://github.com/YOUR_USERNAME/employee-salary-system.git
+cd employee-salary-system
+```
 
-## 開發者指南
-如需貢獻代碼或自定義系統，請參考以下核心文件：
-- 前端組件：`/client/src/components/`
-- 數據模型：`/shared/schema.ts`
-- API路由：`/server/routes.ts`
-- 數據庫邏輯：`/server/storage.ts`
+2. **安裝依賴**
+```bash
+npm install
+```
+
+3. **設定環境變數**
+```bash
+cp .env.example .env
+# 編輯 .env 檔案，填入您的資料庫連線資訊
+```
+
+4. **資料庫設定**
+```bash
+# 推送資料庫結構
+npm run db:push
+
+# （可選）填入範例資料
+npm run db:seed
+```
+
+5. **啟動應用程式**
+```bash
+npm run dev
+```
+
+應用程式將在 `http://localhost:5000` 啟動。
+
+## 📁 專案結構
+
+```
+├── client/                 # 前端 React 應用
+│   ├── src/
+│   │   ├── components/     # UI 組件
+│   │   ├── pages/          # 頁面組件
+│   │   ├── hooks/          # 自訂 Hooks
+│   │   └── lib/            # 工具函數
+├── server/                 # 後端 API 服務
+│   ├── routes.ts           # API 路由
+│   ├── storage.ts          # 資料存取層
+│   └── auth.ts             # 身份驗證
+├── shared/                 # 共用程式碼
+│   ├── schema.ts           # 資料庫結構定義
+│   └── utils/              # 共用工具
+└── docs/                   # 文件
+```
+
+## 🔧 配置選項
+
+### 環境變數
+
+```env
+DATABASE_URL=postgresql://username:password@host:port/database
+SESSION_SECRET=your-secure-session-secret
+```
+
+### 薪資計算設定
+
+在系統設定頁面可配置：
+- 基本時薪
+- 加班費倍率（OT1, OT2）
+- 各項扣款比例
+- 津貼金額
+
+## 📱 支援的硬體
+
+- **USB 條碼掃描器**：標準 USB HID 條碼掃描器
+- **Raspberry Pi**：專用的條碼掃描工作站
+- **行動裝置**：響應式設計支援手機、平板
+
+## 🔒 安全特性
+
+- **資料加密**：敏感個資採用加密存儲
+- **會話管理**：安全的使用者會話處理
+- **權限控制**：分層的存取控制系統
+- **審計日誌**：完整的操作記錄追蹤
+
+## 🤝 貢獻指南
+
+歡迎提交 Issue 和 Pull Request！
+
+1. Fork 專案
+2. 創建功能分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 開啟 Pull Request
+
+## 📄 授權
+
+本專案採用 MIT 授權 - 詳見 [LICENSE](LICENSE) 檔案。
+
+## 🆘 支援
+
+如有問題或需要協助，請：
+- 開啟 GitHub Issue
+- 查看 [文件](docs/) 目錄
+- 參考 API 文件
+
+## 🔄 更新日誌
+
+### v1.0.0 (2025-09-02)
+- 初始版本發布
+- 完整的薪資計算功能
+- 條碼掃描器整合
+- 自動備份系統
+- 歷史記錄管理
+
+---
+
+**注意**：本系統包含實際的薪資計算邏輯和員工資料管理功能。請確保在生產環境中妥善保護敏感資料。

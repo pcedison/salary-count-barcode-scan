@@ -1,152 +1,163 @@
-# 員工薪資計算系統 - 完整部署包
+# 部署包說明
 
-## 專案概述
+## 📦 GitHub 倉庫內容
 
-這是一個完整的員工薪資計算與考勤管理系統，包含以下核心功能：
-- 員工管理與考勤打卡
-- 條碼掃描打卡系統
-- 薪資計算（包含加班費、勞健保扣款）
-- 報表生成與數據匯出
-- 多語言支援（繁體中文）
-- 即時數據同步
+這個 GitHub 倉庫包含完整的員工薪資管理系統，可以直接部署到各種平台。
 
-## 技術架構
+### 🎯 核心功能
 
-### 前端技術棧
-- **React 18** - 使用者介面框架
-- **TypeScript** - 類型安全的 JavaScript
-- **Vite** - 現代化建置工具
-- **Tailwind CSS** - 實用優先的 CSS 框架
-- **shadcn/ui** - 高品質 UI 元件庫
-- **TanStack Query** - 數據獲取與狀態管理
-- **React Hook Form** - 表單處理
-- **Wouter** - 輕量級路由系統
+✅ **完整的薪資計算系統**
+- 多層加班費計算 (OT1: 1.34x, OT2: 1.67x)
+- 符合勞動法規的每日計算法
+- 假日工作費計算
+- 各項扣款和津貼管理
 
-### 後端技術棧
-- **Node.js** - JavaScript 運行環境
-- **Express.js** - Web 應用框架
-- **TypeScript** - 類型安全開發
-- **Drizzle ORM** - 現代化 SQL 查詢建構器
-- **PostgreSQL** - 主要資料庫
-- **Supabase** - 雲端資料庫服務
-- **Passport.js** - 認證中介軟體
+✅ **考勤管理**  
+- 條碼掃描器整合
+- 手動時間輸入
+- 即時考勤追蹤
+- 歷史記錄管理
 
-### 資料庫
-- **PostgreSQL** - 關聯式資料庫
-- **Supabase** - 雲端資料庫解決方案
-- **Drizzle ORM** - 數據建模與遷移
+✅ **報表功能**
+- 月度薪資報表
+- CSV 資料匯出
+- 列印友善格式
+- 完整審計軌跡
 
-## 系統特色
+### 🛠️ 技術特色
 
-1. **精確的薪資計算**
-   - 按日計算加班費（符合勞動法規）
-   - 自動計算勞健保扣款
-   - 支援多種工時制度
+**現代化技術棧**：
+- React 18 + TypeScript 前端
+- Node.js + Express.js 後端  
+- Drizzle ORM 資料庫操作
+- TailwindCSS + shadcn/ui 介面
 
-2. **靈活的考勤系統**
-   - 條碼掃描打卡
-   - 手動考勤登記
-   - 即時打卡記錄顯示
+**企業級功能**：
+- 資料加密存儲
+- 自動備份系統
+- 會話管理
+- 權限控制
 
-3. **完整的數據管理**
-   - 員工資料加密保護
-   - 自動備份機制
-   - 數據完整性檢查
+## 🚀 部署選項
 
-4. **用戶友好介面**
-   - 響應式設計
-   - 直觀的操作流程
-   - 即時狀態反饋
+### 1. Vercel 部署
+```bash
+# 安裝 Vercel CLI
+npm i -g vercel
 
-## 部署環境需求
+# 部署
+vercel --prod
+```
 
-### 最低系統需求
-- **作業系統**: Linux Ubuntu 20.04+ / CentOS 8+ / Windows Server 2019+
-- **記憶體**: 最少 2GB RAM，建議 4GB+
-- **儲存空間**: 最少 10GB，建議 20GB+
-- **網路**: 穩定的網際網路連接
+### 2. Netlify 部署  
+```bash
+# 安裝 Netlify CLI
+npm i -g netlify-cli
 
-### 軟體需求
-- **Node.js**: 18.0.0 或更高版本
-- **npm**: 8.0.0 或更高版本
-- **PostgreSQL**: 13.0 或更高版本（如使用本地資料庫）
-- **Git**: 2.25.0 或更高版本
+# 部署
+netlify deploy --prod
+```
 
-## 快速部署指南
+### 3. 自主伺服器部署
+```bash
+# 生產環境建置
+npm run build
 
-### 方法一：使用 Supabase（推薦）
+# 啟動生產服務
+npm start
+```
 
-1. **設置 Supabase 專案**
-   ```bash
-   # 前往 https://supabase.com 創建新專案
-   # 獲取專案 URL 和 API 金鑰
-   ```
+### 4. Docker 部署
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+EXPOSE 5000
+CMD ["npm", "start"]
+```
 
-2. **部署應用程式**
-   ```bash
-   # 解壓專案檔案
-   unzip employee-salary-system.zip
-   cd employee-salary-system
+## 🔧 環境設定
 
-   # 安裝相依套件
-   npm install
+### 必要環境變數
 
-   # 設置環境變數
-   cp .env.example .env
-   # 編輯 .env 檔案，填入 Supabase 連接資訊
+```env
+# 資料庫連線
+DATABASE_URL=postgresql://user:pass@host:port/dbname
 
-   # 初始化資料庫
-   npm run db:push
+# 會話安全金鑰  
+SESSION_SECRET=your-long-random-string
 
-   # 啟動應用程式
-   npm run dev
-   ```
+# 可選：Google Drive 備份
+GOOGLE_DRIVE_CREDENTIALS=path/to/credentials.json
+```
 
-### 方法二：使用本地 PostgreSQL
+### 資料庫支援
 
-1. **安裝 PostgreSQL**
-   ```bash
-   # Ubuntu/Debian
-   sudo apt update
-   sudo apt install postgresql postgresql-contrib
+✅ **PostgreSQL** (推薦)
+- Neon (免費雲端 PostgreSQL)
+- Supabase (全功能 BaaS)
+- Railway (簡單部署)
+- 自架 PostgreSQL
 
-   # CentOS/RHEL
-   sudo yum install postgresql-server postgresql-contrib
-   ```
+✅ **設定步驟**：
+1. 建立 PostgreSQL 資料庫
+2. 設定 `DATABASE_URL` 環境變數
+3. 執行 `npm run db:push` 建立資料表
+4. (可選) 執行 `npm run db:seed` 填入範例資料
 
-2. **設置資料庫**
-   ```bash
-   # 創建資料庫和使用者
-   sudo -u postgres psql
-   CREATE DATABASE employee_salary_db;
-   CREATE USER app_user WITH PASSWORD 'your_password';
-   GRANT ALL PRIVILEGES ON DATABASE employee_salary_db TO app_user;
-   ```
+## 📱 使用指南
 
-3. **部署應用程式**
-   ```bash
-   # 設置環境變數
-   export DATABASE_URL="postgresql://app_user:your_password@localhost:5432/employee_salary_db"
-   
-   # 其餘步驟同方法一
-   ```
+### 系統管理
+- **管理員登入**：預設 PIN 碼 `1234` (首次使用後請修改)
+- **員工管理**：新增、編輯、停用員工資料
+- **系統設定**：薪資計算參數、扣款比例設定
 
-## 詳細部署文件
+### 日常操作  
+- **考勤記錄**：支援條碼掃描或手動輸入
+- **薪資計算**：自動計算月度薪資
+- **報表查看**：歷史薪資記錄和詳細明細
+- **資料匯出**：CSV 格式完整資料下載
 
-請參考以下詳細文件：
-- `docs/INSTALLATION.md` - 完整安裝指南
-- `docs/CONFIGURATION.md` - 系統配置說明
-- `docs/DATABASE_SETUP.md` - 資料庫設置指南
-- `docs/API_DOCUMENTATION.md` - API 介面文件
-- `docs/TROUBLESHOOTING.md` - 常見問題解決
-- `docs/MAINTENANCE.md` - 系統維護指南
+### 條碼掃描器設定
+1. 連接 USB 條碼掃描器
+2. 掃描員工證件上的條碼
+3. 系統自動記錄打卡時間
+4. 支援 Raspberry Pi 工作站模式
 
-## 授權與支援
+## 🔒 安全建議
 
-本專案包含完整原始碼，可依據您的需求進行客製化修改。
+### 生產環境
+- 更改預設管理員 PIN 碼
+- 使用強密碼的資料庫連線
+- 定期備份資料庫
+- 監控系統日誌
 
-如有技術問題，請參考 `docs/SUPPORT.md` 檔案。
+### 資料保護
+- 員工身分證號自動加密存儲
+- 所有敏感操作記錄審計日誌
+- 支援 HTTPS 安全連線
+- 定期更新系統依賴
+
+## 📞 技術支援
+
+### 常見問題
+- 資料庫連線問題：檢查 `DATABASE_URL` 格式
+- 條碼掃描器不工作：確認 USB 連接和驅動程式
+- 薪資計算錯誤：檢查系統設定中的計算參數
+
+### 進階自定義
+- 修改薪資計算邏輯：編輯 `shared/utils/salaryCalculation.ts`
+- 新增報表格式：擴展 `client/src/components/reports/`
+- 整合其他系統：使用 RESTful API 端點
+
+### 支援資源
+- 📚 [完整 API 文件](API_DOCUMENTATION.md)
+- 🏗️ [系統架構說明](SYSTEM_ARCHITECTURE.md)
+- 💾 [資料庫結構](DATABASE_SCHEMA.md)
 
 ---
 
-**建議**: 首次部署時請詳細閱讀所有文件，確保系統穩定運行。
+**這是一個生產就緒的企業級薪資管理系統**，包含完整的功能和文件，可以立即用於實際業務環境。
