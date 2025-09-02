@@ -30,11 +30,11 @@ This is a comprehensive employee salary calculation and attendance management sy
 
 ### Storage Architecture
 
-The system implements a dual-database approach:
+The system currently uses a single primary database:
 
-1. **Primary Database (Supabase)**: Cloud-based PostgreSQL providing automatic backups, cross-device synchronization, and high availability
-2. **Fallback Database (PostgreSQL)**: Local instance for development, testing, and emergency backup scenarios
-3. **Automatic Failover**: Intelligent switching between databases based on connectivity and performance
+1. **Primary Database (Neon)**: Cloud-based PostgreSQL providing reliable performance and data persistence
+2. **Supabase Integration Status**: Currently facing connection authentication issues ("Tenant or user not found" errors)
+3. **Current Solution**: Using Neon database with confirmed 5 historical salary records (2025年 3-7月)
 
 ## Key Components
 
