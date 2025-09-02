@@ -1,8 +1,8 @@
 {
   "metadata": {
-    "timestamp": "2025-09-02T03:15:36.353Z",
+    "timestamp": "2025-09-02T05:11:31.176Z",
     "type": "daily",
-    "description": "初始每日備份 9/2/2025, 3:15:36 AM",
+    "description": "初始每日備份 9/2/2025, 5:11:31 AM",
     "version": "1.0.0",
     "databaseType": "supabase"
   },
@@ -931,7 +931,7 @@
       "createdAt": "2025-06-05T05:21:25.085Z"
     },
     {
-      "id": 11,
+      "id": 5,
       "salaryYear": 2025,
       "salaryMonth": 4,
       "employeeId": 1,
@@ -1208,7 +1208,7 @@
           "_employeeDepartment": "生產部"
         }
       ],
-      "createdAt": "2025-05-09T11:26:01.873Z"
+      "createdAt": "2025-09-02T03:35:05.057Z"
     },
     {
       "id": 1,
