@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { eq, and, desc } from "drizzle-orm";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 import { caesarEncrypt, caesarDecrypt, isEncrypted } from "../shared/utils/caesarCipher";
 
 import {
@@ -13,8 +13,8 @@ import {
   employees, type Employee, type InsertEmployee
 } from "@shared/schema";
 
-// Create the database connection
-const sql = neon(process.env.DATABASE_URL!);
+// Create the database connection using standard PostgreSQL driver
+const sql = postgres(process.env.DATABASE_URL!);
 const db = drizzle(sql);
 
 // Define the storage interface
