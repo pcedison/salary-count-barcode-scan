@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, json, doublePrecision, varchar, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, json, doublePrecision, varchar, unique, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -107,7 +108,7 @@ export type SalaryRecord = typeof salaryRecords.$inferSelect;
 // Holiday settings
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
-  employeeId: integer("employee_id").references(() => employees.id).notNull(), // 員工ID - 必填
+  employeeId: integer("employee_id").references(() => employees.id), // 員工ID - 可選（與Supabase一致）
   date: text("date").notNull(),
   name: text("name").notNull(), // 假日名稱/事由
   type: text("type", { 
@@ -172,3 +173,21 @@ export const insertCalculationRuleSchema = createInsertSchema(calculationRules)
 
 export type InsertCalculationRule = z.infer<typeof insertCalculationRuleSchema>;
 export type CalculationRule = typeof calculationRules.$inferSelect;
+
+// Taiwan holidays table (台灣假日資料表) - 與Supabase保持一致
+export const taiwanHolidays = pgTable("taiwan_holidays", {
+  id: uuid("id").primaryKey().default(sql`uuid_generate_v4()`), // UUID主鍵，與Supabase一致
+  year: integer("year").notNull(), // 年份
+  holidayDate: text("holiday_date").notNull(), // 假日日期 (date格式)
+  holidayName: text("holiday_name").notNull(), // 假日名稱
+  isHoliday: boolean("is_holiday").default(true), // 是否為假日
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueYearDate: unique().on(table.year, table.holidayDate), // 年份+日期唯一約束
+}));
+
+export const insertTaiwanHolidaySchema = createInsertSchema(taiwanHolidays)
+  .omit({ id: true, createdAt: true });
+
+export type InsertTaiwanHoliday = z.infer<typeof insertTaiwanHolidaySchema>;
+export type TaiwanHoliday = typeof taiwanHolidays.$inferSelect;
