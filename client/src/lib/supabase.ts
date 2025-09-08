@@ -31,16 +31,16 @@ const getSupabaseConfig = async () => {
       console.error('Error fetching Supabase config from server:', serverError);
     }
     
-    // 4. 如果服務器獲取失敗，使用環境變量
+    // 4. 如果服務器獲取失敗，使用 mock 值（系統已遷移到純 PostgreSQL）
     return { 
-      url: constants.SUPABASE_URL, 
-      key: constants.SUPABASE_ANON_KEY 
+      url: 'POSTGRESQL_CONNECTION_ONLY', 
+      key: 'POSTGRESQL_CONNECTION_ONLY' 
     };
   } catch (e) {
-    // 5. 如果所有獲取方式都失敗，使用環境變量
+    // 5. 如果所有獲取方式都失敗，使用 mock 值（系統已遷移到純 PostgreSQL）
     return { 
-      url: constants.SUPABASE_URL, 
-      key: constants.SUPABASE_ANON_KEY 
+      url: 'POSTGRESQL_CONNECTION_ONLY', 
+      key: 'POSTGRESQL_CONNECTION_ONLY' 
     };
   }
 };
@@ -96,9 +96,9 @@ const initializeSupabaseClient = () => {
       return;
     }
     
-    // 如果本地存儲沒有有效值，使用環境變量
-    const envUrl = constants.SUPABASE_URL;
-    const envKey = constants.SUPABASE_ANON_KEY;
+    // 如果本地存儲沒有有效值，使用 mock 值（系統已遷移到純 PostgreSQL）
+    const envUrl = 'POSTGRESQL_CONNECTION_ONLY';
+    const envKey = 'POSTGRESQL_CONNECTION_ONLY';
     
     if (envUrl && envKey && 
         envUrl !== 'YOUR_SUPABASE_URL' && 
