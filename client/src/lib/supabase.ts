@@ -101,8 +101,8 @@ const initializeSupabaseClient = () => {
     const envKey = 'POSTGRESQL_CONNECTION_ONLY';
     
     if (envUrl && envKey && 
-        envUrl !== 'YOUR_SUPABASE_URL' && 
-        envKey !== 'YOUR_SUPABASE_ANON_KEY') {
+        envUrl !== 'YOUR_SUPABASE_URL' && envUrl !== 'POSTGRESQL_CONNECTION_ONLY' &&
+        envKey !== 'YOUR_SUPABASE_ANON_KEY' && envKey !== 'POSTGRESQL_CONNECTION_ONLY') {
       createSupabaseClient(envUrl, envKey);
       console.log("Supabase client initialized successfully from env variables");
       return;
