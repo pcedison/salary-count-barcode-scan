@@ -199,7 +199,7 @@ const Dashboard = () => {
                     檢查中
                   </Badge>
                 ) : postgresStatus === 'connected' ? (
-                  <Badge variant="success" className="flex items-center">
+                  <Badge variant="outline" className="flex items-center">
                     <Check className="h-3 w-3 mr-1" />
                     已連接
                   </Badge>
@@ -219,7 +219,7 @@ const Dashboard = () => {
                     檢查中
                   </Badge>
                 ) : supabaseStatus === 'connected' ? (
-                  <Badge variant="success" className="flex items-center">
+                  <Badge variant="outline" className="flex items-center">
                     <Check className="h-3 w-3 mr-1" />
                     已連接
                   </Badge>
@@ -293,7 +293,7 @@ const Dashboard = () => {
                     同步中
                   </Badge>
                 ) : syncStatus === 'success' ? (
-                  <Badge variant="success" className="flex items-center">
+                  <Badge variant="outline" className="flex items-center">
                     <Check className="h-3 w-3 mr-1" />
                     同步成功
                   </Badge>
@@ -526,7 +526,7 @@ const Dashboard = () => {
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm">
                           {item.status === 'connected' ? (
-                            <Badge variant="success" className="flex items-center">
+                            <Badge variant="outline" className="flex items-center">
                               <Check className="h-3 w-3 mr-1" />
                               已連接
                             </Badge>
@@ -681,7 +681,7 @@ const Dashboard = () => {
                     </div>
                     <div className="flex justify-between mb-1">
                       <span className="text-xs">管理員</span>
-                      <Badge variant="success" className="text-xs">
+                      <Badge variant="outline" className="text-xs">
                         成功
                       </Badge>
                     </div>
@@ -699,7 +699,7 @@ const Dashboard = () => {
                     </div>
                     <div className="flex justify-between mb-1">
                       <span className="text-xs">系統</span>
-                      <Badge variant="success" className="text-xs">
+                      <Badge variant="outline" className="text-xs">
                         成功
                       </Badge>
                     </div>
@@ -717,7 +717,7 @@ const Dashboard = () => {
                     </div>
                     <div className="flex justify-between mb-1">
                       <span className="text-xs">管理員</span>
-                      <Badge variant="success" className="text-xs">
+                      <Badge variant="outline" className="text-xs">
                         成功
                       </Badge>
                     </div>
@@ -735,7 +735,7 @@ const Dashboard = () => {
                     </div>
                     <div className="flex justify-between mb-1">
                       <span className="text-xs">系統</span>
-                      <Badge variant="success" className="text-xs">
+                      <Badge variant="outline" className="text-xs">
                         成功
                       </Badge>
                     </div>

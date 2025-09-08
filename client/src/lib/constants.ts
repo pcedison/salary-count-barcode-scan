@@ -11,9 +11,8 @@ import { constants as sharedConstants } from '@shared/constants.js';
 export const constants = {
   ...sharedConstants,
   
-  // 前端特有的數據庫連接常量
-  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || "YOUR_SUPABASE_URL",       // Supabase URL
-  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_KEY || "YOUR_SUPABASE_ANON_KEY", // Supabase 匿名密鑰
+  // PostgreSQL 連接通過後端處理，前端不需要直接數據庫連接
+  // 已遷移到純 PostgreSQL 方案，移除 Supabase API 依賴
   
   // 客戶端特有常量可在此處添加
   UI_UPDATE_INTERVAL: 60000,  // UI自動更新間隔（毫秒）

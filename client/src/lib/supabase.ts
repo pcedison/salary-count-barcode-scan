@@ -47,7 +47,7 @@ const getSupabaseConfig = async () => {
 
 // 初始化 Supabase 客戶端（優化版本 - 單例模式）
 // 使用明確的類型定義，避免類型錯誤
-type SupabaseClientType = ReturnType<typeof createClient>;
+type SupabaseClientType = ReturnType<typeof createClient<any, "public", any>>;
 let supabaseClient: SupabaseClientType | null = null;
 let clientInitialized = false;
 
