@@ -50,6 +50,11 @@ export default function HistoryTable({
       return [];
     }
     
+    // 如果員工數據還在加載中，返回空數組
+    if (!activeEmployees || activeEmployees.length === 0) {
+      return [];
+    }
+    
     // 從考勤數據中提取所有員工ID
     const employeeIds = Array.from(new Set(
       attendanceData.map(entry => entry.employeeId).filter(id => id !== undefined)
