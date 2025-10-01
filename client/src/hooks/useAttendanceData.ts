@@ -57,7 +57,7 @@ interface SalaryResult {
 export function useAttendanceData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { settings } = useSettings();
+  const { settings, holidays } = useSettings();
   
   const [salaryResult, setSalaryResult] = useState<SalaryResult | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ synced: boolean; lastSynced: string | null }>({
@@ -447,23 +447,42 @@ export function useAttendanceData() {
         dayOfWeek: new Date(day.date).getDay() // 0=Sunday, 1=Monday, ..., 6=Saturday
       })));
       
-      // 區分真正的假日加班和有薪特休假
-      // 有薪特休：週一到週五且標記為假日的記錄（這些通常是管理員設定的特休日）
-      // 假日加班：週六日且有上下班時間記錄的才算加班
-      const paidLeave = holidayDays.filter(day => {
-        const dayOfWeek = new Date(day.date).getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
-        // 週一到週五 (1-5) 且標記為假日的記錄視為有薪特休
-        return dayOfWeek >= 1 && dayOfWeek <= 5;
+      // 【修正】區分假日加班和有薪特休，使用 holidays 資料表的設定
+      // 1. 從 holidays 資料表中取得該員工（或全體員工）的假日設定
+      const employeeHolidays = Array.isArray(holidays) ? holidays.filter((h: any) => 
+        !h.employeeId || h.employeeId === employeeId
+      ) : [];
+      
+      console.log('員工假日設定:', employeeHolidays.map((h: any) => ({ date: h.date, name: h.name })));
+      
+      // 2. 判斷每一筆考勤記錄是否為假日加班
+      const actualHolidayWork = sortedData.filter(day => {
+        // 必須有完整的上下班時間記錄
+        if (!day.clockIn || !day.clockOut || day.clockIn === '' || day.clockOut === '') {
+          return false;
+        }
+        
+        // 檢查該日期是否在 holidays 資料表中
+        const isDefinedHoliday = employeeHolidays.some((h: any) => h.date === day.date);
+        
+        // 檢查是否為週六日
+        const dayOfWeek = new Date(day.date).getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        
+        // 假日加班的條件：在 holidays 表中設定為假日，或是週六日
+        return isDefinedHoliday || isWeekend;
       });
       
-      const actualHolidayWork = holidayDays.filter(day => {
-        const dayOfWeek = new Date(day.date).getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
-        // 週六日 (0,6) 且有上下班時間記錄的才算假日加班
-        return (dayOfWeek === 0 || dayOfWeek === 6) && day.clockIn && day.clockOut && day.clockIn !== '' && day.clockOut !== '';
+      // 3. 有薪特休：在 holidays 中標記但沒有上下班記錄的日期
+      const paidLeave = employeeHolidays.filter((h: any) => {
+        const hasAttendanceRecord = sortedData.some(day => 
+          day.date === h.date && day.clockIn && day.clockOut && day.clockIn !== '' && day.clockOut !== ''
+        );
+        return !hasAttendanceRecord; // 沒有打卡記錄的假日視為有薪特休
       });
       
       console.log('有薪特休:', paidLeave.length, '天');
-      console.log('真正假日加班:', actualHolidayWork.length, '天');
+      console.log('假日加班:', actualHolidayWork.length, '天', actualHolidayWork.map(d => d.date));
       
       // 假日加班費只計算真正有工作的假日
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
