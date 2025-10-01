@@ -16,6 +16,7 @@ interface SalaryResultTableProps {
     paidLeaveDays?: number;
     paidLeavePay?: number;
     holidayDays: number;
+    holidayDates?: string[];
     holidayDailySalary: number;
     totalHolidayPay: number;
     grossSalary: number;
@@ -118,7 +119,14 @@ export default function SalaryResultTable({ result, settings, onFinalize }: Sala
             
             <tr className={result.paidLeaveDays && result.paidLeaveDays > 0 ? '' : 'bg-gray-50'}>
               <td className="px-6 py-4 whitespace-nowrap font-medium">假日加班</td>
-              <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">{result.holidayDays}天</td>
+              <td className="px-6 py-4 text-center font-['Roboto_Mono']">
+                {result.holidayDays}天
+                {result.holidayDates && result.holidayDates.length > 0 && (
+                  <span className="text-gray-600 ml-2">
+                    ({result.holidayDates.join(', ')})
+                  </span>
+                )}
+              </td>
               <td className="px-6 py-4 whitespace-nowrap text-right font-['Roboto_Mono']">{formatCurrency(result.totalHolidayPay)}</td>
             </tr>
             

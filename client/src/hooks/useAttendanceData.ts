@@ -45,6 +45,7 @@ interface SalaryResult {
   paidLeaveDays?: number;        // 有薪特休天數
   paidLeavePay?: number;         // 有薪特休薪資（通常為0）
   holidayDays: number;
+  holidayDates?: string[];       // 假日加班的日期列表
   holidayDailySalary: number;
   totalHolidayPay: number;
   grossSalary: number;
@@ -510,6 +511,7 @@ export function useAttendanceData() {
         totalOT2Hours,
         totalOvertimePay,
         holidayDays: actualHolidayWork.length,  // 只計算真正的假日加班天數
+        holidayDates: actualHolidayWork.map(d => d.date),  // 假日加班的日期列表
         holidayDailySalary,
         totalHolidayPay,
         paidLeaveDays: paidLeave.length,  // 有薪特休天數
