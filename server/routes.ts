@@ -1418,33 +1418,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // 在伺服器端記錄打卡成功，保留具體上班/下班資訊僅用於後端伺服器日誌
             console.log(`打卡成功: ${employee.name} ${isClockIn ? '上班' : '下班'}打卡 (操作類型: ${actionType})`);
             
-            // 獲取更詳細的員工信息
-            let employeeWithDetails = employee;
-            try {
-              // 嘗試獲取完整的員工信息
-              if (employee && employee.id) {
-                try {
-                  const fullEmployeeInfo = await storage.getEmployeeById(employee.id);
-                  if (fullEmployeeInfo) {
-                    employeeWithDetails = fullEmployeeInfo;
-                    console.log(`[詳細信息] 成功獲取員工完整資料: ${employeeWithDetails.name}, 部門: ${employeeWithDetails.department || '未指定'}`);
-                  }
-                } catch (detailError) {
-                  console.error("[詳細信息] 查詢錯誤，使用基本信息:", detailError.message);
-                }
-              } else {
-                console.error("[詳細信息] 員工ID無效，無法獲取詳細信息");
-              }
-            } catch (err) {
-              console.error("獲取詳細員工信息時出錯:", err);
-              // 繼續使用現有的員工信息
-            }
-            
-            // 在伺服器端追蹤打卡狀態 (替代前端的 EventBus)
-            // 使用前面已定義的 actionType 變數
-            
-            // 輸出更詳細的打卡狀態日誌
-            console.log(`[打卡狀態] 員工: ${employeeWithDetails.name}, 打卡類型: ${isClockIn ? '上班' : '下班'}, 動作: ${actionType}`);
+            // 【效能優化】直接使用已有的員工信息，移除多餘的資料庫查詢
+            const employeeWithDetails = employee;
             
             const successResult = {
               employeeId: employeeWithDetails.id,
