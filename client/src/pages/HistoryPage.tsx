@@ -317,31 +317,76 @@ export default function HistoryPage() {
     }
   };
   
+  // 未登入時顯示登入提示
+  if (!isAdmin) {
+    return (
+      <div className="space-y-6">
+        {/* 頁面標題 */}
+        <div className="flex items-center justify-between bg-muted/30 px-4 py-2 rounded-md mb-4">
+          <h2 className="text-xl font-bold">歷史薪資紀錄</h2>
+        </div>
+        
+        {/* 登入提示卡片 */}
+        <div className="bg-white rounded-lg shadow-lg p-12 text-center max-w-2xl mx-auto">
+          <div className="flex justify-center mb-6">
+            <div className="bg-primary/10 p-6 rounded-full">
+              <Lock className="w-16 h-16 text-primary" />
+            </div>
+          </div>
+          
+          <h3 className="text-2xl font-bold mb-4 text-gray-800">需要管理員權限</h3>
+          <p className="text-gray-600 mb-8 text-lg">
+            歷史薪資記錄包含敏感的員工薪資資料，僅限管理員查看。
+            <br />
+            請先登入管理員帳號以存取此功能。
+          </p>
+          
+          <Button
+            onClick={() => setIsLoginModalOpen(true)}
+            size="lg"
+            className="bg-primary hover:bg-primary/90 text-white px-8 py-3 text-lg"
+          >
+            <Shield className="w-5 h-5 mr-2" />
+            管理員登入
+          </Button>
+          
+          <div className="mt-8 pt-8 border-t border-gray-200">
+            <p className="text-sm text-gray-500">
+              <Lock className="w-4 h-4 inline mr-1" />
+              系統採用 PIN 碼驗證確保資料安全
+            </p>
+          </div>
+        </div>
+        
+        {/* Admin Login Dialog */}
+        <AdminLoginDialog
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+          onSuccess={() => {
+            setIsLoginModalOpen(false);
+            toast({
+              title: "管理員驗證成功",
+              description: "您已進入管理員模式，現在可以查看歷史薪資記錄。",
+            });
+          }}
+          title="管理員登入"
+          description="請輸入管理員 PIN 碼以查看歷史薪資記錄。"
+        />
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-6">
       {/* 頁面橫幅標題 */}
       <div className="flex items-center justify-between bg-muted/30 px-4 py-2 rounded-md mb-4">
         <div className="flex items-center">
           <h2 className="text-xl font-bold">歷史薪資紀錄</h2>
-          {isAdmin && (
-            <div className="ml-2 bg-primary/10 px-3 py-1 rounded-full text-primary text-sm font-medium flex items-center">
-              <Shield className="w-4 h-4 mr-1" />
-              管理員模式
-            </div>
-          )}
+          <div className="ml-2 bg-primary/10 px-3 py-1 rounded-full text-primary text-sm font-medium flex items-center">
+            <Shield className="w-4 h-4 mr-1" />
+            管理員模式
+          </div>
         </div>
-        
-        {!isAdmin && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsLoginModalOpen(true)}
-            className="text-gray-500"
-          >
-            <Lock className="w-4 h-4 mr-1" />
-            管理員登入
-          </Button>
-        )}
       </div>
       
       {/* 功能按鈕與搜尋區域 */}
