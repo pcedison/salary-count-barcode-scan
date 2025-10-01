@@ -84,6 +84,7 @@ export function useSettings() {
       name: string; 
       type: string; 
       isPaid: boolean; 
+      workedOnHoliday?: boolean;
       description?: string; 
     }) => {
       return await apiRequest('POST', '/api/holidays', holiday);
@@ -158,6 +159,7 @@ export function useSettings() {
     name: string; 
     type: string; 
     isPaid: boolean; 
+    workedOnHoliday?: boolean;
     description?: string; 
   }) => {
     try {

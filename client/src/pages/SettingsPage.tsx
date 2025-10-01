@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
+  const [workedOnHoliday, setWorkedOnHoliday] = useState<boolean>(false);
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
@@ -555,6 +556,7 @@ export default function SettingsPage() {
         name: newHolidayDescription || '假日',
         type: 'national_holiday' as const,
         isPaid: true,
+        workedOnHoliday: workedOnHoliday,
         description: newHolidayDescription || ''
       };
       
@@ -572,6 +574,7 @@ export default function SettingsPage() {
         setNewHolidayDate('');
         setNewHolidayDescription('');
         setSelectedEmployeeId(null);
+        setWorkedOnHoliday(false);
       }
     } catch (error) {
       console.error('Failed to add holiday:', error);
@@ -823,6 +826,7 @@ export default function SettingsPage() {
         newHolidayDate={newHolidayDate}
         newHolidayDescription={newHolidayDescription}
         selectedEmployeeId={selectedEmployeeId}
+        workedOnHoliday={workedOnHoliday}
         supabaseUrl={supabaseUrl}
         supabaseAnonKey={supabaseAnonKey}
         connectionStatus={connectionStatus}
@@ -839,6 +843,7 @@ export default function SettingsPage() {
         onNewHolidayDateChange={setNewHolidayDate}
         onNewHolidayDescriptionChange={setNewHolidayDescription}
         onSelectedEmployeeChange={setSelectedEmployeeId}
+        onWorkedOnHolidayChange={setWorkedOnHoliday}
         onAddHoliday={handleAddHoliday}
         onDeleteHoliday={handleDeleteHoliday}
         onSupabaseUrlChange={setSupabaseUrl}

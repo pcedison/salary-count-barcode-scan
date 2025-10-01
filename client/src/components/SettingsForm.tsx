@@ -9,11 +9,12 @@ interface SettingsFormProps {
   ot1Multiplier: number;
   ot2Multiplier: number;
   deductions: Array<{ name: string; amount: number; description: string }>;
-  holidays: Array<{ id: number; date: string; description: string; employeeId?: number }>;
+  holidays: Array<{ id: number; date: string; description: string; employeeId?: number; workedOnHoliday?: boolean }>;
   employees: Array<{ id: number; name: string; department: string }>;
   newHolidayDate: string;
   newHolidayDescription: string;
   selectedEmployeeId: number | null;
+  workedOnHoliday: boolean;
   supabaseUrl: string;
   supabaseAnonKey: string;
   connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
@@ -31,6 +32,7 @@ interface SettingsFormProps {
   onNewHolidayDateChange: (value: string) => void;
   onNewHolidayDescriptionChange: (value: string) => void;
   onSelectedEmployeeChange: (employeeId: number | null) => void;
+  onWorkedOnHolidayChange: (value: boolean) => void;
   onAddHoliday: () => void;
   onDeleteHoliday: (id: number) => void;
   onSupabaseUrlChange: (value: string) => void;
@@ -52,6 +54,7 @@ export default function SettingsForm({
   newHolidayDate,
   newHolidayDescription,
   selectedEmployeeId,
+  workedOnHoliday,
   supabaseUrl,
   supabaseAnonKey,
   connectionStatus,
@@ -68,6 +71,7 @@ export default function SettingsForm({
   onNewHolidayDateChange,
   onNewHolidayDescriptionChange,
   onSelectedEmployeeChange,
+  onWorkedOnHolidayChange,
   onAddHoliday,
   onDeleteHoliday,
   onSupabaseUrlChange,
@@ -286,6 +290,16 @@ export default function SettingsForm({
                   className="w-full"
                 />
               </div>
+              <div className="flex-1">
+                <select
+                  value={workedOnHoliday ? 'yes' : 'no'}
+                  onChange={(e) => onWorkedOnHolidayChange(e.target.value === 'yes')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="no">未上班</option>
+                  <option value="yes">有上班</option>
+                </select>
+              </div>
             </div>
             <div className="flex gap-2">
               <Input
@@ -319,6 +333,9 @@ export default function SettingsForm({
                   <span className="font-['Roboto_Mono'] mr-2">{holiday.date}</span>
                   {employee && (
                     <span className="text-sm font-medium text-blue-600 mr-2">{employee.name}</span>
+                  )}
+                  {holiday.workedOnHoliday && (
+                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mr-2">有上班</span>
                   )}
                   {holiday.description && (
                     <span className="text-xs text-gray-500 mr-2">{holiday.description}</span>

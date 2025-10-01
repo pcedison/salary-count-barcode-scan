@@ -115,6 +115,7 @@ export const holidays = pgTable("holidays", {
     enum: ["national_holiday", "sick_leave", "personal_leave", "annual_leave", "typhoon_day", "other"] 
   }).notNull().default("national_holiday"), // 假日類型
   isPaid: boolean("is_paid").notNull().default(true), // 是否有薪
+  workedOnHoliday: boolean("worked_on_holiday").default(false), // 是否在假日上班（國定假日上班需額外給付工資）
   description: text("description"), // 額外描述
   createdAt: timestamp("created_at").defaultNow(),
 });
