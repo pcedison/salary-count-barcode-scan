@@ -1246,32 +1246,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentDate = `${taiwanTime.getUTCFullYear()}/${String(taiwanTime.getUTCMonth() + 1).padStart(2, '0')}/${String(taiwanTime.getUTCDate()).padStart(2, '0')}`;
       const currentTime = `${String(taiwanTime.getUTCHours()).padStart(2, '0')}:${String(taiwanTime.getUTCMinutes()).padStart(2, '0')}`;
       
-      // 我們將員工查找異步進行，但不等待其完成
+      // 【效能優化】改為同步處理，立即查找員工
       findEmployeePromise = findEmployeeWithTimeout();
       
-      // 先立即向用戶返回處理中的響應
-      const processingResponse = {
-        success: true,
-        inProgress: true,
-        message: "正在處理打卡請求，請稍候...",
-        timestamp: now.toISOString()
-      };
-      
-      // 發送處理中的響應
-      res.json(processingResponse);
-      
-      // 後台繼續處理
-      (async () => {
-        try {
-          // 等待員工查找完成
-          const employee = await findEmployeePromise;
+      // 【效能優化】等待員工查找完成，然後同步處理所有邏輯
+      try {
+        // 等待員工查找完成
+        const employee = await findEmployeePromise;
           
-          if (!employee) {
-            console.log(`找不到匹配的員工，ID: ${idNumber}`);
-            // 在伺服器端記錄錯誤
-            console.error("找不到匹配的員工，請確認條碼資料正確");
-            return;
-          }
+        if (!employee) {
+          console.log(`找不到匹配的員工，ID: ${idNumber}`);
+          return res.status(404).json({
+            success: false,
+            message: "找不到匹配的員工",
+            code: "EMPLOYEE_NOT_FOUND"
+          });
+        }
           
           // 並行處理：同時檢查假日狀態和考勤記錄 - 顯著提高效率
           console.log(`[優化流程] 啟動並行處理`);
@@ -1493,32 +1483,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 console.log(`[緩存清理] 刪除舊緩存: ${key}`);
                 attendanceCache.delete(key);
               }
-            }
-            
-          } catch (err) {
-            console.error("處理打卡記錄時出錯:", err);
-            
-            // 在伺服器端記錄打卡失敗
-            console.error(`打卡失敗: ${employee?.name || '未知員工'}, 錯誤: ${err.message}`);
           }
-        } catch (error) {
-          console.error("打卡後台處理過程中出錯:", error);
           
-          // 在伺服器端記錄處理錯誤
-          console.error(`打卡處理過程中錯誤: ${error.message}`);
+          // 【效能優化】同步返回成功結果，不再異步處理
+          return res.json(successResult);
+          
+        } catch (err) {
+          console.error("處理打卡記錄時出錯:", err);
+          return res.status(500).json({
+            success: false,
+            message: `打卡失敗: ${err.message}`,
+            code: "ATTENDANCE_ERROR"
+          });
         }
-      })();
+      } catch (error) {
+        console.error("打卡處理過程中出錯:", error);
+        return res.status(500).json({
+          success: false,
+          message: `處理打卡時發生錯誤: ${error.message}`,
+          code: "PROCESSING_ERROR"
+        });
+      }
       
     } catch (err) {
       console.error('條碼掃描打卡錯誤:', err);
-      
-      // 如果已經開始響應，則記錄錯誤
-      if (findEmployeePromise) {
-        console.error(`打卡處理失敗: ${err.message}`);
-      } else {
-        // 否則直接返回錯誤
-        handleError(err, res);
-      }
+      handleError(err, res);
     }
   });
 

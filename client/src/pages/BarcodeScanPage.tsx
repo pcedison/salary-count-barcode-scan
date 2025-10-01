@@ -355,19 +355,8 @@ export default function BarcodeScanPage() {
         const scanResult = await response.json();
         console.log('掃描結果:', scanResult);
         
-        // 處理進行中狀態的特殊情況
-        if (scanResult && scanResult.inProgress === true) {
-          console.log('打卡處理中，等待結果...');
-          // 保持處理中狀態，不需更新
-          // 5秒後刷新資料
-          setTimeout(() => {
-            queryClient.invalidateQueries({
-              queryKey: ['/api/attendance'],
-              refetchType: 'all'
-            });
-          }, 5000);
-          return;
-        }
+        // 【效能優化】移除異步等待邏輯，後端已改為同步處理
+        // inProgress 狀態已廢棄，直接處理成功結果
         
         if (scanResult && scanResult.employeeId && scanResult.employeeName) {
           // 確定打卡類型
