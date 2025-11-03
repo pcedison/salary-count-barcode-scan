@@ -137,6 +137,17 @@ The system supports multiple deployment scenarios:
 
 ## Changelog
 
+- November 3, 2025. **Enhanced Holiday Management with Labor Law Compliance**: Implemented comprehensive holiday type system with Taiwan labor law-compliant salary deductions
+  - Database schema updated: replaced `workedOnHoliday` boolean with `holidayType` enum (worked/sick_leave/personal_leave/national_holiday)
+  - Frontend UI enhanced: dropdown selector for holiday types with color-coded badges
+  - Salary calculation updated with Taiwan labor law compliance:
+    - Sick leave: 50% pay deduction (calculated as monthly salary ÷ 30 days × 50%)
+    - Personal leave: Full pay deduction (monthly salary ÷ 30 days × 100%)
+    - National holidays: Base pay included, no extra payment
+    - Worked holidays: Standard holiday overtime premium calculation
+  - Backend routes updated to automatically add leave deductions as line items in salary records
+  - Fixed double-deduction bug in PATCH operations with idempotent recalculation
+  - Added comprehensive audit logging for leave deductions
 - October 1, 2025. **Critical Performance Optimization**: Barcode attendance scanning response time reduced by 83% (from 5+ seconds to ~0.8 seconds)
   - Converted /api/barcode-scan from asynchronous background processing to synchronous direct response
   - Eliminated artificial 5-second delay from inProgress polling mechanism
