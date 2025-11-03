@@ -322,11 +322,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 從導入的計算模組中獲取標準化函數
       // 使用動態導入而非require (避免ESM兼容性問題)
       const salaryCalculator = await import('./utils/salaryCalculator');
-      const { calculateSalary } = salaryCalculator;
+      const { calculateSalary, calculateHolidayPayAdjustments } = salaryCalculator;
+      
+      // 獲取該月份的假日記錄用於計算病假/事假扣款
+      const allHolidays = await storage.getAllHolidays();
+      const relevantHolidays = allHolidays.filter(h => {
+        if (!h.date || h.employeeId !== validatedData.employeeId) return false;
+        // 使用更可靠的日期解析方式處理 YYYY/MM/DD 和 YYYY-MM-DD 格式
+        const dateParts = h.date.split(/[/-]/);
+        if (dateParts.length !== 3) return false;
+        const year = parseInt(dateParts[0]);
+        const month = parseInt(dateParts[1]);
+        return year === validatedData.salaryYear && month === validatedData.salaryMonth;
+      });
+      
+      // 計算病假和事假扣款
+      const holidayAdjustments = calculateHolidayPayAdjustments(
+        relevantHolidays,
+        validatedData.baseSalary
+      );
       
       // 準備薪資計算所需的參數
-      const totalDeductions = validatedData.deductions ? 
-        validatedData.deductions.reduce((sum, d) => sum + d.amount, 0) : 0;
+      // 將病假和事假扣款加入到扣款明細陣列中
+      const allDeductions = [
+        ...(validatedData.deductions || []),
+        ...holidayAdjustments.deductionItems
+      ];
+      const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
       
       // 執行標準化薪資計算
       const calculationSettings = {
@@ -349,9 +371,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedData.housingAllowance || 0
       );
       
+      // 記錄假日扣款資訊
+      if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0) {
+        console.log(`員工 ${validatedData.employeeId} ${validatedData.salaryYear}年${validatedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元)`);
+      }
+      
       // 將計算結果合併到資料中，確保一致性
       const finalData = {
         ...validatedData,
+        deductions: allDeductions,
         totalOT1Hours: salaryResult.totalOT1Hours,
         totalOT2Hours: salaryResult.totalOT2Hours,
         totalOvertimePay: salaryResult.totalOvertimePay,
@@ -406,7 +434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // 從導入的計算模組中獲取標準化函數
         // 使用動態導入而非require (避免ESM兼容性問題)
         const salaryCalculator = await import('./utils/salaryCalculator');
-        const { calculateSalary } = salaryCalculator;
+        const { calculateSalary, calculateHolidayPayAdjustments } = salaryCalculator;
         
         // 合併現有資料和更新資料
         const mergedData = {
@@ -414,9 +442,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...updateData
         };
         
+        // 獲取該月份的假日記錄用於計算病假/事假扣款
+        const allHolidays = await storage.getAllHolidays();
+        const relevantHolidays = allHolidays.filter(h => {
+          if (!h.date || h.employeeId !== mergedData.employeeId) return false;
+          // 使用更可靠的日期解析方式處理 YYYY/MM/DD 和 YYYY-MM-DD 格式
+          const dateParts = h.date.split(/[/-]/);
+          if (dateParts.length !== 3) return false;
+          const year = parseInt(dateParts[0]);
+          const month = parseInt(dateParts[1]);
+          return year === mergedData.salaryYear && month === mergedData.salaryMonth;
+        });
+        
+        // 計算病假和事假扣款
+        const holidayAdjustments = calculateHolidayPayAdjustments(
+          relevantHolidays,
+          mergedData.baseSalary
+        );
+        
         // 準備薪資計算所需的參數
-        const totalDeductions = mergedData.deductions ? 
-          mergedData.deductions.reduce((sum, d) => sum + d.amount, 0) : 0;
+        // 過濾掉現有的病假/事假扣款項目，避免重複計算
+        const existingDeductions = (mergedData.deductions || []).filter(d => 
+          !d.name.includes('病假扣款') && !d.name.includes('事假扣款')
+        );
+        // 將新計算的病假和事假扣款加入到扣款明細陣列中
+        const allDeductions = [
+          ...existingDeductions,
+          ...holidayAdjustments.deductionItems
+        ];
+        const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
         
         // 執行標準化薪資計算
         const calculationSettings = {
@@ -442,7 +496,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           mergedData.housingAllowance || 0
         );
         
+        // 記錄假日扣款資訊
+        if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0) {
+          console.log(`員工 ${mergedData.employeeId} ${mergedData.salaryYear}年${mergedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元)`);
+        }
+        
         // 更新最終計算結果
+        updateData.deductions = allDeductions;
         updateData.totalOT1Hours = salaryResult.totalOT1Hours;
         updateData.totalOT2Hours = salaryResult.totalOT2Hours;
         updateData.totalOvertimePay = salaryResult.totalOvertimePay;

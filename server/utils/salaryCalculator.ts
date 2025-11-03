@@ -285,6 +285,61 @@ export function convertAttendanceToDaily(attendanceRecords: any[]): DailyOvertim
 }
 
 /**
+ * 計算假日類型對薪資的影響（依照台灣勞基法規定）
+ * @param holidays - 假日記錄數組
+ * @param baseMonthlySalary - 基本月薪
+ * @param daysPerMonth - 每月計算天數（默認為30天，符合台灣勞基法）
+ * @returns 假日薪資調整對象，包含扣款和加班費
+ */
+export function calculateHolidayPayAdjustments(
+  holidays: Array<{ date: string; holidayType: string; employeeId?: number }>,
+  baseMonthlySalary: number,
+  daysPerMonth: number = 30
+): { 
+  sickLeaveDeduction: number; 
+  personalLeaveDeduction: number; 
+  sickLeaveDays: number;
+  personalLeaveDays: number;
+  deductionItems: Array<{ name: string; amount: number }>;
+} {
+  // 計算日薪（依照台灣勞基法：月薪 / 30）
+  const dailyWage = baseMonthlySalary / daysPerMonth;
+  
+  // 統計不同類型的假日
+  const sickLeaveDays = holidays.filter(h => h.holidayType === 'sick_leave').length;
+  const personalLeaveDays = holidays.filter(h => h.holidayType === 'personal_leave').length;
+  
+  // 計算扣款（依照台灣勞基法）
+  // 病假：給付50%薪資，因此扣除50%
+  const sickLeaveDeduction = Math.round(sickLeaveDays * dailyWage * 0.5);
+  // 事假：不給薪，扣除100%
+  const personalLeaveDeduction = Math.round(personalLeaveDays * dailyWage);
+  
+  // 建立扣款明細項目
+  const deductionItems: Array<{ name: string; amount: number }> = [];
+  if (sickLeaveDays > 0) {
+    deductionItems.push({
+      name: `病假扣款 (${sickLeaveDays}天)`,
+      amount: sickLeaveDeduction
+    });
+  }
+  if (personalLeaveDays > 0) {
+    deductionItems.push({
+      name: `事假扣款 (${personalLeaveDays}天)`,
+      amount: personalLeaveDeduction
+    });
+  }
+  
+  return {
+    sickLeaveDeduction,
+    personalLeaveDeduction,
+    sickLeaveDays,
+    personalLeaveDays,
+    deductionItems
+  };
+}
+
+/**
  * 統一薪資計算函數 - 整合所有計算步驟，確保一致性
  * 推薦使用下方的 calculateSalaryByDaily 函數，此函數僅為兼容舊代碼保留
  */
