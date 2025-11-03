@@ -568,8 +568,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertHolidaySchema.parse(req.body);
       const holiday = await storage.createHoliday(validatedData);
       
-      // 如果是有薪假日，為指定員工自動創建考勤記錄
-      if (holiday.isPaid && holiday.employeeId) {
+      // 只有國定假日才自動創建考勤記錄（有給薪但不額外支付）
+      // 病假、事假不創建記錄（扣薪）
+      // 有上班時員工會自己打卡，不需要自動創建
+      if (holiday.holidayType === 'national_holiday' && holiday.employeeId) {
         // 檢查該員工在該日期是否已有考勤記錄
         const existingRecord = await db
           .select()
@@ -581,7 +583,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             )
           );
         
-        // 如果沒有現有記錄，創建假日考勤記錄
+        // 如果沒有現有記錄，創建國定假日考勤記錄
         if (existingRecord.length === 0) {
           await storage.createTemporaryAttendance({
             employeeId: holiday.employeeId,
@@ -594,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // 獲取員工姓名用於日誌
           const employee = await storage.getEmployeeById(holiday.employeeId);
-          console.log(`為員工 ${employee?.name || holiday.employeeId} 創建假日考勤記錄: ${holiday.date}`);
+          console.log(`為員工 ${employee?.name || holiday.employeeId} 創建國定假日考勤記錄: ${holiday.date}`);
         }
       }
       
