@@ -111,11 +111,9 @@ export const holidays = pgTable("holidays", {
   employeeId: integer("employee_id").references(() => employees.id), // 員工ID - 可選（與Supabase一致）
   date: text("date").notNull(),
   name: text("name").notNull(), // 假日名稱/事由
-  type: text("type", { 
-    enum: ["national_holiday", "sick_leave", "personal_leave", "annual_leave", "typhoon_day", "other"] 
-  }).notNull().default("national_holiday"), // 假日類型
-  isPaid: boolean("is_paid").notNull().default(true), // 是否有薪
-  workedOnHoliday: boolean("worked_on_holiday").default(false), // 是否在假日上班（國定假日上班需額外給付工資）
+  holidayType: text("holiday_type", { 
+    enum: ["worked", "sick_leave", "personal_leave", "national_holiday"] 
+  }).notNull().default("national_holiday"), // 假日狀態：worked=有上班, sick_leave=病假, personal_leave=事假, national_holiday=國定假日
   description: text("description"), // 額外描述
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -125,12 +123,10 @@ export const insertHolidaySchema = createInsertSchema(holidays)
 
 // 假日類型選項
 export const holidayTypeOptions = [
-  { value: "national_holiday", label: "國定假日", paid: true },
-  { value: "sick_leave", label: "病假", paid: false },
-  { value: "personal_leave", label: "事假", paid: false },
-  { value: "annual_leave", label: "特休", paid: true },
-  { value: "typhoon_day", label: "颱風假", paid: true },
-  { value: "other", label: "其他", paid: false }
+  { value: "national_holiday", label: "國定假日", paid: true, deductPay: false, description: "有給薪但不額外支付" },
+  { value: "sick_leave", label: "病假", paid: false, deductPay: true, description: "扣除當日薪水" },
+  { value: "personal_leave", label: "事假", paid: false, deductPay: true, description: "扣除當日薪水" },
+  { value: "worked", label: "有上班", paid: true, deductPay: false, description: "假日加班，按規則計算加班費" }
 ] as const;
 
 export type InsertHoliday = z.infer<typeof insertHolidaySchema>;

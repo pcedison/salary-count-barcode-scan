@@ -51,7 +51,7 @@ export default function SettingsPage() {
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [workedOnHoliday, setWorkedOnHoliday] = useState<boolean>(false);
+  const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday'>('national_holiday');
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
@@ -554,9 +554,7 @@ export default function SettingsPage() {
         employeeId: selectedEmployeeId,
         date: newHolidayDate,
         name: newHolidayDescription || '假日',
-        type: 'national_holiday' as const,
-        isPaid: true,
-        workedOnHoliday: workedOnHoliday,
+        holidayType: holidayType,
         description: newHolidayDescription || ''
       };
       
@@ -574,7 +572,7 @@ export default function SettingsPage() {
         setNewHolidayDate('');
         setNewHolidayDescription('');
         setSelectedEmployeeId(null);
-        setWorkedOnHoliday(false);
+        setHolidayType('national_holiday');
       }
     } catch (error) {
       console.error('Failed to add holiday:', error);
@@ -826,7 +824,7 @@ export default function SettingsPage() {
         newHolidayDate={newHolidayDate}
         newHolidayDescription={newHolidayDescription}
         selectedEmployeeId={selectedEmployeeId}
-        workedOnHoliday={workedOnHoliday}
+        holidayType={holidayType}
         supabaseUrl={supabaseUrl}
         supabaseAnonKey={supabaseAnonKey}
         connectionStatus={connectionStatus}
@@ -843,7 +841,7 @@ export default function SettingsPage() {
         onNewHolidayDateChange={setNewHolidayDate}
         onNewHolidayDescriptionChange={setNewHolidayDescription}
         onSelectedEmployeeChange={setSelectedEmployeeId}
-        onWorkedOnHolidayChange={setWorkedOnHoliday}
+        onHolidayTypeChange={setHolidayType}
         onAddHoliday={handleAddHoliday}
         onDeleteHoliday={handleDeleteHoliday}
         onSupabaseUrlChange={setSupabaseUrl}

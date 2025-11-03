@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { holidayTypeOptions } from '@shared/schema';
 
 interface SettingsFormProps {
   baseHourlyRate: number;
@@ -9,12 +10,12 @@ interface SettingsFormProps {
   ot1Multiplier: number;
   ot2Multiplier: number;
   deductions: Array<{ name: string; amount: number; description: string }>;
-  holidays: Array<{ id: number; date: string; description: string; employeeId?: number; workedOnHoliday?: boolean }>;
+  holidays: Array<{ id: number; date: string; name: string; description?: string; employeeId?: number; holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' }>;
   employees: Array<{ id: number; name: string; department: string }>;
   newHolidayDate: string;
   newHolidayDescription: string;
   selectedEmployeeId: number | null;
-  workedOnHoliday: boolean;
+  holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday';
   supabaseUrl: string;
   supabaseAnonKey: string;
   connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
@@ -32,7 +33,7 @@ interface SettingsFormProps {
   onNewHolidayDateChange: (value: string) => void;
   onNewHolidayDescriptionChange: (value: string) => void;
   onSelectedEmployeeChange: (employeeId: number | null) => void;
-  onWorkedOnHolidayChange: (value: boolean) => void;
+  onHolidayTypeChange: (value: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday') => void;
   onAddHoliday: () => void;
   onDeleteHoliday: (id: number) => void;
   onSupabaseUrlChange: (value: string) => void;
@@ -54,7 +55,7 @@ export default function SettingsForm({
   newHolidayDate,
   newHolidayDescription,
   selectedEmployeeId,
-  workedOnHoliday,
+  holidayType,
   supabaseUrl,
   supabaseAnonKey,
   connectionStatus,
@@ -71,7 +72,7 @@ export default function SettingsForm({
   onNewHolidayDateChange,
   onNewHolidayDescriptionChange,
   onSelectedEmployeeChange,
-  onWorkedOnHolidayChange,
+  onHolidayTypeChange,
   onAddHoliday,
   onDeleteHoliday,
   onSupabaseUrlChange,
@@ -292,12 +293,16 @@ export default function SettingsForm({
               </div>
               <div className="flex-1">
                 <select
-                  value={workedOnHoliday ? 'yes' : 'no'}
-                  onChange={(e) => onWorkedOnHolidayChange(e.target.value === 'yes')}
+                  value={holidayType}
+                  onChange={(e) => onHolidayTypeChange(e.target.value as 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  data-testid="select-holiday-type"
                 >
-                  <option value="no">未上班</option>
-                  <option value="yes">有上班</option>
+                  {holidayTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value} data-testid={`option-${option.value}`}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -329,21 +334,32 @@ export default function SettingsForm({
             holidays.map((holiday) => {
               const employee = employees?.find(emp => emp.id === holiday.employeeId);
               return (
-                <div key={holiday.id} className="bg-white px-3 py-1 rounded-md border border-gray-200 flex items-center">
-                  <span className="font-['Roboto_Mono'] mr-2">{holiday.date}</span>
+                <div key={holiday.id} className="bg-white px-3 py-1 rounded-md border border-gray-200 flex items-center" data-testid={`holiday-item-${holiday.id}`}>
+                  <span className="font-['Roboto_Mono'] mr-2" data-testid="holiday-date">{holiday.date}</span>
                   {employee && (
-                    <span className="text-sm font-medium text-blue-600 mr-2">{employee.name}</span>
+                    <span className="text-sm font-medium text-blue-600 mr-2" data-testid="holiday-employee">{employee.name}</span>
                   )}
-                  {holiday.workedOnHoliday && (
-                    <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full mr-2">有上班</span>
+                  {holiday.name && (
+                    <span className="text-sm text-gray-700 mr-2" data-testid="holiday-name">{holiday.name}</span>
                   )}
-                  {holiday.description && (
-                    <span className="text-xs text-gray-500 mr-2">{holiday.description}</span>
+                  {holiday.holidayType && (
+                    <span 
+                      className={`text-xs px-2 py-0.5 rounded-full mr-2 ${
+                        holiday.holidayType === 'worked' ? 'bg-orange-100 text-orange-700' :
+                        holiday.holidayType === 'sick_leave' ? 'bg-red-100 text-red-700' :
+                        holiday.holidayType === 'personal_leave' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}
+                      data-testid="holiday-type-badge"
+                    >
+                      {holidayTypeOptions.find(opt => opt.value === holiday.holidayType)?.label}
+                    </span>
                   )}
                   {isAdmin && (
                     <button 
                       className="text-error hover:text-red-700"
                       onClick={() => onDeleteHoliday(holiday.id)}
+                      data-testid="button-delete-holiday"
                     >
                       <span className="material-icons text-sm">close</span>
                     </button>
