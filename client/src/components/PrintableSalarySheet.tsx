@@ -92,7 +92,10 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
   const renderAttendanceRows = () => {
     return attendanceWithOT.map((record, index) => (
       <tr key={index} className={record.isHoliday ? 'holiday-row' : ''}>
-        <td className="date-cell">{record.date}</td>
+        <td className="date-cell">
+          {record.date}
+          {record.isHoliday && <span style={{ marginLeft: '4px', fontWeight: 'bold' }}>假日出勤</span>}
+        </td>
         <td className="time-cell">{record.clockIn}</td>
         <td className="time-cell">{record.clockOut}</td>
         <td className="number-cell">{record.ot1.toFixed(1)}</td>
