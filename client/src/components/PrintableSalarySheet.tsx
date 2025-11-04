@@ -23,6 +23,7 @@ interface PrintableSalarySheetProps {
       clockIn: string;
       clockOut: string;
       isHoliday: boolean;
+      holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday';
     }>;
   };
 }
@@ -41,6 +42,22 @@ const safeNumber = (value: any): number => {
   if (value === null || value === undefined) return 0;
   const num = Number(value);
   return isNaN(num) ? 0 : num;
+};
+
+// 根據假日類型返回顯示文字
+const getHolidayLabel = (holidayType?: string): string => {
+  switch (holidayType) {
+    case 'worked':
+      return '假日出勤';
+    case 'national_holiday':
+      return '國定假日';
+    case 'sick_leave':
+      return '病假';
+    case 'personal_leave':
+      return '事假';
+    default:
+      return '假日';
+  }
 };
 
 // 計算日期對應加班費 - 使用統一模組
@@ -94,7 +111,11 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
       <tr key={index} className={record.isHoliday ? 'holiday-row' : ''}>
         <td className="date-cell">
           {record.date}
-          {record.isHoliday && <span style={{ marginLeft: '4px', fontWeight: 'bold' }}>假日出勤</span>}
+          {record.isHoliday && (
+            <span style={{ marginLeft: '4px', fontWeight: 'bold' }}>
+              {getHolidayLabel(record.holidayType)}
+            </span>
+          )}
         </td>
         <td className="time-cell">{record.clockIn}</td>
         <td className="time-cell">{record.clockOut}</td>
