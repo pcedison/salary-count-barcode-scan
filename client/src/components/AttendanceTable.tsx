@@ -248,7 +248,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
-                    {isNoClockType ? <span className="text-gray-400">0</span> : total.toFixed(1)}
+                    {isNoClockType ? <span className="text-gray-400">0</span> : 8}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
                     {isNoClockType ? <span className="text-gray-400">0.0</span> : (ot1 + ot2).toFixed(1)}
