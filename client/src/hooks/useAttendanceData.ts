@@ -25,6 +25,7 @@ interface AttendanceRecord {
 }
 
 interface NewAttendanceRecord {
+  employeeId?: number | null;
   date: string;
   clockIn: string;
   clockOut: string;

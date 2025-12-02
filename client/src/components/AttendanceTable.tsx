@@ -27,9 +27,10 @@ interface AttendanceTableProps {
 
 export default function AttendanceTable({ data, isLoading }: AttendanceTableProps) {
   const { toast } = useToast();
-  const { updateAttendance, deleteAttendance } = useAttendanceData();
+  const { updateAttendance, deleteAttendance, addAttendance } = useAttendanceData();
   
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
   const [editDate, setEditDate] = useState<string>('');
   const [editClockIn, setEditClockIn] = useState<string>('');
   const [editClockOut, setEditClockOut] = useState<string>('');
@@ -37,33 +38,54 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
   // Start editing an attendance record
   const handleEdit = (record: any) => {
     setEditingId(record.id);
+    setEditingRecord(record);
     setEditDate(record.date);
-    setEditClockIn(record.clockIn);
-    setEditClockOut(record.clockOut);
+    // 對於虛擬記錄，初始化為空字串以便用戶輸入
+    setEditClockIn(record.clockIn === '待補' ? '' : record.clockIn);
+    setEditClockOut(record.clockOut === '待補' ? '' : record.clockOut);
   };
   
   // Save edited record
   const handleSaveEdit = async () => {
-    if (!editingId) return;
+    if (!editingId || !editingRecord) return;
     
     try {
-      await updateAttendance(editingId, {
-        date: editDate,
-        clockIn: editClockIn,
-        clockOut: editClockOut
-      });
-      
-      toast({
-        title: "已更新",
-        description: "考勤記錄已成功更新。",
-      });
+      // 檢查是否為虛擬記錄（負數 ID 表示來自 holidays 表的虛擬記錄）
+      if (editingId < 0) {
+        // 虛擬記錄需要創建新的考勤記錄
+        await addAttendance({
+          employeeId: editingRecord.employeeId,
+          date: editDate,
+          clockIn: editClockIn || '08:00',
+          clockOut: editClockOut || '17:00',
+          isHoliday: editingRecord.isHoliday || false
+        });
+        
+        toast({
+          title: "已新增",
+          description: "考勤記錄已成功新增。",
+        });
+      } else {
+        // 正常記錄使用更新
+        await updateAttendance(editingId, {
+          date: editDate,
+          clockIn: editClockIn,
+          clockOut: editClockOut
+        });
+        
+        toast({
+          title: "已更新",
+          description: "考勤記錄已成功更新。",
+        });
+      }
       
       setEditingId(null);
+      setEditingRecord(null);
     } catch (error) {
-      console.error('Failed to update record:', error);
+      console.error('Failed to save record:', error);
       toast({
-        title: "更新失敗",
-        description: "無法更新考勤記錄，請稍後再試。",
+        title: "儲存失敗",
+        description: "無法儲存考勤記錄，請稍後再試。",
         variant: "destructive"
       });
     }
@@ -232,7 +254,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     {isNoClockType ? <span className="text-gray-400">0.0</span> : (ot1 + ot2).toFixed(1)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {isHolidayRecord ? (
+                    {isNoClockType ? (
                       <span className="text-gray-400 text-xs">假日記錄</span>
                     ) : isEditing ? (
                       <>
@@ -256,12 +278,14 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                         <button 
                           className="text-primary hover:text-blue-700"
                           onClick={() => handleEdit(record)}
+                          data-testid={`button-edit-${record.id}`}
                         >
                           <span className="material-icons text-sm">edit</span>
                         </button>
                         <button 
                           className="text-error hover:text-red-700 ml-3"
                           onClick={() => handleDelete(record.id)}
+                          data-testid={`button-delete-${record.id}`}
                         >
                           <span className="material-icons text-sm">delete</span>
                         </button>
