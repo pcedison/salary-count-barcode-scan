@@ -110,15 +110,14 @@ export function useAttendanceData() {
   // 從useEmployees中獲取員工資料，用於關聯考勤記錄
   const { employees, activeEmployees } = useEmployees();
   
-  // 增強考勤數據，添加員工姓名和部門信息
+  // 增強考勤數據，添加員工姓名和部門信息，並合併假日記錄
   const enhancedAttendanceData = useMemo(() => {
     const attData = Array.isArray(attendanceData) ? attendanceData : [];
-    console.log('重新計算增強考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attData.length);
+    const holidayData = Array.isArray(holidays) ? holidays : [];
+    console.log('重新計算增強考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attData.length, '假日記錄數:', holidayData.length);
     
-    if (attData.length === 0) return [];
-    
-    return [...attData].map(record => {
-      // 嘗試尋找員工信息
+    // 先增強現有考勤記錄
+    const enhancedRecords = attData.map(record => {
       if (record.employeeId && employees && employees.length > 0) {
         const employee = employees.find((emp) => emp.id === record.employeeId);
         if (employee) {
@@ -134,7 +133,47 @@ export function useAttendanceData() {
       }
       return record;
     });
-  }, [attendanceData, employees]);
+    
+    // 將假日記錄轉換為虛擬考勤記錄（只針對請假類型：病假、事假、颱風假）
+    const leaveTypes = ['sick_leave', 'personal_leave', 'typhoon_leave'];
+    const holidayAsAttendance = holidayData
+      .filter((h: any) => leaveTypes.includes(h.holidayType))
+      .filter((h: any) => {
+        // 檢查是否已有對應的考勤記錄
+        const hasExistingRecord = attData.some(
+          (a: any) => a.employeeId === h.employeeId && a.date === h.date
+        );
+        return !hasExistingRecord;
+      })
+      .map((h: any) => {
+        const employee = employees?.find((emp) => emp.id === h.employeeId);
+        const holidayTypeLabels: Record<string, string> = {
+          'sick_leave': '病假',
+          'personal_leave': '事假',
+          'typhoon_leave': '颱風假',
+          'national_holiday': '國定假日',
+          'worked': '假日出勤'
+        };
+        return {
+          id: -h.id, // 使用負數ID來區分虛擬記錄
+          employeeId: h.employeeId,
+          date: h.date,
+          clockIn: '--:--',
+          clockOut: '--:--',
+          isHoliday: true,
+          _employeeName: employee?.name || '未知員工',
+          _employeeDepartment: employee?.department || '',
+          _isLeaveRecord: true,
+          _holidayType: h.holidayType,
+          _holidayName: holidayTypeLabels[h.holidayType] || h.name || '假日'
+        };
+      });
+    
+    console.log('假日轉換為虛擬考勤記錄:', holidayAsAttendance.length, '筆');
+    
+    // 合併現有考勤記錄和假日記錄
+    return [...enhancedRecords, ...holidayAsAttendance];
+  }, [attendanceData, employees, holidays]);
   
   // Sort attendance data by date
   const sortedAttendanceData = useMemo(() => {
