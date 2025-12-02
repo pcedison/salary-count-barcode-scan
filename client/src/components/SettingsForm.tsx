@@ -10,12 +10,12 @@ interface SettingsFormProps {
   ot1Multiplier: number;
   ot2Multiplier: number;
   deductions: Array<{ name: string; amount: number; description: string }>;
-  holidays: Array<{ id: number; date: string; name: string; description?: string; employeeId?: number; holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' }>;
+  holidays: Array<{ id: number; date: string; name: string; description?: string; employeeId?: number; holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' }>;
   employees: Array<{ id: number; name: string; department: string }>;
   newHolidayDate: string;
   newHolidayDescription: string;
   selectedEmployeeId: number | null;
-  holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday';
+  holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
   supabaseUrl: string;
   supabaseAnonKey: string;
   connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
@@ -33,7 +33,7 @@ interface SettingsFormProps {
   onNewHolidayDateChange: (value: string) => void;
   onNewHolidayDescriptionChange: (value: string) => void;
   onSelectedEmployeeChange: (employeeId: number | null) => void;
-  onHolidayTypeChange: (value: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday') => void;
+  onHolidayTypeChange: (value: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave') => void;
   onAddHoliday: () => void;
   onDeleteHoliday: (id: number) => void;
   onSupabaseUrlChange: (value: string) => void;

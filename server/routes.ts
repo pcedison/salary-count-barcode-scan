@@ -461,9 +461,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         // 準備薪資計算所需的參數
-        // 過濾掉現有的病假/事假扣款項目，避免重複計算
+        // 過濾掉現有的病假/事假/颱風假扣款項目，避免重複計算
         const existingDeductions = (mergedData.deductions || []).filter(d => 
-          !d.name.includes('病假扣款') && !d.name.includes('事假扣款')
+          !d.name.includes('病假扣款') && !d.name.includes('事假扣款') && !d.name.includes('颱風假扣款')
         );
         // 將新計算的病假和事假扣款加入到扣款明細陣列中
         const allDeductions = [
@@ -497,8 +497,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
         
         // 記錄假日扣款資訊
-        if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0) {
-          console.log(`員工 ${mergedData.employeeId} ${mergedData.salaryYear}年${mergedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元)`);
+        if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0 || holidayAdjustments.typhoonLeaveDays > 0) {
+          console.log(`員工 ${mergedData.employeeId} ${mergedData.salaryYear}年${mergedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元) 颱風假${holidayAdjustments.typhoonLeaveDays}天(${holidayAdjustments.typhoonLeaveDeduction}元)`);
         }
         
         // 更新最終計算結果

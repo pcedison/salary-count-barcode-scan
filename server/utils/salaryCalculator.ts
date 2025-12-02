@@ -298,8 +298,10 @@ export function calculateHolidayPayAdjustments(
 ): { 
   sickLeaveDeduction: number; 
   personalLeaveDeduction: number; 
+  typhoonLeaveDeduction: number;
   sickLeaveDays: number;
   personalLeaveDays: number;
+  typhoonLeaveDays: number;
   deductionItems: Array<{ name: string; amount: number }>;
 } {
   // 計算日薪（依照台灣勞基法：月薪 / 30）
@@ -308,12 +310,15 @@ export function calculateHolidayPayAdjustments(
   // 統計不同類型的假日
   const sickLeaveDays = holidays.filter(h => h.holidayType === 'sick_leave').length;
   const personalLeaveDays = holidays.filter(h => h.holidayType === 'personal_leave').length;
+  const typhoonLeaveDays = holidays.filter(h => h.holidayType === 'typhoon_leave').length;
   
   // 計算扣款（依照台灣勞基法）
   // 病假：給付50%薪資，因此扣除50%
   const sickLeaveDeduction = Math.round(sickLeaveDays * dailyWage * 0.5);
   // 事假：不給薪，扣除100%
   const personalLeaveDeduction = Math.round(personalLeaveDays * dailyWage);
+  // 颱風假：無給薪，扣除100%（與事假相同）
+  const typhoonLeaveDeduction = Math.round(typhoonLeaveDays * dailyWage);
   
   // 建立扣款明細項目
   const deductionItems: Array<{ name: string; amount: number }> = [];
@@ -329,12 +334,20 @@ export function calculateHolidayPayAdjustments(
       amount: personalLeaveDeduction
     });
   }
+  if (typhoonLeaveDays > 0) {
+    deductionItems.push({
+      name: `颱風假扣款 (${typhoonLeaveDays}天)`,
+      amount: typhoonLeaveDeduction
+    });
+  }
   
   return {
     sickLeaveDeduction,
     personalLeaveDeduction,
+    typhoonLeaveDeduction,
     sickLeaveDays,
     personalLeaveDays,
+    typhoonLeaveDays,
     deductionItems
   };
 }
