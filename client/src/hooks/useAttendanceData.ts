@@ -125,12 +125,10 @@ export function useAttendanceData() {
       'worked': '假日出勤'
     };
     
-    // 無打卡類型：國定假日、颱風假（整天不上班）
+    // 無打卡類型：只有國定假日、颱風假是整天不上班（不可編輯時間）
+    // 病假、事假需要保留編輯功能（員工可能只請幾小時或半天）
+    // 假日出勤也需要保留編輯功能（與一般工作日相同）
     const noClockTypes = ['national_holiday', 'typhoon_leave'];
-    // 請假類型：病假、事假（需要扣薪但也是不上班）
-    const leaveTypes = ['sick_leave', 'personal_leave'];
-    // 所有不需要顯示打卡時間的類型
-    const allNoClockTypes = [...noClockTypes, ...leaveTypes];
     
     // 建立假日記錄的快速查找表（以 employeeId + date 為 key）
     const holidayMap = new Map<string, any>();
@@ -167,7 +165,7 @@ export function useAttendanceData() {
         processedHolidayKeys.add(holidayKey);
         
         // 合併假日類型信息到考勤記錄
-        const isNoClockType = allNoClockTypes.includes(matchingHoliday.holidayType);
+        const isNoClockType = noClockTypes.includes(matchingHoliday.holidayType);
         enhanced._isLeaveRecord = true;
         enhanced._isNoClockType = isNoClockType;
         enhanced._holidayType = matchingHoliday.holidayType;
@@ -194,7 +192,7 @@ export function useAttendanceData() {
       })
       .map((h: any) => {
         const employee = employees?.find((emp) => emp.id === h.employeeId);
-        const isNoClockType = allNoClockTypes.includes(h.holidayType);
+        const isNoClockType = noClockTypes.includes(h.holidayType);
         
         return {
           id: -h.id, // 使用負數ID來區分虛擬記錄
