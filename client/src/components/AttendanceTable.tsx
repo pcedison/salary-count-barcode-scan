@@ -161,13 +161,26 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
               const isEditing = editingId === record.id;
               
               // 計算實際工作小時（用於病假、事假、假日出勤）
+              // 使用與一般上班日相同的邏輯：早於 8:00 上班從 8:00 開始計算
               const calculateActualWorkHours = (clockIn: string, clockOut: string): number => {
                 if (!clockIn || !clockOut || clockIn === '待補' || clockOut === '待補') return 0;
                 const [inH, inM] = clockIn.split(':').map(Number);
                 const [outH, outM] = clockOut.split(':').map(Number);
-                const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
-                // 四捨五入到小數點後一位
-                return Math.round(totalMinutes / 60 * 10) / 10;
+                
+                // 計算上班時間（分鐘）
+                let inMinutes = inH * 60 + inM;
+                const WORK_START = 8 * 60; // 8:00 = 480 分鐘
+                
+                // 早到處理：如果早於 8:00 上班，從 8:00 開始計算
+                if (inMinutes < WORK_START) {
+                  inMinutes = WORK_START;
+                }
+                
+                const outMinutes = outH * 60 + outM;
+                const totalMinutes = outMinutes - inMinutes;
+                
+                // 四捨五入到整數位
+                return Math.round(totalMinutes / 60);
               };
               
               const actualWorkHours = isFlexibleHolidayType ? calculateActualWorkHours(record.clockIn, record.clockOut) : 0;
