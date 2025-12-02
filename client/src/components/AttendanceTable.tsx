@@ -152,8 +152,25 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
             data.map((record, index) => {
               const isHolidayRecord = record._isLeaveRecord === true;
               const isNoClockType = record._isNoClockType === true;
+              const holidayType = record._holidayType;
+              
+              // 需要單獨計算工作小時的假日類型：病假、事假、假日出勤
+              const isFlexibleHolidayType = ['sick_leave', 'personal_leave', 'worked'].includes(holidayType || '');
+              
               const { ot1, ot2, total } = isNoClockType ? { ot1: 0, ot2: 0, total: 0 } : calculateOvertime(record.clockIn, record.clockOut);
               const isEditing = editingId === record.id;
+              
+              // 計算實際工作小時（用於病假、事假、假日出勤）
+              const calculateActualWorkHours = (clockIn: string, clockOut: string): number => {
+                if (!clockIn || !clockOut || clockIn === '待補' || clockOut === '待補') return 0;
+                const [inH, inM] = clockIn.split(':').map(Number);
+                const [outH, outM] = clockOut.split(':').map(Number);
+                const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+                // 四捨五入到小數點後一位
+                return Math.round(totalMinutes / 60 * 10) / 10;
+              };
+              
+              const actualWorkHours = isFlexibleHolidayType ? calculateActualWorkHours(record.clockIn, record.clockOut) : 0;
               
               // 假日類型的樣式
               const getHolidayTypeStyle = (holidayType?: string) => {
@@ -248,7 +265,13 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
-                    {isNoClockType ? <span className="text-gray-400">0</span> : 8}
+                    {isNoClockType ? (
+                      <span className="text-gray-400">0</span>
+                    ) : isFlexibleHolidayType ? (
+                      actualWorkHours
+                    ) : (
+                      8
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
                     {isNoClockType ? <span className="text-gray-400">0.0</span> : (ot1 + ot2).toFixed(1)}
