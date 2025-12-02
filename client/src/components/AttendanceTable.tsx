@@ -17,7 +17,8 @@ interface AttendanceTableProps {
     isBarcodeScanned?: boolean;
     _employeeName?: string; // 臨時存儲員工名稱
     _employeeDepartment?: string; // 臨時存儲員工部門
-    _isLeaveRecord?: boolean; // 是否為請假記錄（來自 holidays 資料表）
+    _isLeaveRecord?: boolean; // 是否為假日記錄（來自 holidays 資料表）
+    _isNoClockType?: boolean; // 是否為無打卡類型（國定假日、病假、事假、颱風假）
     _holidayType?: string; // 假日類型
     _holidayName?: string; // 假日名稱標籤
   }>;
@@ -127,26 +128,31 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
             </tr>
           ) : (
             data.map((record, index) => {
-              const isLeaveRecord = record._isLeaveRecord === true;
-              const { ot1, ot2, total } = isLeaveRecord ? { ot1: 0, ot2: 0, total: 0 } : calculateOvertime(record.clockIn, record.clockOut);
+              const isHolidayRecord = record._isLeaveRecord === true;
+              const isNoClockType = record._isNoClockType === true;
+              const { ot1, ot2, total } = isNoClockType ? { ot1: 0, ot2: 0, total: 0 } : calculateOvertime(record.clockIn, record.clockOut);
               const isEditing = editingId === record.id;
               
-              // 請假類型的樣式
-              const getLeaveTypeStyle = (holidayType?: string) => {
+              // 假日類型的樣式
+              const getHolidayTypeStyle = (holidayType?: string) => {
                 switch (holidayType) {
+                  case 'national_holiday':
+                    return 'bg-green-100 text-green-800';
                   case 'sick_leave':
                     return 'bg-yellow-100 text-yellow-800';
                   case 'personal_leave':
                     return 'bg-orange-100 text-orange-800';
                   case 'typhoon_leave':
                     return 'bg-purple-100 text-purple-800';
+                  case 'worked':
+                    return 'bg-blue-100 text-blue-800';
                   default:
                     return 'bg-red-100 text-red-800';
                 }
               };
               
-              // 請假記錄使用特殊的背景色
-              const rowClassName = isLeaveRecord 
+              // 假日記錄使用特殊的背景色
+              const rowClassName = isHolidayRecord 
                 ? 'bg-gray-100 opacity-90' 
                 : (index % 2 === 1 ? 'bg-gray-50' : '');
               
@@ -178,12 +184,12 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     ) : (
                       <div className="flex items-center gap-2">
                         {record.date}
-                        {isLeaveRecord && record._holidayName && (
-                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${getLeaveTypeStyle(record._holidayType)}`}>
+                        {isHolidayRecord && record._holidayName && (
+                          <span className={`px-2 py-1 text-xs rounded-full font-medium ${getHolidayTypeStyle(record._holidayType)}`}>
                             {record._holidayName}
                           </span>
                         )}
-                        {!isLeaveRecord && record.isHoliday && (
+                        {!isHolidayRecord && record.isHoliday && (
                           <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
                             假日
                           </span>
@@ -192,7 +198,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap font-['Roboto_Mono']">
-                    {isLeaveRecord ? (
+                    {isNoClockType ? (
                       <span className="text-gray-400">--:--</span>
                     ) : isEditing ? (
                       <DateTimePicker
@@ -206,7 +212,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap font-['Roboto_Mono']">
-                    {isLeaveRecord ? (
+                    {isNoClockType ? (
                       <span className="text-gray-400">--:--</span>
                     ) : isEditing ? (
                       <DateTimePicker
@@ -220,14 +226,14 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
-                    {isLeaveRecord ? <span className="text-gray-400">0</span> : 8.0}
+                    {isNoClockType ? <span className="text-gray-400">0</span> : 8.0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
-                    {isLeaveRecord ? <span className="text-gray-400">0.0</span> : (ot1 + ot2).toFixed(1)}
+                    {isNoClockType ? <span className="text-gray-400">0.0</span> : (ot1 + ot2).toFixed(1)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {isLeaveRecord ? (
-                      <span className="text-gray-400 text-xs">請假記錄</span>
+                    {isHolidayRecord ? (
+                      <span className="text-gray-400 text-xs">假日記錄</span>
                     ) : isEditing ? (
                       <>
                         <Button

@@ -134,36 +134,45 @@ export function useAttendanceData() {
       return record;
     });
     
-    // 將假日記錄轉換為虛擬考勤記錄（只針對請假類型：病假、事假、颱風假）
-    const leaveTypes = ['sick_leave', 'personal_leave', 'typhoon_leave'];
+    // 將假日記錄轉換為虛擬考勤記錄（所有五種假日類型都要顯示）
+    // 無打卡記錄的假日類型：國定假日、病假、事假、颱風假
+    // 有打卡記錄的假日類型：假日出勤（會有實際考勤記錄）
+    const noClockTypes = ['national_holiday', 'sick_leave', 'personal_leave', 'typhoon_leave'];
+    
     const holidayAsAttendance = holidayData
-      .filter((h: any) => leaveTypes.includes(h.holidayType))
       .filter((h: any) => {
         // 檢查是否已有對應的考勤記錄
         const hasExistingRecord = attData.some(
           (a: any) => a.employeeId === h.employeeId && a.date === h.date
         );
+        // 無打卡類型的假日：沒有考勤記錄時顯示為虛擬記錄
+        // 假日出勤：應該有實際考勤記錄，如果沒有也顯示為虛擬記錄
         return !hasExistingRecord;
       })
       .map((h: any) => {
         const employee = employees?.find((emp) => emp.id === h.employeeId);
         const holidayTypeLabels: Record<string, string> = {
+          'national_holiday': '國定假日',
           'sick_leave': '病假',
           'personal_leave': '事假',
           'typhoon_leave': '颱風假',
-          'national_holiday': '國定假日',
           'worked': '假日出勤'
         };
+        
+        // 判斷是否為請假類型（無打卡記錄）
+        const isLeaveType = noClockTypes.includes(h.holidayType);
+        
         return {
           id: -h.id, // 使用負數ID來區分虛擬記錄
           employeeId: h.employeeId,
           date: h.date,
-          clockIn: '--:--',
-          clockOut: '--:--',
+          clockIn: isLeaveType ? '--:--' : '待補',
+          clockOut: isLeaveType ? '--:--' : '待補',
           isHoliday: true,
           _employeeName: employee?.name || '未知員工',
           _employeeDepartment: employee?.department || '',
-          _isLeaveRecord: true,
+          _isLeaveRecord: true,  // 標記為假日記錄
+          _isNoClockType: isLeaveType, // 標記是否為無打卡類型
           _holidayType: h.holidayType,
           _holidayName: holidayTypeLabels[h.holidayType] || h.name || '假日'
         };
