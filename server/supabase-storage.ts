@@ -258,6 +258,27 @@ export class SupabaseStorage {
       return false;
     }
   }
+
+  async deleteTemporaryAttendanceByHolidayId(holidayId: number): Promise<boolean> {
+    try {
+      await db
+        .delete(temporaryAttendance)
+        .where(eq(temporaryAttendance.holidayId, holidayId));
+      return true;
+    } catch (error) {
+      console.error('Error deleting attendance by holiday ID:', error);
+      return false;
+    }
+  }
+
+  async getAttendanceByHolidayId(holidayId: number): Promise<Holiday | undefined> {
+    const result = await db
+      .select()
+      .from(temporaryAttendance)
+      .where(eq(temporaryAttendance.holidayId, holidayId))
+      .limit(1);
+    return result[0];
+  }
 }
 
 // Export the storage instance

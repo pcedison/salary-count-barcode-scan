@@ -47,6 +47,8 @@ export const temporaryAttendance = pgTable("temporary_attendance", {
   clockOut: text("clock_out").default(''), // 允許下班時間為空，方便分開記錄上下班
   isHoliday: boolean("is_holiday").default(false),
   isBarcodeScanned: boolean("is_barcode_scanned").default(false), // 標記是否通過條碼掃描錄入
+  holidayId: integer("holiday_id"), // 關聯到假日設定的ID（如果此記錄來自假日設定）
+  holidayType: text("holiday_type"), // 假日類型：worked, sick_leave, personal_leave, national_holiday, typhoon_leave
   createdAt: timestamp("created_at").defaultNow(),
 });
 

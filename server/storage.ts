@@ -72,6 +72,8 @@ export interface IStorage {
   deleteHoliday(id: number): Promise<boolean>;
   deleteAllHolidays(): Promise<boolean>;
   deleteTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<boolean>;
+  deleteTemporaryAttendanceByHolidayId(holidayId: number): Promise<boolean>;
+  getAttendanceByHolidayId(holidayId: number): Promise<TemporaryAttendance | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -550,6 +552,26 @@ export class DatabaseStorage implements IStorage {
       console.error('Error deleting attendance by employee and date:', error);
       return false;
     }
+  }
+
+  async deleteTemporaryAttendanceByHolidayId(holidayId: number): Promise<boolean> {
+    try {
+      await db
+        .delete(temporaryAttendance)
+        .where(eq(temporaryAttendance.holidayId, holidayId));
+      return true;
+    } catch (error) {
+      console.error('Error deleting attendance by holiday ID:', error);
+      return false;
+    }
+  }
+
+  async getAttendanceByHolidayId(holidayId: number): Promise<TemporaryAttendance | undefined> {
+    const [record] = await db
+      .select()
+      .from(temporaryAttendance)
+      .where(eq(temporaryAttendance.holidayId, holidayId));
+    return record;
   }
 }
 
