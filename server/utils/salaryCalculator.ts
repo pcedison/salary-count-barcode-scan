@@ -299,10 +299,13 @@ export function calculateHolidayPayAdjustments(
   sickLeaveDeduction: number; 
   personalLeaveDeduction: number; 
   typhoonLeaveDeduction: number;
+  workedHolidayPay: number;
   sickLeaveDays: number;
   personalLeaveDays: number;
   typhoonLeaveDays: number;
+  workedHolidayDays: number;
   deductionItems: Array<{ name: string; amount: number }>;
+  bonusItems: Array<{ name: string; amount: number }>;
 } {
   // 計算日薪（依照台灣勞基法：月薪 / 30）
   const dailyWage = baseMonthlySalary / daysPerMonth;
@@ -311,6 +314,7 @@ export function calculateHolidayPayAdjustments(
   const sickLeaveDays = holidays.filter(h => h.holidayType === 'sick_leave').length;
   const personalLeaveDays = holidays.filter(h => h.holidayType === 'personal_leave').length;
   const typhoonLeaveDays = holidays.filter(h => h.holidayType === 'typhoon_leave').length;
+  const workedHolidayDays = holidays.filter(h => h.holidayType === 'worked').length;
   
   // 計算扣款（依照台灣勞基法）
   // 病假：給付50%薪資，因此扣除50%
@@ -319,6 +323,9 @@ export function calculateHolidayPayAdjustments(
   const personalLeaveDeduction = Math.round(personalLeaveDays * dailyWage);
   // 颱風假：無給薪，扣除100%（與事假相同）
   const typhoonLeaveDeduction = Math.round(typhoonLeaveDays * dailyWage);
+  
+  // 計算假日出勤加發（加發1倍日薪）
+  const workedHolidayPay = Math.round(workedHolidayDays * dailyWage);
   
   // 建立扣款明細項目
   const deductionItems: Array<{ name: string; amount: number }> = [];
@@ -341,14 +348,26 @@ export function calculateHolidayPayAdjustments(
     });
   }
   
+  // 建立加給明細項目
+  const bonusItems: Array<{ name: string; amount: number }> = [];
+  if (workedHolidayDays > 0) {
+    bonusItems.push({
+      name: `假日出勤加給 (${workedHolidayDays}天)`,
+      amount: workedHolidayPay
+    });
+  }
+  
   return {
     sickLeaveDeduction,
     personalLeaveDeduction,
     typhoonLeaveDeduction,
+    workedHolidayPay,
     sickLeaveDays,
     personalLeaveDays,
     typhoonLeaveDays,
-    deductionItems
+    workedHolidayDays,
+    deductionItems,
+    bonusItems
   };
 }
 

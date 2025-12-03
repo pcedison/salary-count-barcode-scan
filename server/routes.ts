@@ -336,7 +336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return year === validatedData.salaryYear && month === validatedData.salaryMonth;
       });
       
-      // 計算病假和事假扣款
+      // 計算病假和事假扣款，以及假日出勤加給
       const holidayAdjustments = calculateHolidayPayAdjustments(
         relevantHolidays,
         validatedData.baseSalary
@@ -350,6 +350,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
       const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
       
+      // 計算假日出勤加給（加發1倍日薪）
+      const workedHolidayPay = holidayAdjustments.workedHolidayPay || 0;
+      
       // 執行標準化薪資計算
       const calculationSettings = {
         baseHourlyRate: settings.baseHourlyRate,
@@ -359,6 +362,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         welfareAllowance: settings.welfareAllowance
       };
       
+      // totalHolidayPay 包含假日出勤加給
+      const totalHolidayPay = (validatedData.totalHolidayPay || 0) + workedHolidayPay;
+      
       const salaryResult = calculateSalary(
         validatedData.salaryYear,
         validatedData.salaryMonth,
@@ -366,14 +372,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validatedData.baseSalary,
         totalDeductions,
         calculationSettings,
-        validatedData.totalHolidayPay || 0,
+        totalHolidayPay,
         validatedData.welfareAllowance,
         validatedData.housingAllowance || 0
       );
       
-      // 記錄假日扣款資訊
-      if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0) {
-        console.log(`員工 ${validatedData.employeeId} ${validatedData.salaryYear}年${validatedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元)`);
+      // 記錄假日扣款和加給資訊
+      if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0 || holidayAdjustments.workedHolidayDays > 0) {
+        console.log(`員工 ${validatedData.employeeId} ${validatedData.salaryYear}年${validatedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元) 假日出勤加給${holidayAdjustments.workedHolidayDays}天(${holidayAdjustments.workedHolidayPay}元)`);
       }
       
       // 將計算結果合併到資料中，確保一致性
@@ -454,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return year === mergedData.salaryYear && month === mergedData.salaryMonth;
         });
         
-        // 計算病假和事假扣款
+        // 計算病假和事假扣款，以及假日出勤加給
         const holidayAdjustments = calculateHolidayPayAdjustments(
           relevantHolidays,
           mergedData.baseSalary
@@ -472,6 +478,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ];
         const totalDeductions = allDeductions.reduce((sum, d) => sum + d.amount, 0);
         
+        // 計算假日出勤加給（加發1倍日薪）
+        const workedHolidayPay = holidayAdjustments.workedHolidayPay || 0;
+        
         // 執行標準化薪資計算
         const calculationSettings = {
           baseHourlyRate: settings.baseHourlyRate,
@@ -480,6 +489,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           baseMonthSalary: settings.baseMonthSalary,
           welfareAllowance: settings.welfareAllowance
         };
+        
+        // totalHolidayPay 包含假日出勤加給
+        const totalHolidayPay = (mergedData.totalHolidayPay || 0) + workedHolidayPay;
         
         const salaryResult = calculateSalary(
           mergedData.salaryYear,
@@ -491,14 +503,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           mergedData.baseSalary,
           totalDeductions,
           calculationSettings,
-          mergedData.totalHolidayPay || 0,
+          totalHolidayPay,
           mergedData.welfareAllowance,
           mergedData.housingAllowance || 0
         );
         
-        // 記錄假日扣款資訊
-        if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0 || holidayAdjustments.typhoonLeaveDays > 0) {
-          console.log(`員工 ${mergedData.employeeId} ${mergedData.salaryYear}年${mergedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元) 颱風假${holidayAdjustments.typhoonLeaveDays}天(${holidayAdjustments.typhoonLeaveDeduction}元)`);
+        // 記錄假日扣款和加給資訊
+        if (holidayAdjustments.sickLeaveDays > 0 || holidayAdjustments.personalLeaveDays > 0 || holidayAdjustments.typhoonLeaveDays > 0 || holidayAdjustments.workedHolidayDays > 0) {
+          console.log(`員工 ${mergedData.employeeId} ${mergedData.salaryYear}年${mergedData.salaryMonth}月 請假扣款: 病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) 事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元) 颱風假${holidayAdjustments.typhoonLeaveDays}天(${holidayAdjustments.typhoonLeaveDeduction}元) 假日出勤加給${holidayAdjustments.workedHolidayDays}天(${holidayAdjustments.workedHolidayPay}元)`);
         }
         
         // 更新最終計算結果
