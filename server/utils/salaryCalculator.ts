@@ -286,14 +286,23 @@ export function convertAttendanceToDaily(attendanceRecords: any[]): DailyOvertim
 
 /**
  * 計算假日類型對薪資的影響（依照台灣勞基法規定）
- * @param holidays - 假日記錄數組
+ * 支援整天假和半天假的計算
+ * @param attendanceRecords - 考勤記錄數組（包含 holidayType 和打卡時間）
  * @param baseMonthlySalary - 基本月薪
+ * @param standardWorkHours - 標準工作時數（默認為8小時）
  * @param daysPerMonth - 每月計算天數（默認為30天，符合台灣勞基法）
  * @returns 假日薪資調整對象，包含扣款和加班費
  */
 export function calculateHolidayPayAdjustments(
-  holidays: Array<{ date: string; holidayType: string; employeeId?: number }>,
+  attendanceRecords: Array<{ 
+    date: string; 
+    holidayType?: string | null; 
+    clockIn?: string; 
+    clockOut?: string;
+    employeeId?: number 
+  }>,
   baseMonthlySalary: number,
+  standardWorkHours: number = 8,
   daysPerMonth: number = 30
 ): { 
   sickLeaveDeduction: number; 
@@ -304,57 +313,114 @@ export function calculateHolidayPayAdjustments(
   personalLeaveDays: number;
   typhoonLeaveDays: number;
   workedHolidayDays: number;
-  deductionItems: Array<{ name: string; amount: number }>;
-  bonusItems: Array<{ name: string; amount: number }>;
+  deductionItems: Array<{ name: string; amount: number; description?: string }>;
+  bonusItems: Array<{ name: string; amount: number; description?: string }>;
 } {
-  // 計算日薪（依照台灣勞基法：月薪 / 30）
+  // 計算日薪和時薪（依照台灣勞基法：月薪 / 30）
   const dailyWage = baseMonthlySalary / daysPerMonth;
+  const hourlyWage = dailyWage / standardWorkHours;
   
-  // 統計不同類型的假日
-  const sickLeaveDays = holidays.filter(h => h.holidayType === 'sick_leave').length;
-  const personalLeaveDays = holidays.filter(h => h.holidayType === 'personal_leave').length;
-  const typhoonLeaveDays = holidays.filter(h => h.holidayType === 'typhoon_leave').length;
-  const workedHolidayDays = holidays.filter(h => h.holidayType === 'worked').length;
+  // 計算實際工作時數的輔助函數
+  const calculateActualWorkHours = (clockIn: string, clockOut: string): number => {
+    if (!clockIn || !clockOut || clockIn === '--:--' || clockOut === '--:--') return 0;
+    
+    const [inH, inM] = clockIn.split(':').map(Number);
+    const [outH, outM] = clockOut.split(':').map(Number);
+    
+    let inMinutes = inH * 60 + inM;
+    const WORK_START = 8 * 60; // 8:00 = 480 分鐘
+    
+    // 早到處理：如果早於 8:00 上班，從 8:00 開始計算
+    if (inMinutes < WORK_START) {
+      inMinutes = WORK_START;
+    }
+    
+    const outMinutes = outH * 60 + outM;
+    const totalMinutes = outMinutes - inMinutes;
+    
+    // 返回實際工作小時數（保留小數）
+    return Math.max(0, totalMinutes / 60);
+  };
   
-  // 計算扣款（依照台灣勞基法）
-  // 病假：給付50%薪資，因此扣除50%
-  const sickLeaveDeduction = Math.round(sickLeaveDays * dailyWage * 0.5);
-  // 事假：不給薪，扣除100%
-  const personalLeaveDeduction = Math.round(personalLeaveDays * dailyWage);
-  // 颱風假：無給薪，扣除100%（與事假相同）
-  const typhoonLeaveDeduction = Math.round(typhoonLeaveDays * dailyWage);
+  // 初始化計數器和扣款
+  let sickLeaveDeduction = 0;
+  let personalLeaveDeduction = 0;
+  let typhoonLeaveDeduction = 0;
+  let workedHolidayPay = 0;
+  let sickLeaveDays = 0;
+  let personalLeaveDays = 0;
+  let typhoonLeaveDays = 0;
+  let workedHolidayDays = 0;
   
-  // 計算假日出勤加發（加發1倍日薪）
-  const workedHolidayPay = Math.round(workedHolidayDays * dailyWage);
+  const deductionItems: Array<{ name: string; amount: number; description?: string }> = [];
+  const bonusItems: Array<{ name: string; amount: number; description?: string }> = [];
   
-  // 建立扣款明細項目
-  const deductionItems: Array<{ name: string; amount: number }> = [];
-  if (sickLeaveDays > 0) {
-    deductionItems.push({
-      name: `病假扣款 (${sickLeaveDays}天)`,
-      amount: sickLeaveDeduction
-    });
-  }
-  if (personalLeaveDays > 0) {
-    deductionItems.push({
-      name: `事假扣款 (${personalLeaveDays}天)`,
-      amount: personalLeaveDeduction
-    });
-  }
-  if (typhoonLeaveDays > 0) {
-    deductionItems.push({
-      name: `颱風假扣款 (${typhoonLeaveDays}天)`,
-      amount: typhoonLeaveDeduction
-    });
-  }
-  
-  // 建立加給明細項目
-  const bonusItems: Array<{ name: string; amount: number }> = [];
-  if (workedHolidayDays > 0) {
-    bonusItems.push({
-      name: `假日出勤加給 (${workedHolidayDays}天)`,
-      amount: workedHolidayPay
-    });
+  // 遍歷每筆考勤記錄
+  for (const record of attendanceRecords) {
+    if (!record.holidayType) continue;
+    
+    const actualHours = calculateActualWorkHours(record.clockIn || '', record.clockOut || '');
+    const missedHours = Math.max(0, standardWorkHours - actualHours);
+    const isFullDay = actualHours === 0 || record.clockIn === '--:--';
+    
+    switch (record.holidayType) {
+      case 'sick_leave':
+        sickLeaveDays += isFullDay ? 1 : (missedHours / standardWorkHours);
+        // 病假：扣除未工作時數的 50% 薪資
+        const sickDeduction = isFullDay 
+          ? Math.round(dailyWage * 0.5)
+          : Math.round(missedHours * hourlyWage * 0.5);
+        sickLeaveDeduction += sickDeduction;
+        
+        if (sickDeduction > 0) {
+          deductionItems.push({
+            name: isFullDay ? `病假扣款 (${record.date})` : `病假扣款 (${record.date}, ${missedHours.toFixed(1)}小時)`,
+            amount: sickDeduction,
+            description: isFullDay ? '整天病假，扣除日薪50%' : `缺勤${missedHours.toFixed(1)}小時，扣除時薪50%`
+          });
+        }
+        break;
+        
+      case 'personal_leave':
+        personalLeaveDays += isFullDay ? 1 : (missedHours / standardWorkHours);
+        // 事假：扣除未工作時數的 100% 薪資
+        const personalDeduction = isFullDay 
+          ? Math.round(dailyWage)
+          : Math.round(missedHours * hourlyWage);
+        personalLeaveDeduction += personalDeduction;
+        
+        if (personalDeduction > 0) {
+          deductionItems.push({
+            name: isFullDay ? `事假扣款 (${record.date})` : `事假扣款 (${record.date}, ${missedHours.toFixed(1)}小時)`,
+            amount: personalDeduction,
+            description: isFullDay ? '整天事假，扣除日薪100%' : `缺勤${missedHours.toFixed(1)}小時，扣除時薪100%`
+          });
+        }
+        break;
+        
+      case 'typhoon_leave':
+        typhoonLeaveDays += 1;
+        // 颱風假：整天不扣薪（依照台灣勞基法，颱風假為有薪假）
+        // 注意：如果公司政策是無薪，則需要調整這裡的邏輯
+        break;
+        
+      case 'national_holiday':
+        // 國定假日：不扣薪，已包含在基本薪資中
+        break;
+        
+      case 'worked':
+        workedHolidayDays += 1;
+        // 假日出勤：加發日薪（已包含在加班費計算中，這裡只做記錄）
+        const holidayBonus = Math.round(dailyWage);
+        workedHolidayPay += holidayBonus;
+        
+        bonusItems.push({
+          name: `假日出勤加給 (${record.date})`,
+          amount: holidayBonus,
+          description: '假日出勤，加發日薪'
+        });
+        break;
+    }
   }
   
   return {

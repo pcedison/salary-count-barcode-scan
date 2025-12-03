@@ -3,6 +3,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useAttendanceData } from '@/hooks/useAttendanceData';
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { calculateOvertime } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
@@ -34,6 +41,14 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
   const [editDate, setEditDate] = useState<string>('');
   const [editClockIn, setEditClockIn] = useState<string>('');
   const [editClockOut, setEditClockOut] = useState<string>('');
+  const [updatingHolidayType, setUpdatingHolidayType] = useState<number | null>(null);
+  
+  const holidayTypeOptions = [
+    { value: 'none', label: '正常出勤', color: 'bg-gray-100 text-gray-800' },
+    { value: 'sick_leave', label: '病假', color: 'bg-yellow-100 text-yellow-800' },
+    { value: 'personal_leave', label: '事假', color: 'bg-orange-100 text-orange-800' },
+    { value: 'worked', label: '假日出勤', color: 'bg-blue-100 text-blue-800' },
+  ];
   
   // Start editing an attendance record
   const handleEdit = (record: any) => {
@@ -79,6 +94,34 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
     setEditingId(null);
   };
   
+  // Handle holiday type change
+  const handleHolidayTypeChange = async (recordId: number, newType: string) => {
+    setUpdatingHolidayType(recordId);
+    try {
+      const updateData: any = {
+        holidayType: newType === 'none' ? null : newType,
+        isHoliday: newType !== 'none'
+      };
+      
+      await updateAttendance(recordId, updateData);
+      
+      const typeLabel = holidayTypeOptions.find(opt => opt.value === newType)?.label || '正常出勤';
+      toast({
+        title: "已更新",
+        description: `考勤記錄已標記為「${typeLabel}」`,
+      });
+    } catch (error) {
+      console.error('Failed to update holiday type:', error);
+      toast({
+        title: "更新失敗",
+        description: "無法更新假日類型，請稍後再試。",
+        variant: "destructive"
+      });
+    } finally {
+      setUpdatingHolidayType(null);
+    }
+  };
+  
   // Delete record
   const handleDelete = async (id: number) => {
     if (confirm('確定要刪除此考勤記錄嗎？')) {
@@ -121,13 +164,14 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">下班時間</th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">工作小時</th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">加班時數</th>
+            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">假日類型</th>
             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-6 py-10 text-center text-gray-500">
+              <td colSpan={9} className="px-6 py-10 text-center text-gray-500">
                 尚無考勤記錄。請使用上方表單新增或使用條碼掃描功能。
               </td>
             </tr>
@@ -271,6 +315,39 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center font-['Roboto_Mono']">
                     {isNoClockType ? <span className="text-gray-400">0.0</span> : (ot1 + ot2).toFixed(1)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {isNoClockType ? (
+                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${getHolidayTypeStyle(holidayType)}`}>
+                        {record._holidayName || '假日'}
+                      </span>
+                    ) : (
+                      <Select
+                        value={holidayType || 'none'}
+                        onValueChange={(value) => handleHolidayTypeChange(record.id, value)}
+                        disabled={updatingHolidayType === record.id}
+                      >
+                        <SelectTrigger 
+                          className="h-8 w-28 text-xs"
+                          data-testid={`select-holiday-type-${record.id}`}
+                        >
+                          {updatingHolidayType === record.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <SelectValue placeholder="選擇類型" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {holidayTypeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <span className={`px-1.5 py-0.5 rounded text-xs ${option.color}`}>
+                                {option.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {isNoClockType ? (

@@ -324,21 +324,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const salaryCalculator = await import('./utils/salaryCalculator');
       const { calculateSalary, calculateHolidayPayAdjustments } = salaryCalculator;
       
-      // 獲取該月份的假日記錄用於計算病假/事假扣款
-      const allHolidays = await storage.getAllHolidays();
-      const relevantHolidays = allHolidays.filter(h => {
-        if (!h.date || h.employeeId !== validatedData.employeeId) return false;
+      // 獲取該月份的考勤記錄用於計算病假/事假扣款（包含直接標記在考勤記錄上的假日類型）
+      const allAttendance = await storage.getAllTemporaryAttendance();
+      const relevantAttendance = allAttendance.filter(a => {
+        if (!a.date || a.employeeId !== validatedData.employeeId) return false;
         // 使用更可靠的日期解析方式處理 YYYY/MM/DD 和 YYYY-MM-DD 格式
-        const dateParts = h.date.split(/[/-]/);
+        const dateParts = a.date.split(/[/-]/);
         if (dateParts.length !== 3) return false;
         const year = parseInt(dateParts[0]);
         const month = parseInt(dateParts[1]);
         return year === validatedData.salaryYear && month === validatedData.salaryMonth;
       });
       
-      // 計算病假和事假扣款，以及假日出勤加給
+      // 計算病假和事假扣款，以及假日出勤加給（使用考勤記錄中的 holidayType）
       const holidayAdjustments = calculateHolidayPayAdjustments(
-        relevantHolidays,
+        relevantAttendance,
         validatedData.baseSalary
       );
       
@@ -448,21 +448,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...updateData
         };
         
-        // 獲取該月份的假日記錄用於計算病假/事假扣款
-        const allHolidays = await storage.getAllHolidays();
-        const relevantHolidays = allHolidays.filter(h => {
-          if (!h.date || h.employeeId !== mergedData.employeeId) return false;
+        // 獲取該月份的考勤記錄用於計算病假/事假扣款（包含直接標記在考勤記錄上的假日類型）
+        const allAttendance = await storage.getAllTemporaryAttendance();
+        const relevantAttendance = allAttendance.filter(a => {
+          if (!a.date || a.employeeId !== mergedData.employeeId) return false;
           // 使用更可靠的日期解析方式處理 YYYY/MM/DD 和 YYYY-MM-DD 格式
-          const dateParts = h.date.split(/[/-]/);
+          const dateParts = a.date.split(/[/-]/);
           if (dateParts.length !== 3) return false;
           const year = parseInt(dateParts[0]);
           const month = parseInt(dateParts[1]);
           return year === mergedData.salaryYear && month === mergedData.salaryMonth;
         });
         
-        // 計算病假和事假扣款，以及假日出勤加給
+        // 計算病假和事假扣款，以及假日出勤加給（使用考勤記錄中的 holidayType）
         const holidayAdjustments = calculateHolidayPayAdjustments(
-          relevantHolidays,
+          relevantAttendance,
           mergedData.baseSalary
         );
         
