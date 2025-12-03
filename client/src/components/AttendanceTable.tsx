@@ -40,9 +40,9 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
     setEditingId(record.id);
     setEditingRecord(record);
     setEditDate(record.date);
-    // 對於虛擬記錄，初始化為空字串以便用戶輸入
-    setEditClockIn(record.clockIn === '待補' ? '' : record.clockIn);
-    setEditClockOut(record.clockOut === '待補' ? '' : record.clockOut);
+    // 初始化編輯欄位，處理 --:-- 特殊值
+    setEditClockIn(record.clockIn === '--:--' ? '' : record.clockIn);
+    setEditClockOut(record.clockOut === '--:--' ? '' : record.clockOut);
   };
   
   // Save edited record
@@ -50,34 +50,17 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
     if (!editingId || !editingRecord) return;
     
     try {
-      // 檢查是否為虛擬記錄（負數 ID 表示來自 holidays 表的虛擬記錄）
-      if (editingId < 0) {
-        // 虛擬記錄需要創建新的考勤記錄
-        await addAttendance({
-          employeeId: editingRecord.employeeId,
-          date: editDate,
-          clockIn: editClockIn || '08:00',
-          clockOut: editClockOut || '17:00',
-          isHoliday: editingRecord.isHoliday || false
-        });
-        
-        toast({
-          title: "已新增",
-          description: "考勤記錄已成功新增。",
-        });
-      } else {
-        // 正常記錄使用更新
-        await updateAttendance(editingId, {
-          date: editDate,
-          clockIn: editClockIn,
-          clockOut: editClockOut
-        });
-        
-        toast({
-          title: "已更新",
-          description: "考勤記錄已成功更新。",
-        });
-      }
+      // 所有記錄都是真實記錄，使用更新
+      await updateAttendance(editingId, {
+        date: editDate,
+        clockIn: editClockIn || '08:00',
+        clockOut: editClockOut || '17:00'
+      });
+      
+      toast({
+        title: "已更新",
+        description: "考勤記錄已成功更新。",
+      });
       
       setEditingId(null);
       setEditingRecord(null);
