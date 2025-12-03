@@ -209,6 +209,11 @@ export class SupabaseStorage {
     return await db.select().from(holidays).orderBy(desc(holidays.date));
   }
 
+  async getHolidayById(id: number): Promise<Holiday | undefined> {
+    const result = await db.select().from(holidays).where(eq(holidays.id, id)).limit(1);
+    return result[0];
+  }
+
   async createHoliday(holiday: InsertHoliday): Promise<Holiday> {
     const result = await db.insert(holidays).values(holiday).returning();
     return result[0];
@@ -225,6 +230,33 @@ export class SupabaseStorage {
   async deleteHoliday(id: number): Promise<boolean> {
     const result = await db.delete(holidays).where(eq(holidays.id, id)).returning();
     return result.length > 0;
+  }
+
+  async deleteAllHolidays(): Promise<boolean> {
+    try {
+      await db.delete(holidays);
+      return true;
+    } catch (error) {
+      console.error('Error deleting all holidays:', error);
+      return false;
+    }
+  }
+
+  async deleteTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<boolean> {
+    try {
+      await db
+        .delete(temporaryAttendance)
+        .where(
+          and(
+            eq(temporaryAttendance.employeeId, employeeId),
+            eq(temporaryAttendance.date, date)
+          )
+        );
+      return true;
+    } catch (error) {
+      console.error('Error deleting attendance by employee and date:', error);
+      return false;
+    }
   }
 }
 

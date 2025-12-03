@@ -685,6 +685,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid ID" });
       }
 
+      // 先獲取假日資訊，以便刪除對應的考勤記錄
+      const holiday = await storage.getHolidayById(id);
+      
+      if (!holiday) {
+        return res.status(404).json({ message: "Holiday not found" });
+      }
+      
+      // 如果假日有關聯員工，刪除該員工在該日期的考勤記錄
+      if (holiday.employeeId && holiday.date) {
+        await storage.deleteTemporaryAttendanceByEmployeeAndDate(holiday.employeeId, holiday.date);
+        console.log(`已刪除員工 ${holiday.employeeId} 在 ${holiday.date} 的考勤記錄`);
+      }
+
       const success = await storage.deleteHoliday(id);
       
       if (!success) {

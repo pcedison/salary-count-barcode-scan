@@ -67,9 +67,11 @@ export interface IStorage {
 
   // Holiday methods
   getAllHolidays(): Promise<Holiday[]>;
+  getHolidayById(id: number): Promise<Holiday | undefined>;
   createHoliday(holiday: InsertHoliday): Promise<Holiday>;
   deleteHoliday(id: number): Promise<boolean>;
   deleteAllHolidays(): Promise<boolean>;
+  deleteTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -505,6 +507,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(holidays);
   }
 
+  async getHolidayById(id: number): Promise<Holiday | undefined> {
+    const [holiday] = await db.select().from(holidays).where(eq(holidays.id, id));
+    return holiday;
+  }
+
   async createHoliday(holiday: InsertHoliday): Promise<Holiday> {
     const [newHoliday] = await db.insert(holidays).values(holiday).returning();
     return newHoliday;
@@ -524,6 +531,23 @@ export class DatabaseStorage implements IStorage {
       return true;
     } catch (error) {
       console.error('Error deleting all holidays:', error);
+      return false;
+    }
+  }
+
+  async deleteTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<boolean> {
+    try {
+      await db
+        .delete(temporaryAttendance)
+        .where(
+          and(
+            eq(temporaryAttendance.employeeId, employeeId),
+            eq(temporaryAttendance.date, date)
+          )
+        );
+      return true;
+    } catch (error) {
+      console.error('Error deleting attendance by employee and date:', error);
       return false;
     }
   }
