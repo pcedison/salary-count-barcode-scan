@@ -640,12 +640,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertHolidaySchema.parse(req.body);
       const holiday = await storage.createHoliday(validatedData);
       
-      // 只有國定假日才自動創建考勤記錄（有給薪但不額外支付）
-      // 病假、事假不創建記錄（扣薪）
-      // 有上班時員工會自己打卡，不需要自動創建
-      if (holiday.holidayType === 'national_holiday' && holiday.employeeId) {
+      // 所有假日類型都創建對應的考勤記錄（真實記錄，非虛擬）
+      if (holiday.employeeId) {
         // 檢查該員工在該日期是否已有考勤記錄
-        const existingRecord = await db
+        const existingRecords = await db
           .select()
           .from(temporaryAttendance)
           .where(
@@ -655,20 +653,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
             )
           );
         
-        // 如果沒有現有記錄，創建國定假日考勤記錄
-        if (existingRecord.length === 0) {
+        // 如果沒有現有記錄，創建假日考勤記錄
+        if (existingRecords.length === 0) {
+          // 根據假日類型設定上下班時間
+          // 國定假日、颱風假：不可編輯，顯示 --:--
+          // 病假、事假、假日出勤：可編輯，設定預設時間
+          const isNoClockType = holiday.holidayType === 'national_holiday' || holiday.holidayType === 'typhoon_leave';
+          const clockIn = isNoClockType ? '--:--' : '08:00';
+          const clockOut = isNoClockType ? '--:--' : '17:00';
+          
           await storage.createTemporaryAttendance({
             employeeId: holiday.employeeId,
             date: holiday.date,
-            clockIn: '08:00',
-            clockOut: '16:00',
+            clockIn: clockIn,
+            clockOut: clockOut,
             isHoliday: true,
-            isBarcodeScanned: false
+            isBarcodeScanned: false,
+            holidayId: holiday.id,
+            holidayType: holiday.holidayType
           });
           
           // 獲取員工姓名用於日誌
           const employee = await storage.getEmployeeById(holiday.employeeId);
-          console.log(`為員工 ${employee?.name || holiday.employeeId} 創建國定假日考勤記錄: ${holiday.date}`);
+          const holidayTypeLabels: Record<string, string> = {
+            'national_holiday': '國定假日',
+            'typhoon_leave': '颱風假',
+            'sick_leave': '病假',
+            'personal_leave': '事假',
+            'worked': '假日出勤'
+          };
+          console.log(`為員工 ${employee?.name || holiday.employeeId} 創建${holidayTypeLabels[holiday.holidayType] || '假日'}考勤記錄: ${holiday.date}`);
         }
       }
       
@@ -692,11 +706,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Holiday not found" });
       }
       
-      // 如果假日有關聯員工，刪除該員工在該日期的考勤記錄
-      if (holiday.employeeId && holiday.date) {
-        await storage.deleteTemporaryAttendanceByEmployeeAndDate(holiday.employeeId, holiday.date);
-        console.log(`已刪除員工 ${holiday.employeeId} 在 ${holiday.date} 的考勤記錄`);
-      }
+      // 使用 holidayId 精確刪除對應的考勤記錄
+      await storage.deleteTemporaryAttendanceByHolidayId(id);
+      console.log(`已刪除假日 ID:${id} 對應的考勤記錄`);
 
       const success = await storage.deleteHoliday(id);
       
