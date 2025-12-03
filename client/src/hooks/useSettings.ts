@@ -106,7 +106,9 @@ export function useSettings() {
       return await apiRequest('DELETE', `/api/holidays/${id}`);
     },
     onSuccess: () => {
+      // 同時刷新假日列表和考勤記錄（因為刪除假日會連帶刪除對應的考勤記錄）
       queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
     },
     onError: (error) => {
       console.error('Error deleting holiday:', error);
