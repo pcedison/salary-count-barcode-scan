@@ -232,24 +232,20 @@ export default function PrintSalaryPage() {
 </tr>`;
     }
     
-    // 添加扣款項目
+    // 添加扣款項目 - 遍歷所有扣款項目動態顯示
+    if (salaryRecord.deductions && salaryRecord.deductions.length > 0) {
+      salaryRecord.deductions.forEach((deduction: { name: string; amount: number }) => {
+        if (deduction.amount > 0) {
+          summaryRowsHtml += `
+<tr class="deduction-row summary-size-row">
+  <td colspan="5">${deduction.name}：</td>
+  <td class="amount-cell">-${deduction.amount}</td>
+</tr>`;
+        }
+      });
+    }
+    
     summaryRowsHtml += `
-<tr class="deduction-row summary-size-row">
-  <td colspan="5">勞保費：</td>
-  <td class="amount-cell">-${getDeduction('勞保費')}</td>
-</tr>
-<tr class="deduction-row summary-size-row">
-  <td colspan="5">健保費：</td>
-  <td class="amount-cell">-${getDeduction('健保費')}</td>
-</tr>
-<tr class="deduction-row summary-size-row">
-  <td colspan="5">服務費：</td>
-  <td class="amount-cell">-${getDeduction('服務費')}</td>
-</tr>
-<tr class="deduction-row summary-size-row">
-  <td colspan="5">宿舍費：</td>
-  <td class="amount-cell">${getDeduction('宿舍費') > 0 ? `-${getDeduction('宿舍費')}` : '0'}</td>
-</tr>
 <tr class="total-amount summary-size-row">
   <td colspan="5">實領金額：</td>
   <td class="amount-cell">${salaryRecord.netSalary}</td>
