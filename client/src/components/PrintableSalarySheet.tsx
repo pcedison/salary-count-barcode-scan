@@ -380,22 +380,15 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
             </tr>
             {renderHousingAllowanceRow()}
             {renderWelfareAllowanceRow()}
-            <tr className="deduction-row summary-size-row">
-              <td colSpan={5}>勞保費：</td>
-              <td className="amount-cell">-{getDeduction('勞保費')}</td>
-            </tr>
-            <tr className="deduction-row summary-size-row">
-              <td colSpan={5}>健保費：</td>
-              <td className="amount-cell">-{getDeduction('健保費')}</td>
-            </tr>
-            <tr className="deduction-row summary-size-row">
-              <td colSpan={5}>服務費：</td>
-              <td className="amount-cell">-{getDeduction('服務費')}</td>
-            </tr>
-            <tr className="deduction-row summary-size-row">
-              <td colSpan={5}>宿舍費：</td>
-              <td className="amount-cell">{getDeduction('宿舍費') > 0 ? `-${getDeduction('宿舍費')}` : '0'}</td>
-            </tr>
+            {/* 動態遍歷所有扣款項目 */}
+            {result.deductions && result.deductions.length > 0 && result.deductions.map((deduction: { name: string; amount: number }, index: number) => (
+              deduction.amount > 0 && (
+                <tr key={index} className="deduction-row summary-size-row">
+                  <td colSpan={5}>{deduction.name}：</td>
+                  <td className="amount-cell">-{deduction.amount}</td>
+                </tr>
+              )
+            ))}
             <tr className="total-amount summary-size-row">
               <td colSpan={5}>實領金額：</td>
               <td className="amount-cell">{safeNumber(result.netSalary)}</td>
