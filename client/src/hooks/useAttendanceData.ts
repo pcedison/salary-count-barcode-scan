@@ -481,20 +481,34 @@ export function useAttendanceData() {
       
       // 2. 判斷每一筆考勤記錄是否為假日加班
       const actualHolidayWork = sortedData.filter(day => {
-        // 必須有完整的上下班時間記錄
-        if (!day.clockIn || !day.clockOut || day.clockIn === '' || day.clockOut === '') {
+        // 必須有完整的上下班時間記錄（排除 --:-- 無效時間）
+        if (!day.clockIn || !day.clockOut || 
+            day.clockIn === '' || day.clockOut === '' ||
+            day.clockIn === '--:--' || day.clockOut === '--:--') {
           return false;
         }
         
-        // 檢查該日期是否在 holidays 資料表中
-        const isDefinedHoliday = employeeHolidays.some((h: any) => h.date === day.date);
+        // 檢查該日期在 holidays 資料表中的假日類型
+        const holidayRecord = employeeHolidays.find((h: any) => h.date === day.date);
         
-        // 檢查是否為週六日
+        // 如果在 holidays 表中有記錄，只有 holidayType === 'worked' 才算假日加班
+        // 颱風假、國定假日、病假、事假等都不算假日加班
+        if (holidayRecord) {
+          return holidayRecord.holidayType === 'worked';
+        }
+        
+        // 如果考勤記錄本身標記為特定假日類型，也需要檢查
+        // 只有 holidayType === 'worked' 才算假日加班
+        if (day.holidayType && day.holidayType !== 'worked' && day.holidayType !== 'none') {
+          return false;
+        }
+        
+        // 檢查是否為週六日（且沒有被設定為其他假日類型）
         const dayOfWeek = new Date(day.date).getDay();
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         
-        // 假日加班的條件：在 holidays 表中設定為假日，或是週六日
-        return isDefinedHoliday || isWeekend;
+        // 週六日出勤算假日加班
+        return isWeekend;
       });
       
       // 3. 有薪特休：在 holidays 中標記但沒有上下班記錄的日期
