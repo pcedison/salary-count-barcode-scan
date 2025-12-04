@@ -160,11 +160,11 @@ export default function HistoryTable({
                     <Printer size={16} />
                   </button>
                   
-                  {onEditRecord && isAdmin && record.attendanceData && record.attendanceData.length > 0 && (
+                  {onEditRecord && isAdmin && (
                     <button 
                       className="text-indigo-500 hover:text-indigo-600 p-1 rounded-full hover:bg-indigo-50"
                       onClick={() => onEditRecord(record)}
-                      title="編輯考勤記錄"
+                      title="編輯薪資記錄"
                     >
                       <Edit size={16} />
                     </button>

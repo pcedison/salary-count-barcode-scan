@@ -148,17 +148,8 @@ export default function HistoryPage() {
       return;
     }
     
-    // 檢查記錄是否有考勤數據
-    if (!record.attendanceData || record.attendanceData.length === 0) {
-      toast({
-        title: "無考勤紀錄",
-        description: "此薪資紀錄沒有相關聯的考勤數據",
-        variant: "destructive"
-      });
-      return;
-    }
-    
     // 設置要編輯的記錄並打開編輯對話框
+    // 支援有考勤數據和無考勤數據的紀錄編輯
     setRecordToEdit(record);
     setIsEditModalOpen(true);
   };
