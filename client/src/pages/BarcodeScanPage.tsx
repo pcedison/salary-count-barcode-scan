@@ -420,13 +420,6 @@ export default function BarcodeScanPage() {
             clockTime: clockTime
           });
           
-          // 顯示成功提示
-          toast({
-            title: `打卡成功`,
-            description: statusMessage,
-            variant: 'default'
-          });
-          
           // 刷新考勤資料
           queryClient.invalidateQueries({
             queryKey: ['/api/attendance'],
