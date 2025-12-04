@@ -325,7 +325,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { calculateSalary, calculateHolidayPayAdjustments } = salaryCalculator;
       
       // 獲取該月份的考勤記錄用於計算病假/事假扣款（包含直接標記在考勤記錄上的假日類型）
-      const allAttendance = await storage.getAllTemporaryAttendance();
+      const allAttendance = await storage.getTemporaryAttendance();
       const relevantAttendance = allAttendance.filter(a => {
         if (!a.date || a.employeeId !== validatedData.employeeId) return false;
         // 使用更可靠的日期解析方式處理 YYYY/MM/DD 和 YYYY-MM-DD 格式
@@ -449,7 +449,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         
         // 獲取該月份的考勤記錄用於計算病假/事假扣款（包含直接標記在考勤記錄上的假日類型）
-        const allAttendance = await storage.getAllTemporaryAttendance();
+        const allAttendance = await storage.getTemporaryAttendance();
         const relevantAttendance = allAttendance.filter(a => {
           if (!a.date || a.employeeId !== mergedData.employeeId) return false;
           // 使用更可靠的日期解析方式處理 YYYY/MM/DD 和 YYYY-MM-DD 格式
