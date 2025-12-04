@@ -526,11 +526,62 @@ export function useAttendanceData() {
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
       const totalHolidayPay = actualHolidayWork.length * holidayDailySalary;
       
+      // 計算假日類型扣款（颱風假、病假、事假）
+      const dailyWage = Math.round(baseMonthSalary / 30);
+      const hourlyWage = Math.round(dailyWage / 8);
+      const leaveDeductions: { name: string; amount: number }[] = [];
+      
+      // 遍歷所有考勤記錄，計算請假扣款
+      sortedData.forEach(day => {
+        const holidayType = day.holidayType;
+        if (!holidayType || holidayType === 'none' || holidayType === 'worked' || holidayType === 'national_holiday') {
+          return; // 這些類型不扣款
+        }
+        
+        // 判斷是否為整天假（打卡時間為 --:--）
+        const isFullDay = !day.clockIn || !day.clockOut || day.clockIn === '--:--' || day.clockOut === '--:--';
+        
+        switch (holidayType) {
+          case 'typhoon_leave':
+            // 颱風假：外勞適用 - 扣除當日全額薪資
+            leaveDeductions.push({
+              name: `颱風假扣款 (${day.date})`,
+              amount: dailyWage
+            });
+            break;
+          case 'sick_leave':
+            // 病假：扣除 50% 薪資
+            const sickDeduction = isFullDay ? Math.round(dailyWage * 0.5) : 0;
+            if (sickDeduction > 0) {
+              leaveDeductions.push({
+                name: `病假扣款 (${day.date})`,
+                amount: sickDeduction
+              });
+            }
+            break;
+          case 'personal_leave':
+            // 事假：扣除 100% 薪資
+            const personalDeduction = isFullDay ? dailyWage : 0;
+            if (personalDeduction > 0) {
+              leaveDeductions.push({
+                name: `事假扣款 (${day.date})`,
+                amount: personalDeduction
+              });
+            }
+            break;
+        }
+      });
+      
+      console.log('請假扣款:', leaveDeductions);
+      
+      // 合併系統扣款和請假扣款
+      const allDeductions = [...deductions, ...leaveDeductions];
+      
       // Calculate gross salary - 精確計算總薪資，避免四捨五入帶來的誤差
       const grossSalary = baseMonthSalary + housingAllowance + welfareAllowance + totalOvertimePay + totalHolidayPay;
       
       // Calculate deductions
-      const totalDeductions = deductions.reduce((sum: number, deduction: { name: string; amount: number }) => sum + deduction.amount, 0);
+      const totalDeductions = allDeductions.reduce((sum: number, deduction: { name: string; amount: number }) => sum + deduction.amount, 0);
       
       // Calculate net salary - 只在最後一步使用四捨五入，確保計算結果與手動計算一致
       const netSalary = Math.round(grossSalary - totalDeductions);
@@ -554,7 +605,7 @@ export function useAttendanceData() {
         paidLeaveDays: paidLeave.length,  // 有薪特休天數
         paidLeavePay: 0,  // 有薪特休不額外計費，已包含在基本薪資中
         grossSalary,
-        deductions: deductions.map((d: { name: string; amount: number; description?: string }) => ({ name: d.name, amount: d.amount })),
+        deductions: allDeductions.map((d: { name: string; amount: number; description?: string }) => ({ name: d.name, amount: d.amount })),
         totalDeductions,
         netSalary,
         attendanceData: sortedData
