@@ -292,7 +292,7 @@ export default function AttendancePage() {
   };
   
   // Handle finalize and save
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (!isAdmin) {
       toast({
         title: "需要管理員權限",
@@ -304,14 +304,19 @@ export default function AttendancePage() {
       return;
     }
     
-    finalizeAndSave();
-    setShowSalaryResult(false);
     setShowConfirmationModal(false);
     
-    toast({
-      title: "結算完成",
-      description: "考勤資料已結算並儲存至歷史紀錄。",
-    });
+    // 等待結算完成並獲取結果
+    const success = await finalizeAndSave();
+    
+    if (success) {
+      setShowSalaryResult(false);
+      toast({
+        title: "結算完成",
+        description: "考勤資料已結算並儲存至歷史紀錄。",
+      });
+    }
+    // 失敗的情況在 finalizeAndSave 內部已經處理了 toast
   };
   
   // Handle print event
