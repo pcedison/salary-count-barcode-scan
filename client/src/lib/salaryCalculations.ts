@@ -27,7 +27,15 @@ export function timeToMinutes(timeStr: string): number {
 
 /**
  * 計算打卡之間的加班時數
- * 根據公司規定：早到從8:00開始記薪，16:00後開始計算加班，18:00後全部1.67倍
+ * 根據公司規定：早到從8:00開始記薪，16:00後開始計算加班
+ * 
+ * OT1 加班時間範圍（16:00-18:10）：
+ * 1. 16:10 前，加班 0 小時
+ * 2. 16:10 - 16:35，加班 0.5 小時
+ * 3. 16:36 - 17:10，加班 1 小時
+ * 4. 17:11 - 17:35，加班 1.5 小時
+ * 5. 17:36 - 18:10，加班 2 小時
+ * 
  * @param clockIn 上班打卡時間
  * @param clockOut 下班打卡時間
  */
@@ -44,39 +52,43 @@ export function calculateOvertime(clockIn: string, clockOut: string): { ot1: num
   }
   
   const STANDARD_END = timeToMinutes(constants.STANDARD_END_TIME); // 正常下班時間 16:00
-  const OT1_END = timeToMinutes(constants.OT1_END_TIME);          // 第一階段加班結束 18:00
+  
+  // 定義加班時間節點（從16:00起算的分鐘數）
+  const OT_THRESHOLDS = {
+    START: 10,      // 16:10 開始計算加班
+    HALF_HOUR: 35,  // 16:35 之前算 0.5 小時
+    ONE_HOUR: 70,   // 17:10 之前算 1 小時
+    ONE_HALF: 95,   // 17:35 之前算 1.5 小時
+    TWO_HOURS: 130  // 18:10 之前算 2 小時
+  };
   
   let ot1 = 0;
   let ot2 = 0;
-  const bufferMinutes = constants.BUFFER_MINUTES; // 10分鐘緩衝時間
   
-  // 2. 16:00後才開始計算加班
-  if (outTime > STANDARD_END + bufferMinutes) {
-    const totalOvertimeMinutes = outTime - STANDARD_END;
-    
-    // 3. 階梯式計算OT1：10→40→70→100分鐘
-    if (totalOvertimeMinutes <= (120 + bufferMinutes)) { // 不超過18:00
-      // 全部算OT1 (1.34倍)
-      if (totalOvertimeMinutes > (100 + bufferMinutes)) {
-        ot1 = 2.0; // 超過100分鐘 -> 2.0小時
-      } else if (totalOvertimeMinutes > (70 + bufferMinutes)) {
-        ot1 = 1.5; // 超過70分鐘 -> 1.5小時
-      } else if (totalOvertimeMinutes > (40 + bufferMinutes)) {
-        ot1 = 1.0; // 超過40分鐘 -> 1.0小時
-      } else if (totalOvertimeMinutes > (10 + bufferMinutes)) {
-        ot1 = 0.5; // 超過10分鐘 -> 0.5小時
-      }
+  // 2. 計算超過 16:00 的分鐘數
+  const totalOvertimeMinutes = outTime - STANDARD_END;
+  
+  // 3. 根據時間範圍計算 OT1
+  if (totalOvertimeMinutes >= OT_THRESHOLDS.START) {
+    if (totalOvertimeMinutes <= OT_THRESHOLDS.HALF_HOUR) {
+      // 16:10 - 16:35：0.5 小時
+      ot1 = 0.5;
+    } else if (totalOvertimeMinutes <= OT_THRESHOLDS.ONE_HOUR) {
+      // 16:36 - 17:10：1 小時
+      ot1 = 1.0;
+    } else if (totalOvertimeMinutes <= OT_THRESHOLDS.ONE_HALF) {
+      // 17:11 - 17:35：1.5 小時
+      ot1 = 1.5;
+    } else if (totalOvertimeMinutes <= OT_THRESHOLDS.TWO_HOURS) {
+      // 17:36 - 18:10：2 小時
+      ot1 = 2.0;
     } else {
-      // 4. 超過18:00：前2小時算OT1，18:00後按0.5小時遞增計算OT2
-      ot1 = 2.0; // 16:00-18:00固定2小時OT1
-      const ot2Minutes = totalOvertimeMinutes - 120; // 18:00後的分鐘數
+      // 4. 超過 18:10：前 2 小時算 OT1，之後按 0.5 小時遞增計算 OT2
+      ot1 = 2.0;
+      const ot2Minutes = totalOvertimeMinutes - OT_THRESHOLDS.TWO_HOURS; // 18:10 後的分鐘數
       
-      // 重要：18:00後的時數必須按0.5小時遞增
-      // 超過緩衝時間後，每30分鐘算0.5小時
-      if (ot2Minutes > bufferMinutes) {
-        const actualOT2Minutes = ot2Minutes - bufferMinutes;
-        ot2 = Math.ceil(actualOT2Minutes / 30) * 0.5; // 每30分鐘或不足30分鐘都算0.5小時
-      }
+      // 每 30 分鐘算 0.5 小時 OT2
+      ot2 = Math.ceil(ot2Minutes / 30) * 0.5;
     }
   }
   
