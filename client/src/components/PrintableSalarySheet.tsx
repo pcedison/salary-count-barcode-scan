@@ -64,7 +64,10 @@ const getHolidayLabel = (holidayType?: string): string => {
 
 // 計算日期對應加班費 - 使用統一模組
 const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2: number, pay: number} => {
-  if (!clockIn || !clockOut) return { ot1: 0, ot2: 0, pay: 0 };
+  // 檢查無效打卡記錄（包括 '--:--'）
+  if (!clockIn || !clockOut || clockIn === '--:--' || clockOut === '--:--') {
+    return { ot1: 0, ot2: 0, pay: 0 };
+  }
   
   // 使用統一的加班計算函數
   const { ot1, ot2 } = calculateOvertime(clockIn, clockOut);

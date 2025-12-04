@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Printer, ArrowLeft, FileDown } from 'lucide-react';
 import { useHistoryData } from '@/hooks/useHistoryData';
+import { calculateOvertime, calculateDailyOvertimePay } from '@/lib/salaryCalculations';
 
 export default function PrintSalaryPage() {
   const [, setLocation] = useLocation();
@@ -84,79 +85,19 @@ export default function PrintSalaryPage() {
       return item ? item.amount : 0;
     };
     
-    // 將時間字串轉換為分鐘數 (用於計算加班)
-    const timeToMinutesForPrint = (timeStr: string): number => {
-      if (!timeStr || !timeStr.includes(':')) return 0;
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      return hours * 60 + minutes;
-    };
-    
-    // 計算單日加班時數和加班費 - 使用新版統一計算邏輯
+    // 計算單日加班時數和加班費 - 使用統一計算模組
     const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2: number, pay: number} => {
-      if (!clockIn || !clockOut) return { ot1: 0, ot2: 0, pay: 0 };
-      
-      let inTime = timeToMinutesForPrint(clockIn);
-      const outTime = timeToMinutesForPrint(clockOut);
-      
-      // 1. 早到處理：如果早於8:00上班，從8:00開始記薪
-      const WORK_START = timeToMinutesForPrint('08:00'); // 480分鐘
-      if (inTime < WORK_START) {
-        inTime = WORK_START;
+      if (!clockIn || !clockOut || clockIn === '--:--' || clockOut === '--:--') {
+        return { ot1: 0, ot2: 0, pay: 0 };
       }
       
-      const STANDARD_END = timeToMinutesForPrint('16:00'); // 正常下班時間 16:00
+      // 使用統一的加班計算函數
+      const { ot1, ot2 } = calculateOvertime(clockIn, clockOut);
       
-      let ot1 = 0;
-      let ot2 = 0;
-      const bufferMinutes = 10; // 10分鐘緩衝時間
+      // 使用統一模組計算加班費
+      const pay = calculateDailyOvertimePay(clockIn, clockOut, salaryRecord.baseSalary);
       
-      // 2. 16:00後才開始計算加班
-      if (outTime > STANDARD_END + bufferMinutes) {
-        const totalOvertimeMinutes = outTime - STANDARD_END;
-        
-        // 3. 階梯式計算OT1：10→40→70→100分鐘
-        if (totalOvertimeMinutes <= (120 + bufferMinutes)) { // 不超過18:00
-          // 全部算OT1 (1.34倍)
-          if (totalOvertimeMinutes > (100 + bufferMinutes)) {
-            ot1 = 2.0; // 超過100分鐘 -> 2.0小時
-          } else if (totalOvertimeMinutes > (70 + bufferMinutes)) {
-            ot1 = 1.5; // 超過70分鐘 -> 1.5小時
-          } else if (totalOvertimeMinutes > (40 + bufferMinutes)) {
-            ot1 = 1.0; // 超過40分鐘 -> 1.0小時
-          } else if (totalOvertimeMinutes > (10 + bufferMinutes)) {
-            ot1 = 0.5; // 超過10分鐘 -> 0.5小時
-          }
-        } else {
-          // 4. 超過18:00：前2小時算OT1，18:00後按0.5小時遞增計算OT2
-          ot1 = 2.0; // 16:00-18:00固定2小時OT1
-          const ot2Minutes = totalOvertimeMinutes - 120; // 18:00後的分鐘數
-          
-          // 重要：18:00後的時數必須按0.5小時遞增
-          // 超過緩衝時間後，每30分鐘算0.5小時
-          if (ot2Minutes > bufferMinutes) {
-            const actualOT2Minutes = ot2Minutes - bufferMinutes;
-            ot2 = Math.ceil(actualOT2Minutes / 30) * 0.5; // 每30分鐘或不足30分鐘都算0.5小時
-          }
-        }
-      }
-      
-      // 計算加班費（使用會計部門計算方法）
-      const hourlyRate = salaryRecord.baseSalary / 30 / 8; // 估算時薪
-      // 每小時加班費率
-      const ot1HourlyRate = hourlyRate * 1.34; // 119 * 1.34 = 159.46
-      const ot2HourlyRate = hourlyRate * 1.67; // 119 * 1.67 = 198.73
-      
-      // 計算總加班費用（未四捨五入）
-      const totalDailyPay = (ot1HourlyRate * ot1) + (ot2HourlyRate * ot2);
-      
-      // 對總加班費進行四捨五入（不是對時薪進行四捨五入）
-      const roundedDailyPay = Math.round(totalDailyPay);
-      
-      return { 
-        ot1: ot1, 
-        ot2: ot2, 
-        pay: roundedDailyPay
-      };
+      return { ot1, ot2, pay };
     };
     
     // 構建考勤記錄的HTML
