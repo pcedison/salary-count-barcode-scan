@@ -123,12 +123,12 @@ export const holidays = pgTable("holidays", {
 export const insertHolidaySchema = createInsertSchema(holidays)
   .omit({ id: true, createdAt: true });
 
-// 假日類型選項
+// 假日類型選項（外勞適用規定）
 export const holidayTypeOptions = [
   { value: "national_holiday", label: "國定假日", paid: true, deductPay: false, description: "有給薪但不額外支付" },
   { value: "sick_leave", label: "病假", paid: false, deductPay: true, description: "扣除50%當日薪水" },
   { value: "personal_leave", label: "事假", paid: false, deductPay: true, description: "扣除當日薪水" },
-  { value: "typhoon_leave", label: "颱風假", paid: false, deductPay: true, description: "無給薪假日，扣除當日薪水" },
+  { value: "typhoon_leave", label: "颱風假", paid: false, deductPay: true, description: "外勞適用：未出勤扣除當日全額薪水" },
   { value: "worked", label: "假日出勤", paid: true, deductPay: false, description: "假日加班，按規則計算加班費" }
 ] as const;
 

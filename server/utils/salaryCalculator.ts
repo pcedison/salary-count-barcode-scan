@@ -400,8 +400,17 @@ export function calculateHolidayPayAdjustments(
         
       case 'typhoon_leave':
         typhoonLeaveDays += 1;
-        // 颱風假：整天不扣薪（依照台灣勞基法，颱風假為有薪假）
-        // 注意：如果公司政策是無薪，則需要調整這裡的邏輯
+        // 颱風假：外勞適用規定 - 扣除當日全額薪資（未出勤不支薪）
+        const typhoonDeduction = Math.round(dailyWage);
+        typhoonLeaveDeduction += typhoonDeduction;
+        
+        if (typhoonDeduction > 0) {
+          deductionItems.push({
+            name: `颱風假扣款 (${record.date})`,
+            amount: typhoonDeduction,
+            description: '颱風假未出勤，扣除日薪100%'
+          });
+        }
         break;
         
       case 'national_holiday':
