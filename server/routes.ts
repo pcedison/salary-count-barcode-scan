@@ -254,7 +254,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // 將預設設置存儲到數據庫
         settings = await storage.createOrUpdateSettings(defaultSettings);
-        console.log("Created default settings with admin PIN:", defaultSettings.adminPin);
       }
       
       // 返回設置，但不返回管理員PIN碼（出於安全考慮）
