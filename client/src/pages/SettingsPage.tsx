@@ -36,6 +36,12 @@ interface DeductionItem {
   description: string;
 }
 
+interface AllowanceItem {
+  name: string;
+  amount: number;
+  description: string;
+}
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings();
@@ -44,14 +50,16 @@ export default function SettingsPage() {
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
   const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.BASE_MONTH_SALARY);
-  const [welfareAllowance, setWelfareAllowance] = useState<number>(DEFAULT_CONFIG.WELFARE_ALLOWANCE);
   const [ot1Multiplier, setOt1Multiplier] = useState<number>(DEFAULT_CONFIG.OT1_MULTIPLIER);
   const [ot2Multiplier, setOt2Multiplier] = useState<number>(DEFAULT_CONFIG.OT2_MULTIPLIER);
   const [deductions, setDeductions] = useState<DeductionItem[]>(DEFAULT_CONFIG.DEDUCTIONS);
+  const [allowances, setAllowances] = useState<AllowanceItem[]>([
+    { name: '福利金', amount: DEFAULT_CONFIG.WELFARE_ALLOWANCE, description: '員工福利津貼' }
+  ]);
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday'>('national_holiday');
+  const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave'>('national_holiday');
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
@@ -74,10 +82,12 @@ export default function SettingsPage() {
     if (!isLoading && settings) {
       setBaseHourlyRate(settings.baseHourlyRate || DEFAULT_CONFIG.BASE_HOURLY_RATE);
       setBaseMonthSalary(settings.baseMonthSalary || DEFAULT_CONFIG.BASE_MONTH_SALARY);
-      setWelfareAllowance(settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE);
       setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.OT1_MULTIPLIER);
       setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.OT2_MULTIPLIER);
       setDeductions(settings.deductions || DEFAULT_CONFIG.DEDUCTIONS);
+      setAllowances(settings.allowances || [
+        { name: '福利金', amount: settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE, description: '員工福利津貼' }
+      ]);
       
       // 重置變更狀態
       setHasUnsavedChanges(false);
@@ -90,14 +100,14 @@ export default function SettingsPage() {
       const hasChanges = 
         baseHourlyRate !== settings.baseHourlyRate ||
         baseMonthSalary !== settings.baseMonthSalary ||
-        welfareAllowance !== settings.welfareAllowance ||
         ot1Multiplier !== settings.ot1Multiplier ||
         ot2Multiplier !== settings.ot2Multiplier ||
-        JSON.stringify(deductions) !== JSON.stringify(settings.deductions);
+        JSON.stringify(deductions) !== JSON.stringify(settings.deductions) ||
+        JSON.stringify(allowances) !== JSON.stringify(settings.allowances);
       
       setHasUnsavedChanges(hasChanges);
     }
-  }, [baseHourlyRate, baseMonthSalary, welfareAllowance, ot1Multiplier, ot2Multiplier, deductions, settings, isLoading]);
+  }, [baseHourlyRate, baseMonthSalary, ot1Multiplier, ot2Multiplier, deductions, allowances, settings, isLoading]);
   
   // 測試 Supabase 連接 - 用戶手動觸發
   const testConnection = async () => {
@@ -477,15 +487,19 @@ export default function SettingsPage() {
   const handleSaveSettings = async () => {
     if (!isAdmin) return;
     
+    // 計算總津貼金額作為向下相容的 welfareAllowance
+    const totalAllowances = allowances.reduce((sum, item) => sum + item.amount, 0);
+    
     setIsSaving(true);
     try {
       await updateSettings({
         baseHourlyRate,
         baseMonthSalary,
-        welfareAllowance,
+        welfareAllowance: totalAllowances,
         ot1Multiplier,
         ot2Multiplier,
-        deductions
+        deductions,
+        allowances
       });
       
       setHasUnsavedChanges(false);
@@ -527,6 +541,29 @@ export default function SettingsPage() {
   // Delete a deduction
   const handleDeleteDeduction = (index: number) => {
     setDeductions(deductions.filter((_, i) => i !== index));
+  };
+  
+  // Add a new allowance
+  const handleAddAllowance = () => {
+    setAllowances([
+      ...allowances,
+      { name: '新項目', amount: 0, description: '' }
+    ]);
+  };
+  
+  // Update an allowance
+  const handleUpdateAllowance = (index: number, field: string, value: string | number) => {
+    const newAllowances = [...allowances];
+    newAllowances[index] = {
+      ...newAllowances[index],
+      [field]: value
+    };
+    setAllowances(newAllowances);
+  };
+  
+  // Delete an allowance
+  const handleDeleteAllowance = (index: number) => {
+    setAllowances(allowances.filter((_, i) => i !== index));
   };
   
   // Add a holiday
@@ -815,10 +852,10 @@ export default function SettingsPage() {
       <SettingsForm
         baseHourlyRate={baseHourlyRate}
         baseMonthSalary={baseMonthSalary}
-        welfareAllowance={welfareAllowance}
         ot1Multiplier={ot1Multiplier}
         ot2Multiplier={ot2Multiplier}
         deductions={deductions}
+        allowances={allowances}
         holidays={Array.isArray(holidays) ? holidays : []}
         employees={employees || []}
         newHolidayDate={newHolidayDate}
@@ -832,12 +869,14 @@ export default function SettingsPage() {
         isAdmin={isAdmin}
         onBaseHourlyRateChange={setBaseHourlyRate}
         onBaseMonthSalaryChange={setBaseMonthSalary}
-        onWelfareAllowanceChange={setWelfareAllowance}
         onOt1MultiplierChange={setOt1Multiplier}
         onOt2MultiplierChange={setOt2Multiplier}
         onAddDeduction={handleAddDeduction}
         onUpdateDeduction={handleUpdateDeduction}
         onDeleteDeduction={handleDeleteDeduction}
+        onAddAllowance={handleAddAllowance}
+        onUpdateAllowance={handleUpdateAllowance}
+        onDeleteAllowance={handleDeleteAllowance}
         onNewHolidayDateChange={setNewHolidayDate}
         onNewHolidayDescriptionChange={setNewHolidayDescription}
         onSelectedEmployeeChange={setSelectedEmployeeId}

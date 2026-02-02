@@ -10,6 +10,12 @@ interface Deduction {
   description: string;
 }
 
+interface Allowance {
+  name: string;
+  amount: number;
+  description: string;
+}
+
 interface Settings {
   baseHourlyRate: number;
   ot1Multiplier: number;
@@ -17,6 +23,7 @@ interface Settings {
   baseMonthSalary: number;
   welfareAllowance: number;
   deductions: Deduction[];
+  allowances: Allowance[];
 }
 
 export function useSettings() {
@@ -30,7 +37,8 @@ export function useSettings() {
     ot2Multiplier: constants.OT2_MULTIPLIER,
     baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_HOURS * constants.STANDARD_WORK_DAYS,
     welfareAllowance: constants.DEFAULT_WELFARE_ALLOWANCE,
-    deductions: []
+    deductions: [],
+    allowances: []
   });
   
   // Fetch settings from API
@@ -82,7 +90,7 @@ export function useSettings() {
       employeeId: number;
       date: string; 
       name: string; 
-      holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday';
+      holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
       description?: string; 
     }) => {
       return await apiRequest('POST', '/api/holidays', holiday);
@@ -137,7 +145,8 @@ export function useSettings() {
         ot2Multiplier: constants.OT2_MULTIPLIER,
         baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_HOURS * constants.STANDARD_WORK_DAYS,
         welfareAllowance: constants.DEFAULT_WELFARE_ALLOWANCE,
-        deductions: []
+        deductions: [],
+        allowances: []
       });
     }
   }, [error, toast]);
@@ -157,7 +166,7 @@ export function useSettings() {
     employeeId: number;
     date: string; 
     name: string; 
-    holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday';
+    holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
     description?: string; 
   }) => {
     try {

@@ -67,6 +67,7 @@ export const settings = pgTable("settings", {
   baseMonthSalary: doublePrecision("base_month_salary").notNull().default(28590),
   welfareAllowance: doublePrecision("welfare_allowance").notNull().default(0),
   deductions: json("deductions").$type<{ name: string; amount: number; description: string }[]>().default([]),
+  allowances: json("allowances").$type<{ name: string; amount: number; description: string }[]>().default([]),
   adminPin: text("admin_pin").notNull().default("123456"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

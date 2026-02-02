@@ -6,10 +6,10 @@ import { holidayTypeOptions } from '@shared/schema';
 interface SettingsFormProps {
   baseHourlyRate: number;
   baseMonthSalary: number;
-  welfareAllowance: number;
   ot1Multiplier: number;
   ot2Multiplier: number;
   deductions: Array<{ name: string; amount: number; description: string }>;
+  allowances: Array<{ name: string; amount: number; description: string }>;
   holidays: Array<{ id: number; date: string; name: string; description?: string; employeeId?: number; holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' }>;
   employees: Array<{ id: number; name: string; department: string }>;
   newHolidayDate: string;
@@ -19,17 +19,19 @@ interface SettingsFormProps {
   supabaseUrl: string;
   supabaseAnonKey: string;
   connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
-  isSupabaseActive: boolean; // 是否使用 Supabase
-  isAdmin?: boolean; // 是否為管理員
+  isSupabaseActive: boolean;
+  isAdmin?: boolean;
   
   onBaseHourlyRateChange: (value: number) => void;
   onBaseMonthSalaryChange: (value: number) => void;
-  onWelfareAllowanceChange: (value: number) => void;
   onOt1MultiplierChange: (value: number) => void;
   onOt2MultiplierChange: (value: number) => void;
   onAddDeduction: () => void;
   onUpdateDeduction: (index: number, field: string, value: string | number) => void;
   onDeleteDeduction: (index: number) => void;
+  onAddAllowance: () => void;
+  onUpdateAllowance: (index: number, field: string, value: string | number) => void;
+  onDeleteAllowance: (index: number) => void;
   onNewHolidayDateChange: (value: string) => void;
   onNewHolidayDescriptionChange: (value: string) => void;
   onSelectedEmployeeChange: (employeeId: number | null) => void;
@@ -40,16 +42,16 @@ interface SettingsFormProps {
   onSupabaseAnonKeyChange: (value: string) => void;
   onTestConnection: () => void;
   onMigrateData: () => void;
-  onToggleDatabase?: (enableSupabase: boolean) => void; // 切換數據庫類型
+  onToggleDatabase?: (enableSupabase: boolean) => void;
 }
 
 export default function SettingsForm({
   baseHourlyRate,
   baseMonthSalary,
-  welfareAllowance,
   ot1Multiplier,
   ot2Multiplier,
   deductions,
+  allowances,
   holidays,
   employees,
   newHolidayDate,
@@ -63,12 +65,14 @@ export default function SettingsForm({
   isAdmin = false,
   onBaseHourlyRateChange,
   onBaseMonthSalaryChange,
-  onWelfareAllowanceChange,
   onOt1MultiplierChange,
   onOt2MultiplierChange,
   onAddDeduction,
   onUpdateDeduction,
   onDeleteDeduction,
+  onAddAllowance,
+  onUpdateAllowance,
+  onDeleteAllowance,
   onNewHolidayDateChange,
   onNewHolidayDescriptionChange,
   onSelectedEmployeeChange,
@@ -119,21 +123,6 @@ export default function SettingsForm({
                 type="number" 
                 value={baseMonthSalary} 
                 onChange={handleNumericChange(onBaseMonthSalaryChange)}
-                className={`w-full px-4 py-2 border border-gray-300 rounded-l-md focus:ring-primary focus:border-primary font-['Roboto_Mono'] ${!isAdmin ? 'bg-gray-50 opacity-80' : ''}`}
-                disabled={!isAdmin}
-                readOnly={!isAdmin}
-              />
-              <span className="inline-flex items-center px-3 py-2 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500">元/月</span>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="welfareAllowance" className="block text-sm font-medium text-gray-700">福利金</label>
-            <div className="flex">
-              <Input 
-                id="welfareAllowance" 
-                type="number" 
-                value={welfareAllowance} 
-                onChange={handleNumericChange(onWelfareAllowanceChange)}
                 className={`w-full px-4 py-2 border border-gray-300 rounded-l-md focus:ring-primary focus:border-primary font-['Roboto_Mono'] ${!isAdmin ? 'bg-gray-50 opacity-80' : ''}`}
                 disabled={!isAdmin}
                 readOnly={!isAdmin}
@@ -236,6 +225,78 @@ export default function SettingsForm({
                       <button 
                         className="text-error hover:text-red-700"
                         onClick={() => onDeleteDeduction(index)}
+                      >
+                        <span className="material-icons text-sm">delete</span>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      {/* Allowances Settings Section - 津貼與福利調整 */}
+      <div className="bg-white p-6 rounded-lg shadow-sm">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium">津貼與福利調整</h3>
+          {isAdmin && (
+            <button 
+              className="text-primary hover:text-blue-700 text-sm flex items-center"
+              onClick={onAddAllowance}
+            >
+              <span className="material-icons text-sm mr-1">add_circle</span>
+              新增項目
+            </button>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">項目名稱</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">金額</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">描述</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {allowances.map((allowance, index) => (
+                <tr key={index} className={index % 2 === 1 ? 'bg-gray-50' : ''}>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <Input 
+                      value={allowance.name} 
+                      onChange={(e) => onUpdateAllowance(index, 'name', e.target.value)}
+                      className={`px-2 py-1 border border-gray-300 rounded-md ${!isAdmin ? 'bg-gray-50 opacity-80' : ''}`}
+                      disabled={!isAdmin}
+                      readOnly={!isAdmin}
+                    />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <Input 
+                      type="number" 
+                      value={allowance.amount} 
+                      onChange={(e) => onUpdateAllowance(index, 'amount', parseFloat(e.target.value))}
+                      className={`px-2 py-1 border border-gray-300 rounded-md w-24 mx-auto font-['Roboto_Mono'] ${!isAdmin ? 'bg-gray-50 opacity-80' : ''}`}
+                      disabled={!isAdmin}
+                      readOnly={!isAdmin}
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    <Input 
+                      value={allowance.description || ''} 
+                      onChange={(e) => onUpdateAllowance(index, 'description', e.target.value)}
+                      className={`px-2 py-1 border border-gray-300 rounded-md ${!isAdmin ? 'bg-gray-50 opacity-80' : ''}`}
+                      disabled={!isAdmin}
+                      readOnly={!isAdmin}
+                    />
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {isAdmin && (
+                      <button 
+                        className="text-error hover:text-red-700"
+                        onClick={() => onDeleteAllowance(index)}
                       >
                         <span className="material-icons text-sm">delete</span>
                       </button>
