@@ -164,8 +164,19 @@ export default function PrintSalaryPage() {
 </tr>`;
     }
     
-    // 添加福利津貼（如果存在）- 粗體顯示
-    if (salaryRecord.welfareAllowance && salaryRecord.welfareAllowance > 0) {
+    // 添加津貼明細（如果存在 allowances 陣列則逐項顯示，否則使用舊的 welfareAllowance）
+    if (salaryRecord.allowances && salaryRecord.allowances.length > 0) {
+      salaryRecord.allowances.forEach((allowance: { name: string; amount: number; description?: string }) => {
+        if (allowance.amount > 0) {
+          summaryRowsHtml += `
+<tr class="summary-size-row welfare-row" style="font-weight: bold;">
+  <td colspan="5">${allowance.name}：</td>
+  <td class="amount-cell">${allowance.amount}</td>
+</tr>`;
+        }
+      });
+    } else if (salaryRecord.welfareAllowance && salaryRecord.welfareAllowance > 0) {
+      // 向下相容：如果沒有 allowances 陣列，使用舊的 welfareAllowance 欄位
       summaryRowsHtml += `
 <tr class="summary-size-row welfare-row" style="font-weight: bold;">
   <td colspan="5">福利津貼：</td>
