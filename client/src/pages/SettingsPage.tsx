@@ -85,9 +85,11 @@ export default function SettingsPage() {
       setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.OT1_MULTIPLIER);
       setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.OT2_MULTIPLIER);
       setDeductions(settings.deductions || DEFAULT_CONFIG.DEDUCTIONS);
-      setAllowances(settings.allowances || [
-        { name: '福利金', amount: settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE, description: '員工福利津貼' }
-      ]);
+      // 如果 allowances 為空陣列或不存在，使用預設的福利金項目
+      const loadedAllowances = settings.allowances && settings.allowances.length > 0 
+        ? settings.allowances 
+        : [{ name: '福利金', amount: settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE, description: '員工福利津貼' }];
+      setAllowances(loadedAllowances);
       
       // 重置變更狀態
       setHasUnsavedChanges(false);
