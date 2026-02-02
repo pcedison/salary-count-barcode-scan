@@ -41,7 +41,8 @@ interface SalaryResult {
   employeeName?: string;         // 新增員工姓名欄位
   baseSalary: number;
   housingAllowance: number;
-  welfareAllowance: number;    // 添加福利金字段
+  welfareAllowance: number;    // 添加福利金字段（總額）
+  allowances: Array<{ name: string; amount: number; description?: string }>;  // 津貼明細
   totalOT1Hours: number;
   totalOT2Hours: number;
   totalOvertimePay: number;
@@ -348,6 +349,7 @@ export function useAttendanceData() {
       const welfareAllowance = settings.welfareAllowance || constants.DEFAULT_WELFARE_ALLOWANCE;
       const housingAllowance = constants.DEFAULT_HOUSING_ALLOWANCE; // 使用系統常量
       const deductions = settings.deductions || [];
+      const allowances = settings.allowances || [{ name: '福利金', amount: welfareAllowance, description: '員工福利津貼' }];
 
       // 建立計算設置對象，與後端保持一致格式
       const calculationSettings = {
@@ -595,6 +597,7 @@ export function useAttendanceData() {
         baseSalary: baseMonthSalary,
         housingAllowance,
         welfareAllowance,
+        allowances: allowances.map((a: { name: string; amount: number; description?: string }) => ({ name: a.name, amount: a.amount, description: a.description })),
         totalOT1Hours,
         totalOT2Hours,
         totalOvertimePay,

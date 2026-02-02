@@ -9,6 +9,7 @@ interface PrintableSalarySheetProps {
     baseSalary: number;
     housingAllowance?: number;
     welfareAllowance?: number;
+    allowances?: Array<{ name: string; amount: number; description?: string }>;
     totalOT1Hours: number;
     totalOT2Hours: number;
     totalOvertimePay: number;
@@ -145,8 +146,24 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
     return null;
   };
 
-  // 渲染福利津貼行（如果存在）- 粗體顯示
-  const renderWelfareAllowanceRow = () => {
+  // 渲染津貼明細行（如果存在）- 粗體顯示
+  const renderAllowancesRows = () => {
+    // 如果有 allowances 陣列，逐項顯示
+    if (result.allowances && result.allowances.length > 0) {
+      return result.allowances.map((allowance: { name: string; amount: number; description?: string }, index: number) => {
+        const amount = safeNumber(allowance.amount);
+        if (amount > 0) {
+          return (
+            <tr key={`allowance-${index}`} className="summary-size-row welfare-row" style={{ fontWeight: 'bold' }}>
+              <td colSpan={5}>{allowance.name}：</td>
+              <td className="amount-cell">{amount}</td>
+            </tr>
+          );
+        }
+        return null;
+      });
+    }
+    // 向下相容：如果沒有 allowances 陣列，使用舊的 welfareAllowance 欄位
     const welfareAmount = safeNumber(result.welfareAllowance);
     if (welfareAmount > 0) {
       return (
@@ -382,7 +399,7 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
               <td className="amount-cell">{safeNumber(result.baseSalary)}</td>
             </tr>
             {renderHousingAllowanceRow()}
-            {renderWelfareAllowanceRow()}
+            {renderAllowancesRows()}
             {/* 動態遍歷所有扣款項目 */}
             {result.deductions && result.deductions.length > 0 && result.deductions.map((deduction: { name: string; amount: number }, index: number) => (
               deduction.amount > 0 && (
