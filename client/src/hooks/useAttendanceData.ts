@@ -57,6 +57,13 @@ interface SalaryResult {
   totalDeductions: number;
   netSalary: number;
   attendanceData: AttendanceRecord[];
+  specialLeaveInfo?: {
+    usedDays: number;
+    usedDates: string[];
+    cashDays: number;
+    cashAmount: number;
+    notes?: string;
+  };
 }
 
 export function useAttendanceData() {
@@ -113,6 +120,44 @@ export function useAttendanceData() {
   
   // 從useEmployees中獲取員工資料，用於關聯考勤記錄
   const { employees, activeEmployees } = useEmployees();
+  
+  // 取得員工特別假資訊（過濾指定月份的使用日期）
+  const getSpecialLeaveInfoForMonth = (employeeId: number, year: number, month: number) => {
+    const employee = employees?.find(emp => emp.id === employeeId);
+    if (!employee) return null;
+    
+    const usedDates = employee.specialLeaveUsedDates || [];
+    const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+    
+    // 標準化日期格式為 YYYY-MM-DD，支援 YYYY/MM/DD 和 YYYY-MM-DD 兩種格式
+    const normalizeDate = (date: string): string => date.replace(/\//g, '-');
+    
+    // 過濾出該月份的特別假日期（先標準化日期格式）
+    const monthlyUsedDates = usedDates
+      .map(normalizeDate)
+      .filter(date => date.startsWith(monthPrefix));
+    
+    // 檢查是否有該月份的折抵金額
+    const cashMonth = employee.specialLeaveCashMonth || '';
+    const isCashMonth = cashMonth === `${year}年${month}月`;
+    const cashDays = isCashMonth ? (employee.specialLeaveCashDays || 0) : 0;
+    const baseSalary = settings?.baseMonthSalary || 29500;
+    const dailySalary = Math.round(baseSalary / 30);
+    const cashAmount = cashDays * dailySalary;
+    
+    // 如果沒有使用日期也沒有折抵，則不返回
+    if (monthlyUsedDates.length === 0 && cashDays === 0) {
+      return null;
+    }
+    
+    return {
+      usedDays: monthlyUsedDates.length,
+      usedDates: monthlyUsedDates,
+      cashDays,
+      cashAmount,
+      notes: employee.specialLeaveNotes || ''
+    };
+  };
   
   // 增強考勤數據，添加員工姓名和部門信息
   // 注意：假日記錄現在直接存儲在 temporary_attendance 表中，不再需要虛擬記錄
@@ -659,6 +704,18 @@ export function useAttendanceData() {
           const employeeData = singleRecord.attendanceData[0];
           singleRecord.employeeId = employeeData.employeeId;
           singleRecord.employeeName = employeeData._employeeName || `員工 ID: ${employeeData.employeeId}`;
+          
+          // 添加特別假資訊
+          const specialLeaveInfo = getSpecialLeaveInfoForMonth(
+            employeeData.employeeId, 
+            singleRecord.salaryYear, 
+            singleRecord.salaryMonth
+          );
+          if (specialLeaveInfo) {
+            singleRecord.specialLeaveInfo = specialLeaveInfo;
+            console.log(`員工特別假資訊: ${specialLeaveInfo.usedDays}天使用, ${specialLeaveInfo.cashDays}天折抵`);
+          }
+          
           console.log(`保存單一員工薪資記錄: ${singleRecord.employeeName} (ID: ${singleRecord.employeeId})`);
         
           // 保存薪資記錄
@@ -716,6 +773,17 @@ export function useAttendanceData() {
             const recordToSave: any = { ...employeeResult };
             recordToSave.employeeId = employeeId;
             recordToSave.employeeName = employeeAttendance[0]._employeeName || `員工 ID: ${employeeId}`;
+            
+            // 添加特別假資訊
+            const specialLeaveInfo = getSpecialLeaveInfoForMonth(
+              employeeId, 
+              recordToSave.salaryYear, 
+              recordToSave.salaryMonth
+            );
+            if (specialLeaveInfo) {
+              recordToSave.specialLeaveInfo = specialLeaveInfo;
+              console.log(`員工特別假資訊: ${specialLeaveInfo.usedDays}天使用, ${specialLeaveInfo.cashDays}天折抵`);
+            }
             
             console.log(`保存員工薪資記錄: ${recordToSave.employeeName} (ID: ${recordToSave.employeeId})`);
             

@@ -1,5 +1,5 @@
 import { formatCurrency } from '@/lib/utils';
-import { Loader2, Edit, Trash2, Printer, Download, User } from 'lucide-react';
+import { Loader2, Edit, Trash2, Printer, Download, User, CalendarDays } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useEmployees } from '@/hooks/useEmployees';
@@ -17,6 +17,13 @@ interface HistoryTableProps {
     totalHolidayPay: number;
     netSalary: number;
     attendanceData?: Array<any>; // 考勤記錄數據
+    specialLeaveInfo?: {
+      usedDays: number;
+      usedDates: string[];
+      cashDays: number;
+      cashAmount: number;
+      notes?: string;
+    };
   }>;
   isLoading: boolean;
   onDownloadPdf: (record: any) => void;
@@ -120,16 +127,38 @@ export default function HistoryTable({
                 </td>
               )}
               <td className="px-6 py-4 whitespace-nowrap font-medium">{record.salaryYear}年{record.salaryMonth}月</td>
-              <td className="px-6 py-4 whitespace-nowrap">
+              <td className="px-6 py-4">
                 {/* 統一顯示樣式，無論來源如何，確保一致性 */}
                 {(record as any).employeeName || (record.attendanceData && record.attendanceData.length > 0) ? (
-                  <div className="flex items-center">
-                    <User className="mr-1 h-4 w-4 text-primary" />
-                    <span className="font-medium">
-                      {(record as any).employeeName || 
-                      (record.attendanceData && record.attendanceData.length > 0 ? 
-                        getEmployeesFromAttendanceData(record.attendanceData).join(', ') : '無員工資料')}
-                    </span>
+                  <div>
+                    <div className="flex items-center">
+                      <User className="mr-1 h-4 w-4 text-primary" />
+                      <span className="font-medium">
+                        {(record as any).employeeName || 
+                        (record.attendanceData && record.attendanceData.length > 0 ? 
+                          getEmployeesFromAttendanceData(record.attendanceData).join(', ') : '無員工資料')}
+                      </span>
+                    </div>
+                    {/* 特別假資訊 - 紅色顯示 */}
+                    {record.specialLeaveInfo && record.specialLeaveInfo.usedDays > 0 && (
+                      <div className="mt-1 flex items-start gap-1">
+                        <CalendarDays className="h-3 w-3 text-red-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex flex-wrap gap-1">
+                          {record.specialLeaveInfo.usedDates.map((date, idx) => (
+                            <span key={idx} className="text-xs text-red-600 font-medium bg-red-50 px-1 rounded">
+                              {date.slice(5)}
+                            </span>
+                          ))}
+                          <span className="text-xs text-red-500">特休{record.specialLeaveInfo.usedDays}天</span>
+                        </div>
+                      </div>
+                    )}
+                    {/* 特別假折抵資訊 */}
+                    {record.specialLeaveInfo && record.specialLeaveInfo.cashDays > 0 && (
+                      <div className="mt-1 text-xs text-amber-600">
+                        💰 折抵{record.specialLeaveInfo.cashDays}天 ({formatCurrency(record.specialLeaveInfo.cashAmount)})
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <span className="text-gray-400 italic">無考勤資料</span>

@@ -26,6 +26,13 @@ interface PrintableSalarySheetProps {
       isHoliday: boolean;
       holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
     }>;
+    specialLeaveInfo?: {
+      usedDays: number;
+      usedDates: string[];
+      cashDays: number;
+      cashAmount: number;
+      notes?: string;
+    };
   };
 }
 
@@ -111,25 +118,46 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
   // 總加班費
   const totalOTPay = safeNumber(attendanceWithOT.reduce((sum, record) => sum + safeNumber(record.pay), 0));
 
+  // 檢查日期是否為特別假
+  const isSpecialLeaveDate = (date: string): boolean => {
+    if (!result.specialLeaveInfo?.usedDates) return false;
+    // 標準化日期格式為 YYYY-MM-DD，同時標準化兩邊進行比對
+    const normalizedDate = date.replace(/\//g, '-');
+    return result.specialLeaveInfo.usedDates.some(d => {
+      const normalizedUsedDate = d.replace(/\//g, '-');
+      return normalizedUsedDate === normalizedDate;
+    });
+  };
+
   // 渲染出勤記錄行
   const renderAttendanceRows = () => {
-    return attendanceWithOT.map((record, index) => (
-      <tr key={index} className={record.isHoliday ? 'holiday-row' : ''}>
-        <td className="date-cell">
-          {record.date}
-          {record.isHoliday && (
-            <span style={{ marginLeft: '4px', fontWeight: 'bold' }}>
-              {getHolidayLabel(record.holidayType)}
-            </span>
-          )}
-        </td>
-        <td className="time-cell">{record.clockIn}</td>
-        <td className="time-cell">{record.clockOut}</td>
-        <td className="number-cell">{record.ot1.toFixed(1)}</td>
-        <td className="number-cell">{record.ot2.toFixed(1)}</td>
-        <td className="amount-cell">{record.pay}</td>
-      </tr>
-    ));
+    return attendanceWithOT.map((record, index) => {
+      const isSpecialLeave = isSpecialLeaveDate(record.date);
+      const rowClass = record.isHoliday ? 'holiday-row' : (isSpecialLeave ? 'special-leave-row' : '');
+      
+      return (
+        <tr key={index} className={rowClass}>
+          <td className="date-cell">
+            {record.date}
+            {record.isHoliday && (
+              <span style={{ marginLeft: '4px', fontWeight: 'bold' }}>
+                {getHolidayLabel(record.holidayType)}
+              </span>
+            )}
+            {isSpecialLeave && !record.isHoliday && (
+              <span style={{ marginLeft: '4px', fontWeight: 'bold', color: 'red' }}>
+                特休
+              </span>
+            )}
+          </td>
+          <td className="time-cell">{record.clockIn}</td>
+          <td className="time-cell">{record.clockOut}</td>
+          <td className="number-cell">{record.ot1.toFixed(1)}</td>
+          <td className="number-cell">{record.ot2.toFixed(1)}</td>
+          <td className="amount-cell">{record.pay}</td>
+        </tr>
+      );
+    });
   };
 
   // 渲染住宿津貼行（如果存在）
@@ -275,6 +303,11 @@ const calculateDailyOT = (clockIn: string, clockOut: string): {ot1: number, ot2:
         
         .holiday-row {
           color: red;
+        }
+        
+        .special-leave-row {
+          color: red;
+          background-color: #fff5f5 !important;
         }
         
         .system-title {

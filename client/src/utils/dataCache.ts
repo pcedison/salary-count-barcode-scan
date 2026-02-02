@@ -107,6 +107,13 @@ export interface Employee {
   joinDate?: string;
   leaveDate?: string | null;
   phone?: string;
+  // 特別假相關欄位
+  specialLeaveDays?: number;
+  specialLeaveWorkDateRange?: string;
+  specialLeaveUsedDates?: string[];
+  specialLeaveCashDays?: number;
+  specialLeaveCashMonth?: string;
+  specialLeaveNotes?: string;
 }
 
 // 薪資記錄接口
