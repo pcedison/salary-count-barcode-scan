@@ -17,7 +17,8 @@ interface SalaryRecord {
   employeeName?: string; // 員工姓名，可選 
   baseSalary: number;
   housingAllowance: number;
-  welfareAllowance?: number; // 福利津貼
+  welfareAllowance?: number; // 福利津貼（總額）
+  allowances?: Array<{ name: string; amount: number; description?: string }>; // 津貼明細
   totalOT1Hours: number;
   totalOT2Hours: number;
   totalOvertimePay: number;
