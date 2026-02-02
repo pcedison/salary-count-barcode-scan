@@ -96,6 +96,7 @@ export const salaryRecords = pgTable("salary_records", {
   totalHolidayPay: doublePrecision("total_holiday_pay").default(0),
   grossSalary: doublePrecision("gross_salary").notNull(),
   deductions: json("deductions").$type<{ name: string; amount: number }[]>().default([]),
+  allowances: json("allowances").$type<{ name: string; amount: number; description?: string }[]>().default([]),
   totalDeductions: doublePrecision("total_deductions").default(0),
   netSalary: doublePrecision("net_salary").notNull(),
   attendanceData: json("attendance_data").$type<TemporaryAttendance[]>(),
