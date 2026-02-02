@@ -4,6 +4,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useEmployees } from '@/hooks/useEmployees';
 import SettingsForm from '@/components/SettingsForm';
+import SpecialLeaveCounter from '@/components/SpecialLeaveCounter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { constants } from '@/lib/constants';
@@ -890,6 +891,13 @@ export default function SettingsPage() {
         onTestConnection={testConnection}
         onMigrateData={migrateData}
         onToggleDatabase={toggleDatabaseConnection}
+      />
+      
+      {/* 特別假計數器 */}
+      <SpecialLeaveCounter 
+        employees={employees || []}
+        isAdmin={isAdmin}
+        baseSalary={baseMonthSalary}
       />
       
       {/* 基本設定和扣款設定後的儲存按鈕 */}

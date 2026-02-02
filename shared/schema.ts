@@ -29,6 +29,13 @@ export const employees = pgTable("employees", {
   email: text("email"),
   phone: text("phone"),
   active: boolean("active").default(true), // 員工是否在職
+  // 特別假相關欄位
+  specialLeaveDays: integer("special_leave_days").default(0), // 特別假未放天數
+  specialLeaveWorkDateRange: text("special_leave_work_date_range"), // 工作日計算範圍 (例如: "2025/01/01-2026/01/01")
+  specialLeaveUsedDates: json("special_leave_used_dates").$type<string[]>().default([]), // 已使用的特別假日期
+  specialLeaveCashDays: integer("special_leave_cash_days").default(0), // 折抵日薪天數
+  specialLeaveCashMonth: text("special_leave_cash_month"), // 折抵金發放月份
+  specialLeaveNotes: text("special_leave_notes"), // 備註
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -100,6 +107,14 @@ export const salaryRecords = pgTable("salary_records", {
   totalDeductions: doublePrecision("total_deductions").default(0),
   netSalary: doublePrecision("net_salary").notNull(),
   attendanceData: json("attendance_data").$type<TemporaryAttendance[]>(),
+  // 特別假相關欄位
+  specialLeaveInfo: json("special_leave_info").$type<{
+    usedDays: number;
+    usedDates: string[];
+    cashDays: number;
+    cashAmount: number;
+    notes?: string;
+  }>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

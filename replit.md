@@ -137,6 +137,13 @@ The system supports multiple deployment scenarios:
 
 ## Changelog
 
+- February 2, 2026. **Special Leave Counter Feature**: Added comprehensive special leave (特別假) tracking system
+  - New SpecialLeaveCounter component in Settings page with labor bureau calculator link (勞工局特別假試算)
+  - Anniversary-based calculation system notification
+  - Multi-date picker for tracking used leave dates
+  - Cash conversion option for unused leave days with automatic salary calculation
+  - PATCH API endpoint for employees to update special leave fields
+  - Uses actual base salary from settings instead of hardcoded value
 - November 3, 2025. **Enhanced Holiday Management with Labor Law Compliance**: Implemented comprehensive holiday type system with Taiwan labor law-compliant salary deductions
   - Database schema updated: replaced `workedOnHoliday` boolean with `holidayType` enum (worked/sick_leave/personal_leave/national_holiday)
   - Frontend UI enhanced: dropdown selector for holiday types with color-coded badges

@@ -165,21 +165,28 @@ export function useHistoryData() {
   
   // Update a salary record
   const updateSalaryRecordMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>> }) => {
-      const response = await apiRequest('PATCH', `/api/salary-records/${id}`, data);
+    mutationFn: async ({ id, data, forceUpdate = false }: { id: number; data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>>; forceUpdate?: boolean }) => {
+      // 如果 forceUpdate 為 true，添加標頭告訴伺服器不要重新計算
+      const headers: Record<string, string> = {};
+      if (forceUpdate) {
+        headers['x-force-update'] = 'true';
+      }
+      const response = await fetch(`/api/salary-records/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers
+        },
+        body: JSON.stringify(data)
+      });
+      if (!response.ok) {
+        throw new Error('Failed to update salary record');
+      }
       return await response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
-      // 移除自動通知，只在必要時顯示通知
       console.log("薪資紀錄更新成功");
-      // 移除以下通知，避免不必要的彈出窗口
-      /*
-      toast({
-        title: "更新成功",
-        description: "薪資紀錄已成功更新",
-      });
-      */
     },
     onError: (error) => {
       console.error('Error updating salary record:', error);
@@ -195,8 +202,9 @@ export function useHistoryData() {
     return await deleteSalaryRecordMutation.mutateAsync(id);
   };
   
-  const updateSalaryRecord = async (id: number, data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>>) => {
-    return await updateSalaryRecordMutation.mutateAsync({ id, data });
+  // 更新薪資紀錄，支援 forceUpdate 選項以跳過伺服器端重新計算
+  const updateSalaryRecord = async (id: number, data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>>, forceUpdate = true) => {
+    return await updateSalaryRecordMutation.mutateAsync({ id, data, forceUpdate });
   };
   
   // 單獨的函數來更新數據庫中的薪資記錄 - 使用統一的計算模塊

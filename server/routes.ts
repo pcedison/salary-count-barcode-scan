@@ -946,6 +946,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // PATCH route for partial employee updates (including special leave fields)
+  app.patch("/api/employees/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "無效的ID" });
+      }
+
+      const updateData = req.body;
+      
+      // 過濾只允許的欄位更新（特別假相關欄位）
+      const allowedFields = [
+        'specialLeaveDays',
+        'specialLeaveWorkDateRange',
+        'specialLeaveUsedDates',
+        'specialLeaveCashDays',
+        'specialLeaveCashMonth',
+        'specialLeaveNotes',
+        'name',
+        'position',
+        'department',
+        'email',
+        'phone',
+        'active'
+      ];
+      
+      const filteredData: Record<string, any> = {};
+      for (const key of Object.keys(updateData)) {
+        if (allowedFields.includes(key)) {
+          filteredData[key] = updateData[key];
+        }
+      }
+      
+      const updatedEmployee = await storage.updateEmployee(id, filteredData);
+      
+      if (!updatedEmployee) {
+        return res.status(404).json({ message: "找不到員工" });
+      }
+      
+      res.json(updatedEmployee);
+    } catch (err) {
+      handleError(err, res);
+    }
+  });
+
   app.delete("/api/employees/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);

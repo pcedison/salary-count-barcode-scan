@@ -154,15 +154,15 @@ export default function HistoryPage() {
     setIsEditModalOpen(true);
   };
   
-  // 保存編輯的歷史記錄
-  const handleSaveEditedRecord = async (id: number, updatedAttendanceData: any[]) => {
+  // 保存編輯的歷史記錄 - 支援編輯所有欄位
+  const handleSaveEditedRecord = async (id: number, updatedData: any) => {
     try {
-      // 只更新考勤資料部分
-      await updateSalaryRecord(id, { attendanceData: updatedAttendanceData });
+      // 更新所有可編輯欄位
+      await updateSalaryRecord(id, updatedData);
       
       toast({
         title: "更新成功",
-        description: "考勤紀錄已成功更新",
+        description: "薪資紀錄已成功更新",
       });
       
       // 重置狀態
@@ -172,7 +172,7 @@ export default function HistoryPage() {
       console.error('Error updating record:', error);
       toast({
         title: "更新失敗",
-        description: "無法更新考勤紀錄，請稍後再試",
+        description: "無法更新薪資紀錄，請稍後再試",
         variant: "destructive"
       });
     }
