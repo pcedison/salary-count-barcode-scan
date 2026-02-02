@@ -12,6 +12,8 @@ import { useQueryClient } from '@tanstack/react-query';
 interface Employee {
   id: number;
   name: string;
+  position?: string;
+  department?: string;
   specialLeaveDays?: number;
   specialLeaveWorkDateRange?: string;
   specialLeaveUsedDates?: string[];
@@ -41,6 +43,26 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
 
   const selectedEmployee = employees.find(e => e.id === selectedEmployeeId);
 
+  // 自動選擇第一位一般員工（非主管/經理）作為預設顯示
+  useEffect(() => {
+    if (employees.length > 0 && selectedEmployeeId === null) {
+      // 優先尋找一般員工（position 不包含 主管、經理、老闆、負責人 等關鍵字）
+      const managerKeywords = ['主管', '經理', '老闆', '負責人', '總監', '董事', '執行長', 'manager', 'director', 'boss', 'owner'];
+      const regularEmployee = employees.find(emp => {
+        const position = (emp.position || '').toLowerCase();
+        return !managerKeywords.some(keyword => position.includes(keyword.toLowerCase()));
+      });
+      
+      if (regularEmployee) {
+        setSelectedEmployeeId(regularEmployee.id);
+      } else if (employees.length > 0) {
+        // 如果沒有一般員工，選擇第一位員工
+        setSelectedEmployeeId(employees[0].id);
+      }
+    }
+  }, [employees, selectedEmployeeId]);
+
+  // 當選擇的員工改變時，載入該員工的特別假資料
   useEffect(() => {
     if (selectedEmployee) {
       setSpecialLeaveDays(selectedEmployee.specialLeaveDays || 0);
@@ -164,15 +186,27 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
             <SelectContent>
               {employees.map(emp => (
                 <SelectItem key={emp.id} value={emp.id.toString()}>
-                  {emp.name}
+                  {emp.name} {emp.position ? `(${emp.position})` : ''}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {selectedEmployeeId && (
+        {selectedEmployeeId && selectedEmployee && (
           <>
+            {/* 員工資料標題 - 顯示當前選擇的員工 */}
+            <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
+              <p className="text-sm text-green-800">
+                <span className="font-semibold">{selectedEmployee.name}</span>
+                {selectedEmployee.position && <span className="ml-2 text-green-600">({selectedEmployee.position})</span>}
+                <span className="ml-2 text-green-700">的特別假資料</span>
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                每位員工的特別假資料獨立儲存，切換員工即可查看/編輯不同員工的記錄
+              </p>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>特別假天數（未放）</Label>
