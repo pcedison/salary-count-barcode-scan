@@ -7,14 +7,13 @@ import SettingsForm from '@/components/SettingsForm';
 import SpecialLeaveCounter from '@/components/SpecialLeaveCounter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { constants } from '@/lib/constants';
 import { supabaseClient, updateSupabaseConnection } from '@/lib/supabase';
-import { Lock, Shield, Loader2, Save, AlertCircle } from 'lucide-react';
+import { Lock, Shield, Loader2, Save, AlertCircle, DollarSign, CalendarDays, Settings } from 'lucide-react';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 
-// 預設系統配置
 const DEFAULT_CONFIG = {
-  // 基本計算參數 - 使用constants中的標準值
   BASE_HOURLY_RATE: constants.BASE_HOURLY_RATE,
   BASE_MONTH_SALARY: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_DAYS * constants.STANDARD_WORK_HOURS,
   WELFARE_ALLOWANCE: constants.DEFAULT_WELFARE_ALLOWANCE,
@@ -22,7 +21,6 @@ const DEFAULT_CONFIG = {
   OT1_MULTIPLIER: constants.OT1_MULTIPLIER,
   OT2_MULTIPLIER: constants.OT2_MULTIPLIER,
   
-  // 預設扣除項
   DEDUCTIONS: [
     { id: 1, name: '勞保費', amount: 658, description: '勞工保險費用' },
     { id: 2, name: '健保費', amount: 443, description: '全民健康保險費用' },
@@ -66,11 +64,9 @@ export default function SettingsPage() {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
   const [isSupabaseActive, setIsSupabaseActive] = useState<boolean>(false);
   
-  // 設定變更狀態
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Admin related states
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [showChangePin, setShowChangePin] = useState(false);
   const [currentPin, setCurrentPin] = useState('');
@@ -78,7 +74,6 @@ export default function SettingsPage() {
   const [confirmPin, setConfirmPin] = useState('');
   const [isChangingPin, setIsChangingPin] = useState(false);
   
-  // Load settings when component mounts
   useEffect(() => {
     if (!isLoading && settings) {
       setBaseHourlyRate(settings.baseHourlyRate || DEFAULT_CONFIG.BASE_HOURLY_RATE);
@@ -86,18 +81,15 @@ export default function SettingsPage() {
       setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.OT1_MULTIPLIER);
       setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.OT2_MULTIPLIER);
       setDeductions(settings.deductions || DEFAULT_CONFIG.DEDUCTIONS);
-      // 如果 allowances 為空陣列或不存在，使用預設的福利金項目
       const loadedAllowances = settings.allowances && settings.allowances.length > 0 
         ? settings.allowances 
         : [{ name: '福利金', amount: settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE, description: '員工福利津貼' }];
       setAllowances(loadedAllowances);
       
-      // 重置變更狀態
       setHasUnsavedChanges(false);
     }
   }, [isLoading, settings]);
   
-  // 監視設定變化
   useEffect(() => {
     if (!isLoading && settings) {
       const hasChanges = 
@@ -112,12 +104,10 @@ export default function SettingsPage() {
     }
   }, [baseHourlyRate, baseMonthSalary, ot1Multiplier, ot2Multiplier, deductions, allowances, settings, isLoading]);
   
-  // 測試 Supabase 連接 - 用戶手動觸發
   const testConnection = async () => {
     setConnectionStatus('testing');
     
     try {
-      // 立即保存到服務器（永久存儲）
       const response = await fetch('/api/supabase-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -135,34 +125,27 @@ export default function SettingsPage() {
         console.log('Config saved to server successfully');
       }
       
-      // 同時保存到本地存儲（臨時存儲）
       localStorage.setItem('supabaseUrl', supabaseUrl);
       localStorage.setItem('supabaseAnonKey', supabaseAnonKey);
       
-      // 使用當前輸入的連接設置來更新 Supabase 連接
       const success = updateSupabaseConnection(supabaseUrl, supabaseAnonKey);
       
       if (!success) {
         throw new Error("Supabase client update failed");
       }
       
-      // 直接使用服務器端來測試連接，這更可靠
       const connectionResponse = await fetch('/api/supabase-connection');
       const connectionData = await connectionResponse.json();
       
       if (!connectionData.isConnected) {
-        // 如果服務器端測試失敗，再嘗試客戶端測試
         console.warn('Server-side connection test failed, trying client-side test...');
         
-        // 在更新客戶端後嘗試訪問設置表
         await import('@/lib/supabase').then(async ({ supabaseClient }) => {
           try {
             if (!supabaseClient) {
               throw new Error("Supabase client is not available");
             }
             
-            // 使用更新後的客戶端嘗試訪問settings表
-            // 因為我們剛剛遷移到Supabase，表名可能遵循PostgreSQL的命名規則
             const { data: data1, error: error1 } = await supabaseClient
               .from('settings')
               .select('id')
@@ -171,12 +154,10 @@ export default function SettingsPage() {
             if (error1) {
               console.log('First attempt failed:', error1.message);
               
-              // 檢查是否是API密鑰無效的錯誤
               if (error1.message && error1.message.includes('Invalid API')) {
                 throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
               }
               
-              // 如果第一次查詢失敗，嘗試使用表名的變體（設置）
               const { data: data2, error: error2 } = await supabaseClient
                 .from('設置')
                 .select('id')
@@ -185,21 +166,17 @@ export default function SettingsPage() {
               if (error2) {
                 console.log('Second attempt failed:', error2.message);
                 
-                // 檢查是否是API密鑰無效的錯誤
                 if (error2.message && error2.message.includes('Invalid API')) {
                   throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
                 }
                 
-                // 如果兩種表名都失敗，則嘗試獲取所有可用的表或進行其他檢查
                 try {
-                  // 最後嘗試直接進行授權驗證測試
                   const authResponse = await supabaseClient.auth.getSession();
                   console.log('Auth check result:', authResponse);
                   
                   if (authResponse.error) {
                     throw authResponse.error;
                   }
-                  // 如果能成功獲取會話，也視為連接成功
                 } catch (finalError) {
                   console.error('Final connection check failed:', finalError);
                   throw finalError;
@@ -207,7 +184,6 @@ export default function SettingsPage() {
               }
             }
             
-            // 連接成功，更新狀態並顯示成功消息
             setConnectionStatus('connected');
             toast({
               title: "連線成功",
@@ -215,7 +191,7 @@ export default function SettingsPage() {
             });
           } catch (connectionError) {
             console.error('Connection test failed in inner try-catch:', connectionError);
-            throw connectionError; // 向外層拋出錯誤
+            throw connectionError;
           }
         }).catch(error => {
           console.error('Connection test failed:', error);
@@ -227,7 +203,6 @@ export default function SettingsPage() {
           });
         });
       } else {
-        // 服務器端測試成功
         setConnectionStatus('connected');
         setIsSupabaseActive(connectionData.isActive || false);
         toast({
@@ -246,7 +221,6 @@ export default function SettingsPage() {
     }
   };
   
-  // 遷移數據到 Supabase - 用戶手動觸發
   const migrateData = async () => {
     if (connectionStatus !== 'connected') {
       toast({
@@ -257,7 +231,6 @@ export default function SettingsPage() {
       return;
     }
     
-    // 確認對話框
     if (!window.confirm("確定要將所有數據遷移到 Supabase 嗎？這可能需要一些時間，且期間無法使用系統。")) {
       return;
     }
@@ -265,7 +238,6 @@ export default function SettingsPage() {
     setConnectionStatus('migrating');
     
     try {
-      // 調用遷移 API
       const response = await fetch('/api/supabase-migrate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -277,13 +249,11 @@ export default function SettingsPage() {
         throw new Error(result.message || "遷移失敗");
       }
       
-      // 遷移成功，通知用戶
       toast({
         title: "遷移成功",
         description: "所有數據已成功遷移到 Supabase，系統現在將使用 Supabase 作為默認存儲。",
       });
       
-      // 更新連接狀態
       setConnectionStatus('connected');
     } catch (error) {
       console.error('Migration failed:', error);
@@ -293,20 +263,15 @@ export default function SettingsPage() {
         variant: "destructive"
       });
       
-      // 重置連接狀態
       setConnectionStatus('connected');
     }
   };
   
-  // 切換數據庫連接方式（PostgreSQL 或 Supabase）
   const toggleDatabaseConnection = async (enableSupabase: boolean) => {
     try {
-      // 如果從 Supabase 切換回 PostgreSQL，需要管理員驗證
       if (!enableSupabase && isSupabaseActive) {
-        // 提示輸入管理員密碼
         const adminPin = prompt("請輸入管理員密碼以確認切換到本地 PostgreSQL 數據庫");
         
-        // 如果用戶取消或密碼為空，則中止操作
         if (!adminPin) {
           toast({
             title: "操作已取消",
@@ -316,7 +281,6 @@ export default function SettingsPage() {
           return;
         }
         
-        // 顯示確認對話框，提醒用戶切換可能的影響
         const confirmMessage = "警告：切換到本地 PostgreSQL 數據庫將停止使用 Supabase 雲端數據。請確認：\n\n" +
                               "1. 您已經備份了所有重要數據\n" +
                               "2. 了解切換後系統將使用本地數據庫\n\n" +
@@ -330,7 +294,6 @@ export default function SettingsPage() {
           return;
         }
         
-        // 發送切換請求，包含管理員密碼
         const response = await fetch('/api/supabase-toggle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -346,7 +309,6 @@ export default function SettingsPage() {
           throw new Error(result.message || "切換失敗");
         }
         
-        // 更新當前狀態
         setIsSupabaseActive(result.isActive);
         
         toast({
@@ -354,7 +316,6 @@ export default function SettingsPage() {
           description: "系統現在使用 PostgreSQL 作為數據庫。來自 Supabase 的數據仍然保留在雲端。",
         });
       } else {
-        // 切換到 Supabase 的原有流程
         const response = await fetch('/api/supabase-toggle', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -367,7 +328,6 @@ export default function SettingsPage() {
           throw new Error(result.message || "切換失敗");
         }
         
-        // 更新當前狀態
         setIsSupabaseActive(result.isActive);
         
         toast({
@@ -385,26 +345,19 @@ export default function SettingsPage() {
     }
   };
   
-  // 載入 Supabase 配置並從本地儲存初始化
   const initializeConnection = () => {
-    // 僅在初始渲染時嘗試連接，不進行實際的連接測試
-    
-    // 從本地存儲和環境變量加載
     const savedUrl = localStorage.getItem('supabaseUrl') || import.meta.env.VITE_SUPABASE_URL || '';
     const savedKey = localStorage.getItem('supabaseAnonKey') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
     
-    // 設置到 state
     setSupabaseUrl(savedUrl);
     setSupabaseAnonKey(savedKey);
     
-    // 檢查當前使用的數據庫類型
     fetch('/api/supabase-connection')
       .then(response => response.json())
       .then(data => {
         if (data.success) {
           setIsSupabaseActive(data.isActive);
           
-          // 如果配置有效且已連接，更新連接狀態
           if (data.isConnected) {
             setConnectionStatus('connected');
           } else {
@@ -417,12 +370,10 @@ export default function SettingsPage() {
         setConnectionStatus('disconnected');
       });
     
-    // 如果本地有值，初始化 Supabase 客戶端（同時進行真實連接測試）
     if (savedUrl && savedKey && 
         savedUrl !== 'YOUR_SUPABASE_URL' && 
         savedKey !== 'YOUR_SUPABASE_ANON_KEY') {
       updateSupabaseConnection(savedUrl, savedKey);
-      // 測試連接，確保狀態顯示正確
       fetch('/api/supabase-connection')
         .then(response => response.json())
         .then(data => {
@@ -434,7 +385,6 @@ export default function SettingsPage() {
           setConnectionStatus('disconnected');
         });
     } else {
-      // 否則嘗試從服務器獲取配置
       fetch('/api/supabase-config')
         .then(response => response.json())
         .then(data => {
@@ -443,19 +393,15 @@ export default function SettingsPage() {
               data.url !== 'YOUR_SUPABASE_URL' && 
               data.key !== 'YOUR_SUPABASE_ANON_KEY') {
             
-            // 更新 state
             setSupabaseUrl(data.url);
             setSupabaseAnonKey(data.key);
             setIsSupabaseActive(data.isActive);
             
-            // 同步更新本地存儲
             localStorage.setItem('supabaseUrl', data.url);
             localStorage.setItem('supabaseAnonKey', data.key);
             
-            // 初始化 Supabase 客戶端（同時進行真實連接測試）
             updateSupabaseConnection(data.url, data.key);
             
-            // 測試連接，確保狀態顯示正確
             fetch('/api/supabase-connection')
               .then(response => response.json())
               .then(connData => {
@@ -467,7 +413,6 @@ export default function SettingsPage() {
                 setConnectionStatus('disconnected');
               });
           } else {
-            // 如果都沒有有效配置，顯示未連接狀態
             setConnectionStatus('disconnected');
           }
         })
@@ -478,19 +423,13 @@ export default function SettingsPage() {
     }
   };
   
-  // 僅在組件掛載時初始化連接，不進行定期監視
   useEffect(() => {
-    // 掛載時初始化連接
     initializeConnection();
-    
-    // 不再設置計時器，避免產生大量 API 請求
-  }, []); // 空依賴數組，只在組件掛載時執行一次
+  }, []);
   
-  // Save settings
   const handleSaveSettings = async () => {
     if (!isAdmin) return;
     
-    // 計算總津貼金額作為向下相容的 welfareAllowance
     const totalAllowances = allowances.reduce((sum, item) => sum + item.amount, 0);
     
     setIsSaving(true);
@@ -523,7 +462,6 @@ export default function SettingsPage() {
     }
   };
   
-  // Add a new deduction
   const handleAddDeduction = () => {
     setDeductions([
       ...deductions,
@@ -531,7 +469,6 @@ export default function SettingsPage() {
     ]);
   };
   
-  // Update a deduction
   const handleUpdateDeduction = (index: number, field: string, value: string | number) => {
     const newDeductions = [...deductions];
     newDeductions[index] = {
@@ -541,12 +478,10 @@ export default function SettingsPage() {
     setDeductions(newDeductions);
   };
   
-  // Delete a deduction
   const handleDeleteDeduction = (index: number) => {
     setDeductions(deductions.filter((_, i) => i !== index));
   };
   
-  // Add a new allowance
   const handleAddAllowance = () => {
     setAllowances([
       ...allowances,
@@ -554,7 +489,6 @@ export default function SettingsPage() {
     ]);
   };
   
-  // Update an allowance
   const handleUpdateAllowance = (index: number, field: string, value: string | number) => {
     const newAllowances = [...allowances];
     newAllowances[index] = {
@@ -564,12 +498,10 @@ export default function SettingsPage() {
     setAllowances(newAllowances);
   };
   
-  // Delete an allowance
   const handleDeleteAllowance = (index: number) => {
     setAllowances(allowances.filter((_, i) => i !== index));
   };
   
-  // Add a holiday
   const handleAddHoliday = async () => {
     if (!newHolidayDate) {
       toast({
@@ -601,7 +533,6 @@ export default function SettingsPage() {
       const addedHoliday = await addHoliday(newHoliday);
       
       if (addedHoliday) {
-        // 自動儲存設定
         await handleSaveSettings();
         
         const selectedEmployee = employees?.find(emp => emp.id === selectedEmployeeId);
@@ -624,7 +555,6 @@ export default function SettingsPage() {
     }
   };
   
-  // Delete a holiday
   const handleDeleteHoliday = async (id: number) => {
     try {
       const success = await deleteHoliday(id);
@@ -645,7 +575,6 @@ export default function SettingsPage() {
     }
   };
   
-  // Handle admin login/logout
   const handleAdminAction = () => {
     if (isAdmin) {
       logout();
@@ -659,7 +588,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle change PIN
   const handleChangePin = async () => {
     if (newPin !== confirmPin) {
       toast({
@@ -697,7 +625,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Render admin section
   const renderAdminSection = () => {
     if (!isAdmin) {
       return (
@@ -817,8 +744,49 @@ export default function SettingsPage() {
     );
   };
 
+  const commonFormProps = {
+    baseHourlyRate,
+    baseMonthSalary,
+    ot1Multiplier,
+    ot2Multiplier,
+    deductions,
+    allowances,
+    holidays: Array.isArray(holidays) ? holidays : [],
+    employees: employees || [],
+    newHolidayDate,
+    newHolidayDescription,
+    selectedEmployeeId,
+    holidayType,
+    supabaseUrl,
+    supabaseAnonKey,
+    connectionStatus,
+    isSupabaseActive,
+    isAdmin,
+    onBaseHourlyRateChange: setBaseHourlyRate,
+    onBaseMonthSalaryChange: setBaseMonthSalary,
+    onOt1MultiplierChange: setOt1Multiplier,
+    onOt2MultiplierChange: setOt2Multiplier,
+    onAddDeduction: handleAddDeduction,
+    onUpdateDeduction: handleUpdateDeduction,
+    onDeleteDeduction: handleDeleteDeduction,
+    onAddAllowance: handleAddAllowance,
+    onUpdateAllowance: handleUpdateAllowance,
+    onDeleteAllowance: handleDeleteAllowance,
+    onNewHolidayDateChange: setNewHolidayDate,
+    onNewHolidayDescriptionChange: setNewHolidayDescription,
+    onSelectedEmployeeChange: setSelectedEmployeeId,
+    onHolidayTypeChange: setHolidayType,
+    onAddHoliday: handleAddHoliday,
+    onDeleteHoliday: handleDeleteHoliday,
+    onSupabaseUrlChange: setSupabaseUrl,
+    onSupabaseAnonKeyChange: setSupabaseAnonKey,
+    onTestConnection: testConnection,
+    onMigrateData: migrateData,
+    onToggleDatabase: toggleDatabaseConnection,
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">系統設定</h2>
         <div>
@@ -841,7 +809,6 @@ export default function SettingsPage() {
         </div>
       </div>
       
-      {/* 未儲存變更警告 */}
       {hasUnsavedChanges && isAdmin && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 relative flex items-start">
           <AlertCircle className="h-4 w-4 text-yellow-600 mt-1 mr-2" />
@@ -850,101 +817,63 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
-      
-      {/* 設定表單 */}
-      <SettingsForm
-        baseHourlyRate={baseHourlyRate}
-        baseMonthSalary={baseMonthSalary}
-        ot1Multiplier={ot1Multiplier}
-        ot2Multiplier={ot2Multiplier}
-        deductions={deductions}
-        allowances={allowances}
-        holidays={Array.isArray(holidays) ? holidays : []}
-        employees={employees || []}
-        newHolidayDate={newHolidayDate}
-        newHolidayDescription={newHolidayDescription}
-        selectedEmployeeId={selectedEmployeeId}
-        holidayType={holidayType}
-        supabaseUrl={supabaseUrl}
-        supabaseAnonKey={supabaseAnonKey}
-        connectionStatus={connectionStatus}
-        isSupabaseActive={isSupabaseActive}
-        isAdmin={isAdmin}
-        onBaseHourlyRateChange={setBaseHourlyRate}
-        onBaseMonthSalaryChange={setBaseMonthSalary}
-        onOt1MultiplierChange={setOt1Multiplier}
-        onOt2MultiplierChange={setOt2Multiplier}
-        onAddDeduction={handleAddDeduction}
-        onUpdateDeduction={handleUpdateDeduction}
-        onDeleteDeduction={handleDeleteDeduction}
-        onAddAllowance={handleAddAllowance}
-        onUpdateAllowance={handleUpdateAllowance}
-        onDeleteAllowance={handleDeleteAllowance}
-        onNewHolidayDateChange={setNewHolidayDate}
-        onNewHolidayDescriptionChange={setNewHolidayDescription}
-        onSelectedEmployeeChange={setSelectedEmployeeId}
-        onHolidayTypeChange={setHolidayType}
-        onAddHoliday={handleAddHoliday}
-        onDeleteHoliday={handleDeleteHoliday}
-        onSupabaseUrlChange={setSupabaseUrl}
-        onSupabaseAnonKeyChange={setSupabaseAnonKey}
-        onTestConnection={testConnection}
-        onMigrateData={migrateData}
-        onToggleDatabase={toggleDatabaseConnection}
-      />
-      
-      {/* 特別假計數器 */}
-      <SpecialLeaveCounter 
-        employees={employees || []}
-        isAdmin={isAdmin}
-        baseSalary={baseMonthSalary}
-      />
-      
-      {/* 基本設定和扣款設定後的儲存按鈕 */}
-      {isAdmin && hasUnsavedChanges && (
-        <div className="mt-4 flex justify-end">
-          <Button 
-            onClick={handleSaveSettings}
-            disabled={isSaving || !isAdmin}
-            className="bg-primary/90 hover:bg-primary text-white"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                儲存中...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                儲存以上設定
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-      
-      {/* Admin Section */}
-      {renderAdminSection()}
-      
-      {/* 底部儲存按鈕 */}
-      <div className="flex justify-end">
-        <Button 
-          onClick={handleSaveSettings}
-          disabled={isSaving || !isAdmin}
-          className={`${isAdmin ? 'bg-success hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'} text-white px-8 py-3 rounded-md font-medium`}
-        >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : !isAdmin ? (
-            <Lock className="mr-2 h-4 w-4" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          {isSaving ? "儲存中..." : "儲存所有設定"}
-        </Button>
-      </div>
 
-      {/* Admin Login Dialog */}
+      <Tabs defaultValue="salary" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsTrigger value="salary" className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4" />
+            <span>薪資設定</span>
+          </TabsTrigger>
+          <TabsTrigger value="holiday" className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4" />
+            <span>假日與特休</span>
+          </TabsTrigger>
+          <TabsTrigger value="system" className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            <span>系統管理</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="salary">
+          <SettingsForm {...commonFormProps} section="salary" />
+          
+          {isAdmin && (
+            <div className="mt-6 flex justify-end">
+              <Button 
+                onClick={handleSaveSettings}
+                disabled={isSaving || !isAdmin || !hasUnsavedChanges}
+                className={`${hasUnsavedChanges ? 'bg-success hover:bg-green-600' : 'bg-gray-400'} text-white px-8 py-3 rounded-md font-medium`}
+              >
+                {isSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="mr-2 h-4 w-4" />
+                )}
+                {isSaving ? "儲存中..." : "儲存薪資設定"}
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="holiday">
+          <SettingsForm {...commonFormProps} section="holiday" />
+          
+          <div className="mt-6">
+            <SpecialLeaveCounter 
+              employees={employees || []}
+              isAdmin={isAdmin}
+              baseSalary={baseMonthSalary}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="system">
+          <SettingsForm {...commonFormProps} section="system" />
+          
+          {renderAdminSection()}
+        </TabsContent>
+      </Tabs>
+
       <AdminLoginDialog
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
