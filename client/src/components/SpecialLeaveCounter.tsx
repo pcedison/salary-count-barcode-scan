@@ -81,33 +81,14 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
     }
   }, [selectedEmployee]);
 
-  const handleAddLeaveDate = () => {
-    if (!newLeaveDate) return;
-    if (usedDates.includes(newLeaveDate)) {
-      toast({
-        title: "日期已存在",
-        description: "此日期已經選取過了",
-        variant: "destructive"
-      });
-      return;
-    }
-    setUsedDates([...usedDates, newLeaveDate].sort());
-    setNewLeaveDate('');
-  };
-
-  const handleRemoveLeaveDate = (date: string) => {
-    setUsedDates(usedDates.filter(d => d !== date));
-  };
-
-  const handleSave = async () => {
+  const saveUsedDates = async (newDates: string[]) => {
     if (!selectedEmployeeId || !isAdmin) return;
-
     setIsSaving(true);
     try {
       await apiRequest('PATCH', `/api/employees/${selectedEmployeeId}`, {
         specialLeaveDays,
         specialLeaveWorkDateRange: workDateRange,
-        specialLeaveUsedDates: usedDates,
+        specialLeaveUsedDates: newDates,
         specialLeaveCashDays: cashDays,
         specialLeaveCashMonth: cashMonth,
         specialLeaveNotes: notes
@@ -131,6 +112,32 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAddLeaveDate = () => {
+    if (!newLeaveDate) return;
+    if (usedDates.includes(newLeaveDate)) {
+      toast({
+        title: "日期已存在",
+        description: "此日期已經選取過了",
+        variant: "destructive"
+      });
+      return;
+    }
+    const newDates = [...usedDates, newLeaveDate].sort();
+    setUsedDates(newDates);
+    setNewLeaveDate('');
+    saveUsedDates(newDates);
+  };
+
+  const handleRemoveLeaveDate = (date: string) => {
+    const newDates = usedDates.filter(d => d !== date);
+    setUsedDates(newDates);
+    saveUsedDates(newDates);
+  };
+
+  const handleSave = async () => {
+    await saveUsedDates(usedDates);
   };
 
   const remainingDays = specialLeaveDays - usedDates.length - cashDays;
@@ -209,28 +216,15 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
               </p>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>特別假天數（未放）</Label>
-                <Input
-                  type="number"
-                  value={specialLeaveDays}
-                  onChange={(e) => setSpecialLeaveDays(parseInt(e.target.value) || 0)}
-                  disabled={!isAdmin}
-                  className="mt-1"
-                  placeholder="透過試算網址計算後填入"
-                />
-              </div>
-              <div>
-                <Label>工作日計算範圍</Label>
-                <Input
-                  value={workDateRange}
-                  onChange={(e) => setWorkDateRange(e.target.value)}
-                  disabled={!isAdmin}
-                  className="mt-1"
-                  placeholder="例：2025/01/01-2026/01/01"
-                />
-              </div>
+            <div>
+              <Label>工作日計算範圍</Label>
+              <Input
+                value={workDateRange}
+                onChange={(e) => setWorkDateRange(e.target.value)}
+                disabled={!isAdmin}
+                className="mt-1"
+                placeholder="例：2025/01/01-2026/01/01"
+              />
             </div>
 
             <div className="border rounded-md p-4">
@@ -345,21 +339,17 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
             </div>
 
             <div className="bg-gray-100 p-4 rounded-md">
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
-                  <p className="text-xs text-gray-500">總特別假</p>
-                  <p className="text-xl font-bold">{specialLeaveDays} 天</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">已使用/折抵</p>
+                  <p className="text-xs text-gray-500">已使用特休</p>
                   <p className="text-xl font-bold text-blue-600">
-                    {usedDates.length + cashDays} 天
+                    {usedDates.length} 天
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">剩餘</p>
-                  <p className={`text-xl font-bold ${remainingDays < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {remainingDays} 天
+                  <p className="text-xs text-gray-500">折抵日薪</p>
+                  <p className="text-xl font-bold text-amber-600">
+                    {cashDays} 天
                   </p>
                 </div>
               </div>
