@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar, ExternalLink, Info, DollarSign, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 interface Employee {
   id: number;
@@ -28,9 +28,16 @@ interface SpecialLeaveCounterProps {
   baseSalary?: number;
 }
 
-export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 29500 }: SpecialLeaveCounterProps) {
+export default function SpecialLeaveCounter({ employees: employeesProp, isAdmin, baseSalary = 29500 }: SpecialLeaveCounterProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: employeesFromQuery } = useQuery<Employee[]>({
+    queryKey: ['/api/employees'],
+    staleTime: 0,
+  });
+
+  const employees = employeesFromQuery || employeesProp;
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [specialLeaveDays, setSpecialLeaveDays] = useState<number>(0);
   const [workDateRange, setWorkDateRange] = useState<string>('');
