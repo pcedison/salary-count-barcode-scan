@@ -45,6 +45,7 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
   
   const holidayTypeOptions = [
     { value: 'none', label: '正常出勤', color: 'bg-gray-100 text-gray-800' },
+    { value: 'special_leave', label: '特別休假', color: 'bg-teal-100 text-teal-800' },
     { value: 'sick_leave', label: '病假', color: 'bg-yellow-100 text-yellow-800' },
     { value: 'personal_leave', label: '事假', color: 'bg-orange-100 text-orange-800' },
     { value: 'worked', label: '假日出勤', color: 'bg-blue-100 text-blue-800' },
@@ -221,6 +222,8 @@ export default function AttendanceTable({ data, isLoading }: AttendanceTableProp
                     return 'bg-yellow-100 text-yellow-800';
                   case 'personal_leave':
                     return 'bg-orange-100 text-orange-800';
+                  case 'special_leave':
+                    return 'bg-teal-100 text-teal-800';
                   case 'typhoon_leave':
                     return 'bg-purple-100 text-purple-800';
                   case 'worked':

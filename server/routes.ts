@@ -657,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // 根據假日類型設定上下班時間
           // 國定假日、颱風假：不可編輯，顯示 --:--
           // 病假、事假、假日出勤：可編輯，設定預設時間
-          const isNoClockType = holiday.holidayType === 'national_holiday' || holiday.holidayType === 'typhoon_leave';
+          const isNoClockType = holiday.holidayType === 'national_holiday' || holiday.holidayType === 'typhoon_leave' || holiday.holidayType === 'special_leave';
           const clockIn = isNoClockType ? '--:--' : '08:00';
           const clockOut = isNoClockType ? '--:--' : '17:00';
           
@@ -676,6 +676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const employee = await storage.getEmployeeById(holiday.employeeId);
           const holidayTypeLabels: Record<string, string> = {
             'national_holiday': '國定假日',
+            'special_leave': '特別休假',
             'typhoon_leave': '颱風假',
             'sick_leave': '病假',
             'personal_leave': '事假',

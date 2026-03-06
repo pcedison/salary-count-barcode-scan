@@ -24,7 +24,7 @@ interface PrintableSalarySheetProps {
       clockIn: string;
       clockOut: string;
       isHoliday: boolean;
-      holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
+      holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave';
     }>;
     specialLeaveInfo?: {
       usedDays: number;
@@ -65,6 +65,8 @@ const getHolidayLabel = (holidayType?: string): string => {
       return '事假';
     case 'typhoon_leave':
       return '颱風假';
+    case 'special_leave':
+      return '特別休假';
     default:
       return '假日';
   }

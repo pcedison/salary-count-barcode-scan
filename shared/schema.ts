@@ -131,8 +131,8 @@ export const holidays = pgTable("holidays", {
   date: text("date").notNull(),
   name: text("name").notNull(), // 假日名稱/事由
   holidayType: text("holiday_type", { 
-    enum: ["worked", "sick_leave", "personal_leave", "national_holiday", "typhoon_leave"] 
-  }).notNull().default("national_holiday"), // 假日狀態：worked=有上班, sick_leave=病假, personal_leave=事假, national_holiday=國定假日, typhoon_leave=颱風假
+    enum: ["worked", "sick_leave", "personal_leave", "national_holiday", "typhoon_leave", "special_leave"] 
+  }).notNull().default("national_holiday"), // 假日狀態：worked=有上班, sick_leave=病假, personal_leave=事假, national_holiday=國定假日, typhoon_leave=颱風假, special_leave=特別休假
   description: text("description"), // 額外描述
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -143,6 +143,7 @@ export const insertHolidaySchema = createInsertSchema(holidays)
 // 假日類型選項（外勞適用規定）
 export const holidayTypeOptions = [
   { value: "national_holiday", label: "國定假日", paid: true, deductPay: false, description: "有給薪但不額外支付" },
+  { value: "special_leave", label: "特別休假", paid: true, deductPay: false, description: "有給薪，享有單日未加班日薪" },
   { value: "sick_leave", label: "病假", paid: false, deductPay: true, description: "扣除50%當日薪水" },
   { value: "personal_leave", label: "事假", paid: false, deductPay: true, description: "扣除當日薪水" },
   { value: "typhoon_leave", label: "颱風假", paid: false, deductPay: true, description: "外勞適用：未出勤扣除當日全額薪水" },

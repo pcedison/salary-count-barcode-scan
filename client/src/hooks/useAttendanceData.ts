@@ -168,14 +168,15 @@ export function useAttendanceData() {
     // 假日類型標籤對照表
     const holidayTypeLabels: Record<string, string> = {
       'national_holiday': '國定假日',
+      'special_leave': '特別休假',
       'sick_leave': '病假',
       'personal_leave': '事假',
       'typhoon_leave': '颱風假',
       'worked': '假日出勤'
     };
     
-    // 無打卡類型：只有國定假日、颱風假是整天不上班（不可編輯時間）
-    const noClockTypes = ['national_holiday', 'typhoon_leave'];
+    // 無打卡類型：國定假日、颱風假、特別休假是整天不上班（不可編輯時間）
+    const noClockTypes = ['national_holiday', 'typhoon_leave', 'special_leave'];
     
     // 增強現有考勤記錄
     const enhancedRecords = attData.map((record: any) => {
