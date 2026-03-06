@@ -114,10 +114,12 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
       });
 
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       
       toast({
         title: "儲存成功",
-        description: "特別假資料已更新",
+        description: "特別假資料已更新，假日設定與考勤表已同步",
       });
     } catch (error) {
       console.error('Error saving special leave:', error);

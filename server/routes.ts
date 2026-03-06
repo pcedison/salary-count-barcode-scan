@@ -980,6 +980,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // 如果更新了特別假使用日期，同步到假日設定和考勤記錄
+      if (filteredData.specialLeaveUsedDates !== undefined) {
+        const existingEmployee = await storage.getEmployeeById(id);
+        if (existingEmployee) {
+          const oldDates: string[] = (existingEmployee.specialLeaveUsedDates as string[]) || [];
+          const newDates: string[] = filteredData.specialLeaveUsedDates || [];
+          
+          // 標準化日期格式為 YYYY/MM/DD（假日系統使用此格式）
+          const normalizeDateToSlash = (d: string) => d.replace(/-/g, '/');
+          const normalizeDateToDash = (d: string) => d.replace(/\//g, '-');
+          const oldDatesNorm = oldDates.map(normalizeDateToDash);
+          const newDatesNorm = newDates.map(normalizeDateToDash);
+          
+          // 找出新增的日期
+          const addedDates = newDatesNorm.filter(d => !oldDatesNorm.includes(d));
+          // 找出刪除的日期
+          const removedDates = oldDatesNorm.filter(d => !newDatesNorm.includes(d));
+          
+          // 為新增的日期創建假日記錄和考勤記錄
+          for (const date of addedDates) {
+            const dateSlash = normalizeDateToSlash(date);
+            try {
+              // 檢查是否已有此日期的特別休假記錄
+              const allHolidays = await storage.getAllHolidays();
+              const existing = allHolidays.find(h => 
+                h.employeeId === id && 
+                h.holidayType === 'special_leave' && 
+                (h.date === dateSlash || h.date === date)
+              );
+              
+              if (!existing) {
+                // 創建假日記錄
+                const holiday = await storage.createHoliday({
+                  employeeId: id,
+                  date: dateSlash,
+                  name: '特別休假',
+                  holidayType: 'special_leave'
+                });
+                
+                // 檢查是否已有考勤記錄
+                const existingAttendance = await db
+                  .select()
+                  .from(temporaryAttendance)
+                  .where(
+                    and(
+                      eq(temporaryAttendance.date, dateSlash),
+                      eq(temporaryAttendance.employeeId, id)
+                    )
+                  );
+                
+                if (existingAttendance.length === 0) {
+                  await storage.createTemporaryAttendance({
+                    employeeId: id,
+                    date: dateSlash,
+                    clockIn: '--:--',
+                    clockOut: '--:--',
+                    isHoliday: true,
+                    isBarcodeScanned: false,
+                    holidayId: holiday.id,
+                    holidayType: 'special_leave'
+                  });
+                }
+                
+                console.log(`[特別假同步] 為員工 ${existingEmployee.name} 新增特別休假: ${dateSlash}`);
+              }
+            } catch (err) {
+              console.error(`[特別假同步] 新增 ${date} 失敗:`, err);
+            }
+          }
+          
+          // 為刪除的日期移除假日記錄和考勤記錄
+          for (const date of removedDates) {
+            const dateSlash = normalizeDateToSlash(date);
+            try {
+              const allHolidays = await storage.getAllHolidays();
+              const toRemove = allHolidays.filter(h => 
+                h.employeeId === id && 
+                h.holidayType === 'special_leave' && 
+                (h.date === dateSlash || h.date === date)
+              );
+              
+              for (const holiday of toRemove) {
+                await storage.deleteTemporaryAttendanceByHolidayId(holiday.id);
+                await storage.deleteHoliday(holiday.id);
+                console.log(`[特別假同步] 為員工 ${existingEmployee.name} 移除特別休假: ${holiday.date}`);
+              }
+            } catch (err) {
+              console.error(`[特別假同步] 移除 ${date} 失敗:`, err);
+            }
+          }
+        }
+      }
+      
       const updatedEmployee = await storage.updateEmployee(id, filteredData);
       
       if (!updatedEmployee) {

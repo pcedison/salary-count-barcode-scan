@@ -137,6 +137,12 @@ The system supports multiple deployment scenarios:
 
 ## Changelog
 
+- March 6, 2026. **Special Leave & Holiday Sync Integration**: Integrated SpecialLeaveCounter dates with holiday settings and attendance system
+  - When special leave dates are added in the counter, holiday records (type: special_leave) and attendance records (--:-- clock times) are auto-created
+  - When special leave dates are removed, corresponding holiday and attendance records are auto-deleted
+  - Synced records display in Settings holiday section with teal badge and employee name
+  - Frontend cache invalidation covers employees, holidays, and attendance queries
+  - Date format normalization (YYYY-MM-DD ↔ YYYY/MM/DD) ensures consistency across systems
 - February 2, 2026. **Special Leave Counter Feature**: Added comprehensive special leave (特別假) tracking system
   - New SpecialLeaveCounter component in Settings page with labor bureau calculator link (勞工局特別假試算)
   - Anniversary-based calculation system notification
