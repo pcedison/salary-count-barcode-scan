@@ -10,12 +10,12 @@ interface SettingsFormProps {
   ot2Multiplier: number;
   deductions: Array<{ name: string; amount: number; description: string }>;
   allowances: Array<{ name: string; amount: number; description: string }>;
-  holidays: Array<{ id: number; date: string; name: string; description?: string; employeeId?: number; holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' }>;
+  holidays: Array<{ id: number; date: string; name: string; description?: string; employeeId?: number; holidayType?: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave' }>;
   employees: Array<{ id: number; name: string; department: string }>;
   newHolidayDate: string;
   newHolidayDescription: string;
   selectedEmployeeId: number | null;
-  holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
+  holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave';
   supabaseUrl: string;
   supabaseAnonKey: string;
   connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
@@ -35,7 +35,7 @@ interface SettingsFormProps {
   onNewHolidayDateChange: (value: string) => void;
   onNewHolidayDescriptionChange: (value: string) => void;
   onSelectedEmployeeChange: (employeeId: number | null) => void;
-  onHolidayTypeChange: (value: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave') => void;
+  onHolidayTypeChange: (value: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave') => void;
   onAddHoliday: () => void;
   onDeleteHoliday: (id: number) => void;
   onSupabaseUrlChange: (value: string) => void;
@@ -355,7 +355,7 @@ export default function SettingsForm({
               <div className="flex-1">
                 <select
                   value={holidayType}
-                  onChange={(e) => onHolidayTypeChange(e.target.value as 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday')}
+                  onChange={(e) => onHolidayTypeChange(e.target.value as 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   data-testid="select-holiday-type"
                 >
@@ -407,6 +407,7 @@ export default function SettingsForm({
                     <span 
                       className={`text-xs px-2 py-0.5 rounded-full mr-2 ${
                         holiday.holidayType === 'national_holiday' ? 'bg-green-100 text-green-700' :
+                        holiday.holidayType === 'special_leave' ? 'bg-teal-100 text-teal-700' :
                         holiday.holidayType === 'sick_leave' ? 'bg-yellow-100 text-yellow-700' :
                         holiday.holidayType === 'personal_leave' ? 'bg-orange-100 text-orange-700' :
                         holiday.holidayType === 'typhoon_leave' ? 'bg-purple-100 text-purple-700' :

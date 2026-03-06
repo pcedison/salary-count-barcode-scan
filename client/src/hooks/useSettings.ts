@@ -111,10 +111,16 @@ export function useSettings() {
   // Delete holiday mutation
   const deleteHolidayMutation = useMutation({
     mutationFn: async (id: number) => {
-      return await apiRequest('DELETE', `/api/holidays/${id}`);
+      try {
+        return await apiRequest('DELETE', `/api/holidays/${id}`);
+      } catch (error: any) {
+        if (error.message && error.message.startsWith('404')) {
+          return null;
+        }
+        throw error;
+      }
     },
     onSuccess: () => {
-      // 同時刷新假日列表和考勤記錄（因為刪除假日會連帶刪除對應的考勤記錄）
       queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
     },

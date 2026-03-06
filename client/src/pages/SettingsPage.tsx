@@ -60,7 +60,7 @@ export default function SettingsPage() {
   const [newHolidayDate, setNewHolidayDate] = useState<string>('');
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
-  const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave'>('national_holiday');
+  const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave'>('national_holiday');
   const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
