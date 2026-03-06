@@ -62,7 +62,18 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
     }
   }, [employees, selectedEmployeeId]);
 
-  // 當選擇的員工改變時，載入該員工的特別假資料
+  const employeeLeaveDataKey = selectedEmployee
+    ? JSON.stringify({
+        id: selectedEmployee.id,
+        d: selectedEmployee.specialLeaveDays,
+        r: selectedEmployee.specialLeaveWorkDateRange,
+        u: selectedEmployee.specialLeaveUsedDates,
+        cd: selectedEmployee.specialLeaveCashDays,
+        cm: selectedEmployee.specialLeaveCashMonth,
+        n: selectedEmployee.specialLeaveNotes
+      })
+    : null;
+
   useEffect(() => {
     if (selectedEmployee) {
       setSpecialLeaveDays(selectedEmployee.specialLeaveDays || 0);
@@ -79,7 +90,7 @@ export default function SpecialLeaveCounter({ employees, isAdmin, baseSalary = 2
       setCashMonth('');
       setNotes('');
     }
-  }, [selectedEmployee]);
+  }, [employeeLeaveDataKey, selectedEmployeeId]);
 
   const saveUsedDates = async (newDates: string[]) => {
     if (!selectedEmployeeId || !isAdmin) return;
