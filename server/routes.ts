@@ -1249,10 +1249,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 創建快速查找員工的函數
       const findEmployeeWithTimeout = () => {
         return new Promise((resolve, reject) => {
-          // 設置 500 毫秒超時 - 顯著降低超時時間提高響應速度
           const timeout = setTimeout(() => {
-            console.log("員工查找超時優化，嘗試使用緩存");
-            // 優先檢查緩存
+            console.log("員工查找超時，嘗試使用緩存");
             try {
               const cachedResult = employeeCache.get(cacheKey);
               if (cachedResult) {
@@ -1264,7 +1262,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.error("讀取緩存時出錯", e);
             }
             
-            // 緩存未命中時使用最後一次成功的員工數據
             try {
               const lastScannedEmployee = employeeCache.get('last_scanned_employee');
               if (lastScannedEmployee) {
@@ -1275,7 +1272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } catch {}
             
             reject(new Error('查找員工超時'));
-          }, 800); // 從3秒減少到800毫秒，響應更快
+          }, 5000);
           
           // 執行優化的並行查找流程
           (async () => {
