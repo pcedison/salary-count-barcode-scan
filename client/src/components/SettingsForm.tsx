@@ -359,11 +359,12 @@ export default function SettingsForm({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   data-testid="select-holiday-type"
                 >
-                  {holidayTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value} data-testid={`option-${option.value}`}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option value="national_holiday">國定假日</option>
+                  <option value="special_leave">特別休假</option>
+                  <option value="sick_leave">病假</option>
+                  <option value="personal_leave">事假</option>
+                  <option value="typhoon_leave">颱風假</option>
+                  <option value="worked">假日出勤</option>
                 </select>
               </div>
             </div>
