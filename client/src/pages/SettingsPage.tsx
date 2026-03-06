@@ -45,7 +45,7 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings();
   const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
-  const { employees } = useEmployees();
+  const { employees, refetch: refetchEmployees } = useEmployees();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
   const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.BASE_MONTH_SALARY);
@@ -560,6 +560,7 @@ export default function SettingsPage() {
       const success = await deleteHoliday(id);
       
       if (success) {
+        await refetchEmployees();
         toast({
           title: "刪除成功",
           description: "假日已成功刪除。",
