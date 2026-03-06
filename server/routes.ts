@@ -710,6 +710,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteTemporaryAttendanceByHolidayId(id);
       console.log(`已刪除假日 ID:${id} 對應的考勤記錄`);
 
+      // 如果是特別休假，反向同步移除員工的 specialLeaveUsedDates 中對應的日期
+      if (holiday.holidayType === 'special_leave' && holiday.employeeId) {
+        try {
+          const employee = await storage.getEmployeeById(holiday.employeeId);
+          if (employee) {
+            const currentDates: string[] = (employee.specialLeaveUsedDates as string[]) || [];
+            const holidayDateDash = holiday.date.replace(/\//g, '-');
+            const holidayDateSlash = holiday.date.replace(/-/g, '/');
+            const updatedDates = currentDates.filter(d => {
+              const dNorm = d.replace(/\//g, '-');
+              return dNorm !== holidayDateDash && dNorm !== holidayDateSlash.replace(/\//g, '-');
+            });
+            
+            if (updatedDates.length !== currentDates.length) {
+              await storage.updateEmployee(holiday.employeeId, {
+                specialLeaveUsedDates: updatedDates
+              });
+              console.log(`[特別假同步] 從員工 ${employee.name} 的特休日期中移除 ${holiday.date}`);
+            }
+          }
+        } catch (syncErr) {
+          console.error(`[特別假同步] 反向同步失敗:`, syncErr);
+        }
+      }
+
       const success = await storage.deleteHoliday(id);
       
       if (!success) {
