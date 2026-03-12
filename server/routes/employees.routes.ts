@@ -1,12 +1,16 @@
 import type { Express } from 'express';
+import type { IncomingHttpHeaders } from 'http';
 
 import { insertEmployeeSchema } from '@shared/schema';
 import {
   diffSpecialLeaveDates,
   normalizeDateToSlash,
 } from '@shared/utils/specialLeaveSync';
+import type { Employee } from '../storage';
 
+import { PermissionLevel, verifyAdminPermission } from '../admin-auth';
 import { requireAdmin } from '../middleware/requireAdmin';
+import { extractAdminPin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
 
 import { handleRouteError, parseNumericId } from './route-helpers';
@@ -144,8 +148,47 @@ async function syncEmployeeSpecialLeaveDates(
   }
 }
 
+function toEmployeeOperationalProfile(employee: Employee) {
+  return {
+    id: employee.id,
+    name: employee.name,
+    idNumber: '',
+    isEncrypted: false,
+    position: employee.position,
+    department: employee.department,
+    email: '',
+    phone: '',
+    active: employee.active,
+    specialLeaveDays: employee.specialLeaveDays,
+    specialLeaveWorkDateRange: employee.specialLeaveWorkDateRange,
+    specialLeaveUsedDates: employee.specialLeaveUsedDates,
+    specialLeaveCashDays: employee.specialLeaveCashDays,
+    specialLeaveCashMonth: employee.specialLeaveCashMonth,
+    specialLeaveNotes: employee.specialLeaveNotes,
+    createdAt: employee.createdAt
+  };
+}
+
+async function hasSensitiveEmployeeReadAccess(headers: IncomingHttpHeaders) {
+  const adminPin = extractAdminPin({ headers });
+  if (!adminPin) {
+    return false;
+  }
+
+  return verifyAdminPermission(adminPin, PermissionLevel.ADMIN);
+}
+
 export function registerEmployeeRoutes(app: Express): void {
   app.get('/api/employees', async (_req, res) => {
+    try {
+      const employees = await storage.getAllEmployees();
+      return res.json(employees.map(toEmployeeOperationalProfile));
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.get('/api/employees/admin', requireAdmin(), async (_req, res) => {
     try {
       const employees = await storage.getAllEmployees();
       return res.json(employees);
@@ -166,7 +209,8 @@ export function registerEmployeeRoutes(app: Express): void {
         return res.status(404).json({ message: '找不到員工' });
       }
 
-      return res.json(employee);
+      const includeSensitiveFields = await hasSensitiveEmployeeReadAccess(req.headers);
+      return res.json(includeSensitiveFields ? employee : toEmployeeOperationalProfile(employee));
     } catch (err) {
       return handleRouteError(err, res);
     }

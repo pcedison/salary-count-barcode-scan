@@ -27,6 +27,7 @@
 - CSV 匯入仍信任前端 `adminVerified` 旗標
 - 管理員 PIN 仍保存在 localStorage，尚未升級為 session 或 signed token
 - 匯入、設定、員工、薪資等敏感路由尚未統一授權策略
+- 員工敏感讀取面已開始收斂，但完整員工資料仍未全面切換到 admin-only 模型
 
 ### 3.2 架構缺口
 
@@ -574,6 +575,10 @@
   - `scan.routes` 已加入 API 級 smoke test，覆蓋加密 ID 比對、上下班打卡、Raspberry 輕量回應、last-scan 重建
   - `employees.routes` 已加入 API 級 smoke test，覆蓋特休日期新增/移除時的假日與考勤同步
   - `settings.routes` 已加入 API 級 smoke test，覆蓋初次預設設定建立與受保護更新
+- `TASK-P0-SEC-01` 持續強化
+  - `/api/employees` 已改為預設回傳去敏的營運資料
+  - 完整員工清單已移到 `admin-only` 的 `/api/employees/admin`
+  - 員工管理頁已切換為完整清單端點，避免一般頁面再取到身分證/聯絡資訊
 - `TASK-P0-DATA-01` 前置分析已完成
   - 目前 `EmployeesPage` 仍依賴前端 Caesar 解密顯示 ID
   - AES 下一步應先做 server read-compat 與顯示模型收斂，不能直接開啟 AES 寫入

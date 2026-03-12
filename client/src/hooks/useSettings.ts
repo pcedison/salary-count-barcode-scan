@@ -124,6 +124,7 @@ export function useSettings() {
       queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
     },
     onError: (error) => {
       console.error('Error deleting holiday:', error);

@@ -349,6 +349,11 @@
   - 因此 Phase 6 第一段只能先做 server-side read compatibility，不可直接打開 AES 寫入
 - 驗收：舊資料照常可讀寫
 
+### Phase 6 補充前置條件
+
+- Phase 5 已開始把員工資料拆成「公開營運資料」與「admin-only 完整資料」
+- 這個分層是 Phase 6 的必要前置，因為 AES 上線後不能再依賴前端直接解密身分證號
+
 ### TASK-WP6-03 建立 feature flag
 
 - Size：S

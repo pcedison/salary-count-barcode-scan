@@ -113,6 +113,7 @@ export default function SpecialLeaveCounter({ employees: employeesProp, isAdmin,
       });
 
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
       queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
       queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       

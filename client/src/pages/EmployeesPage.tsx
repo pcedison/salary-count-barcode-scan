@@ -88,9 +88,9 @@ export default function EmployeesPage() {
   
   // 獲取所有員工數據
   const { data: employees = [], isLoading } = useQuery({
-    queryKey: ['/api/employees'],
+    queryKey: ['/api/employees/admin'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/employees');
+      const response = await apiRequest('GET', '/api/employees/admin');
       return response.json();
     },
     enabled: isAdmin // 只有管理員可以查看
@@ -104,6 +104,7 @@ export default function EmployeesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
       setIsDialogOpen(false);
       toast({
         title: "成功新增",
@@ -131,6 +132,7 @@ export default function EmployeesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
       setIsDialogOpen(false);
       toast({
         title: "成功更新",
@@ -154,6 +156,7 @@ export default function EmployeesPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
       setIsDeleteDialogOpen(false);
       toast({
         title: "成功刪除",

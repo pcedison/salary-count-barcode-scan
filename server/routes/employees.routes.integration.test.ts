@@ -2,6 +2,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
 
+const verifyAdminPermissionMock = vi.hoisted(() => vi.fn());
+
 const employeeState = vi.hoisted(() => ({
   employee: {
     id: 5,
@@ -93,6 +95,13 @@ vi.mock('../storage', () => ({
   storage: storageMock
 }));
 
+vi.mock('../admin-auth', () => ({
+  PermissionLevel: {
+    ADMIN: 3
+  },
+  verifyAdminPermission: verifyAdminPermissionMock
+}));
+
 vi.mock('../middleware/requireAdmin', () => ({
   requireAdmin: () => (req: { headers: Record<string, string | undefined> }, res: any, next: () => void) => {
     if (!req.headers['x-admin-pin']) {
@@ -138,12 +147,76 @@ beforeEach(() => {
   employeeState.deletedHolidayIds = [];
   employeeState.deletedAttendanceHolidayIds = [];
   employeeState.nextHolidayId = 1;
+  verifyAdminPermissionMock.mockReset();
+  verifyAdminPermissionMock.mockResolvedValue(true);
   vi.clearAllMocks();
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
 describe('employee routes integration', () => {
+  it('returns a redacted operational employee list from the public endpoint', async () => {
+    const server = await createJsonTestServer(registerEmployeeRoutes);
+
+    try {
+      const result = await jsonRequest<Array<Record<string, unknown>>>(
+        server.baseUrl,
+        '/api/employees'
+      );
+
+      expect(result.response.status).toBe(200);
+      expect(result.body).toEqual([
+        expect.objectContaining({
+          id: 5,
+          name: '測試員工',
+          department: '生產部',
+          position: null,
+          active: true,
+          specialLeaveUsedDates: [],
+          idNumber: '',
+          email: '',
+          phone: '',
+          isEncrypted: false
+        })
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('requires admin authorization for the full employee list endpoint', async () => {
+    const server = await createJsonTestServer(registerEmployeeRoutes);
+
+    try {
+      const unauthorized = await jsonRequest<{ success: boolean; message: string }>(
+        server.baseUrl,
+        '/api/employees/admin'
+      );
+      expect(unauthorized.response.status).toBe(401);
+
+      const authorized = await jsonRequest<Array<Record<string, unknown>>>(
+        server.baseUrl,
+        '/api/employees/admin',
+        {
+          headers: {
+            'x-admin-pin': '123456'
+          }
+        }
+      );
+
+      expect(authorized.response.status).toBe(200);
+      expect(authorized.body).toEqual([
+        expect.objectContaining({
+          id: 5,
+          idNumber: 'A123456789',
+          department: '生產部'
+        })
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('adds special leave holidays and placeholder attendance when specialLeaveUsedDates grow', async () => {
     const server = await createJsonTestServer(registerEmployeeRoutes);
 
