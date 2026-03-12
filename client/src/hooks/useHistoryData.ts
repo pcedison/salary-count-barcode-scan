@@ -68,7 +68,6 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   const isValid = validateSalaryRecord(
     record.salaryYear, 
     record.salaryMonth, 
-    employeeId, // 員工ID應該在第三個位置
     {
       totalOT1Hours: record.totalOT1Hours,
       totalOT2Hours: record.totalOT2Hours,
@@ -80,7 +79,8 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
       housingAllowance: record.housingAllowance
     }, 
     record.totalDeductions,
-    calculationSettings
+    calculationSettings,
+    employeeId
   );
   
   // 如果記錄已經是有效的，則直接返回
@@ -92,7 +92,6 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   const salaryResult = calculateSalary(
     record.salaryYear,
     record.salaryMonth,
-    employeeId, // 員工ID在第三個位置
     { 
       totalOT1Hours: record.totalOT1Hours, 
       totalOT2Hours: record.totalOT2Hours 
@@ -102,7 +101,8 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
     calculationSettings,
     record.totalHolidayPay || 0,
     record.welfareAllowance,
-    record.housingAllowance || 0
+    record.housingAllowance || 0,
+    employeeId
   );
   
   // 輸出日誌以供檢查 - 包含員工ID資訊

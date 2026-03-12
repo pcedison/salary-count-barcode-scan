@@ -2,6 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import { constants } from './constants';
 import { apiRequest } from './queryClient';
 
+const SUPABASE_PLACEHOLDER_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_PLACEHOLDER_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_DISABLED_VALUE = 'POSTGRESQL_CONNECTION_ONLY';
+
 // 嘗試從服務器和本地存儲獲取 Supabase 連接資訊
 const getSupabaseConfig = async () => {
   try {
@@ -10,8 +14,8 @@ const getSupabaseConfig = async () => {
     const savedKey = localStorage.getItem('supabaseAnonKey');
     
     // 2. 如果本地存儲有有效值，優先使用它們
-    if (savedUrl && savedUrl !== 'YOUR_SUPABASE_URL' && 
-        savedKey && savedKey !== 'YOUR_SUPABASE_ANON_KEY') {
+    if (savedUrl && savedUrl !== SUPABASE_PLACEHOLDER_URL && 
+        savedKey && savedKey !== SUPABASE_PLACEHOLDER_KEY) {
       return { url: savedUrl, key: savedKey };
     }
     
@@ -33,14 +37,14 @@ const getSupabaseConfig = async () => {
     
     // 4. 如果服務器獲取失敗，使用 mock 值（系統已遷移到純 PostgreSQL）
     return { 
-      url: 'POSTGRESQL_CONNECTION_ONLY', 
-      key: 'POSTGRESQL_CONNECTION_ONLY' 
+      url: SUPABASE_DISABLED_VALUE, 
+      key: SUPABASE_DISABLED_VALUE 
     };
   } catch (e) {
     // 5. 如果所有獲取方式都失敗，使用 mock 值（系統已遷移到純 PostgreSQL）
     return { 
-      url: 'POSTGRESQL_CONNECTION_ONLY', 
-      key: 'POSTGRESQL_CONNECTION_ONLY' 
+      url: SUPABASE_DISABLED_VALUE, 
+      key: SUPABASE_DISABLED_VALUE 
     };
   }
 };
@@ -89,20 +93,20 @@ const initializeSupabaseClient = () => {
     const savedUrl = localStorage.getItem('supabaseUrl');
     const savedKey = localStorage.getItem('supabaseAnonKey');
     
-    if (savedUrl && savedUrl !== 'YOUR_SUPABASE_URL' && 
-        savedKey && savedKey !== 'YOUR_SUPABASE_ANON_KEY') {
+    if (savedUrl && savedUrl !== SUPABASE_PLACEHOLDER_URL && 
+        savedKey && savedKey !== SUPABASE_PLACEHOLDER_KEY) {
       createSupabaseClient(savedUrl, savedKey);
       console.log("Supabase client initialized successfully from localStorage");
       return;
     }
     
     // 如果本地存儲沒有有效值，使用 mock 值（系統已遷移到純 PostgreSQL）
-    const envUrl = 'POSTGRESQL_CONNECTION_ONLY';
-    const envKey = 'POSTGRESQL_CONNECTION_ONLY';
+    const envUrl: string = SUPABASE_DISABLED_VALUE;
+    const envKey: string = SUPABASE_DISABLED_VALUE;
     
     if (envUrl && envKey && 
-        envUrl !== 'YOUR_SUPABASE_URL' && envUrl !== 'POSTGRESQL_CONNECTION_ONLY' &&
-        envKey !== 'YOUR_SUPABASE_ANON_KEY' && envKey !== 'POSTGRESQL_CONNECTION_ONLY') {
+        envUrl !== SUPABASE_PLACEHOLDER_URL && envUrl !== SUPABASE_DISABLED_VALUE &&
+        envKey !== SUPABASE_PLACEHOLDER_KEY && envKey !== SUPABASE_DISABLED_VALUE) {
       createSupabaseClient(envUrl, envKey);
       console.log("Supabase client initialized successfully from env variables");
       return;
@@ -121,8 +125,10 @@ initializeSupabaseClient();
 // 這確保了即使首次加載使用了本地存儲的配置，我們也會盡快獲取最新的服務器配置
 getSupabaseConfig().then(({ url, key }) => {
   if (url && key && 
-      url !== 'YOUR_SUPABASE_URL' && 
-      key !== 'YOUR_SUPABASE_ANON_KEY') {
+      url !== SUPABASE_PLACEHOLDER_URL &&
+      url !== SUPABASE_DISABLED_VALUE &&
+      key !== SUPABASE_PLACEHOLDER_KEY &&
+      key !== SUPABASE_DISABLED_VALUE) {
     try {
       createSupabaseClient(url, key);
       console.log("Supabase client updated with server config");
@@ -145,7 +151,7 @@ getSupabaseConfig().then(({ url, key }) => {
 export const updateSupabaseConnection = (url: string, key: string) => {
   try {
     // 首先驗證輸入
-    if (!url || !key || url === 'YOUR_SUPABASE_URL' || key === 'YOUR_SUPABASE_ANON_KEY') {
+    if (!url || !key || url === SUPABASE_PLACEHOLDER_URL || key === SUPABASE_PLACEHOLDER_KEY) {
       console.error("Invalid Supabase URL or Key provided");
       return false;
     }

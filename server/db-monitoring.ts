@@ -7,7 +7,6 @@
 import fs from 'fs';
 import path from 'path';
 import { getSupabaseClient, checkSupabaseConnection } from './supabase-client';
-import { pool } from './db';
 import { db } from './db-with-supabase';
 import { isUsingSupabase } from './db-with-supabase';
 import { storage } from './storage';

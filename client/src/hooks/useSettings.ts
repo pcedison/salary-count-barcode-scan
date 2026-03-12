@@ -90,7 +90,7 @@ export function useSettings() {
       employeeId: number;
       date: string; 
       name: string; 
-      holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
+      holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave';
       description?: string; 
     }) => {
       return await apiRequest('POST', '/api/holidays', holiday);
@@ -173,7 +173,7 @@ export function useSettings() {
     employeeId: number;
     date: string; 
     name: string; 
-    holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave';
+    holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave';
     description?: string; 
   }) => {
     try {
