@@ -11,6 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:smoke": "vitest run server/routes/*.integration.test.ts",
+    "restore:check": "tsx server/scripts/restore-check.ts",
+    "verify:ops": "npm run verify:core && npm run restore:check",
     "verify:baseline": "npm run check && npm run build",
     "verify:core": "npm test && npm run verify:baseline",
     "db:push": "drizzle-kit push"

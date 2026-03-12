@@ -541,13 +541,20 @@
 - 既有加密員工若未修改 ID 且仍保持加密，更新時會保留原始 ciphertext，不做意外降級或重加密
 - `storage.getEmployeeByIdNumber()` 已加入 direct lookup 候選值與 compatibility fallback，`scan.routes` 不再自行掃全表
 - 已補上 plaintext 員工 + encrypted scan token 的掃碼回歸，確認 route-level fallback 移除後行為不退化
+- 已新增 `/api/health`、`/ready`、`/live`，供部署平台判斷綜合健康度、readiness 與 liveness
+- health probes 已補上 `Cache-Control: no-store`，避免 proxy 或平台快取假健康狀態
+- 已新增 `restore:check` 腳本，會解析 `backups/` 下最新備份並列出關鍵資料表筆數
+- 已新增 `verify:ops` 指令，將 `verify:core` 與 `restore:check` 固定化為單一運維驗證入口
+- 已補上 `health.routes.integration.test.ts` 與 `envValidator.test.ts`
+- `envValidator` 現在會拒絕 production 缺少 `SESSION_SECRET`、拒絕 `SESSION_SAME_SITE=none + SESSION_SECURE=false`，並阻止未設 `ENCRYPTION_KEY` 就啟用 AES 寫入
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立
 - `cp9-line-qr-optional`：待建立
 - `cp5d-session-only-admin-auth`：已建立，指向 `86b1ad6`
 - `cp5e-identity-read-compat`：已建立，指向 `127c15e`
-- `cp5f-storage-write-compat`：待建立
+- `cp5f-storage-write-compat`：已建立，指向 `563a486`
+- `cp5g-ops-probes`：本輪建立
 
 ### 備註
 

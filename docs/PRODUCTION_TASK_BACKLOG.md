@@ -17,7 +17,13 @@
   - `cp2-test-baseline`
   - `cp3-security-foundation`
   - `cp4-admin-compat`
-- 當前驗證基線：`npm run verify:core` 綠燈
+  - `cp5a-routes-admin-settings`
+  - `cp5b-routes-employee-holiday`
+  - `cp5c-routes-core-complete`
+  - `cp5d-session-only-admin-auth`
+  - `cp5e-identity-read-compat`
+  - `cp5f-storage-write-compat`
+- 當前驗證基線：`npm run verify:ops` 綠燈
 
 ## 3. 當前主要缺口
 
@@ -43,7 +49,7 @@
 ### 3.4 品質與維運缺口
 
 - 已有 route integration / smoke 基線，但管理員登入/PIN 更新、restore 與列印流程仍缺少更完整的端對端保護
-- 尚未有標準 `/api/health`、`/ready`、`/live`
+- 已有標準 `/api/health`、`/ready`、`/live`，下一步是把 restore drill 與部署 runbook 補齊到正式 release gate
 - README 與實際架構不一致
 - 專案存在歷史殘留檔、JS/TS 雙軌與暫存檔
 
@@ -309,7 +315,7 @@
 
 ### TASK-P0-OPS-01 補齊 health / ready / live 與部署驗收腳本
 
-- 狀態：`Backlog`
+- 狀態：`Done`
 - Size：M
 - 依賴：
   - `TASK-P0-ARCH-03`
@@ -318,7 +324,7 @@
 - 驗收：
   - 存在 `/api/health`、`/ready`、`/live`
   - `verify`、`smoke`、`restore-check` 命令固定化
-- Checkpoint：`cp8-ops-hardening`
+- Checkpoint：`cp5g-ops-probes`，後續納入 `cp8-ops-hardening`
 - 回滾：`cp7-aes-migrated`
 
 ## P1 強烈建議在 production 前完成
@@ -591,7 +597,16 @@
   - 既有加密員工在「未改 ID、仍保持加密」時不會被意外降級或重加密
   - `storage.getEmployeeByIdNumber()` 已加入 direct lookup 候選值與 compatibility fallback，`scan.routes` 不再自行掃全表
   - 掃碼已補回 plaintext 員工 + encrypted scan token 的 route regression
-  - AES 下一步應補 restore drill，再切入正式資料遷移
+  - AES 下一步應補 active storage 的回歸保護與正式 restore drill，再切入資料遷移
+- `TASK-P0-OPS-01` 已完成
+  - 已新增 `/api/health`、`/ready`、`/live`，並以 `Cache-Control: no-store` 避免 probe 被快取
+  - 已新增 `restore:check` 與 `verify:ops` 指令，固定 health / smoke / restore 驗證入口
+  - 已新增 `server/routes/health.routes.integration.test.ts`，覆蓋 healthy / degraded / not-ready 路徑
+  - 已新增 [docs/OPERATIONS_RUNBOOK.md](/Users/marcus/Downloads/Xin-Zi-Ji-Suan-Sao-Ma-Qiang-V3/docs/OPERATIONS_RUNBOOK.md) 收斂部署、probe 與回滾準則
+- `TASK-P0-SEC-03` 已持續強化
+  - `envValidator` 現在會拒絕 production 缺少 `SESSION_SECRET`
+  - `SESSION_SAME_SITE=none` 若未同時開啟 `SESSION_SECURE=true` 會在啟動前失敗
+  - `USE_AES_ENCRYPTION=true` 若缺少 `ENCRYPTION_KEY` 會在啟動前失敗
 - `TASK-P0-SEC-03` 已完成
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`
@@ -601,5 +616,6 @@
   - `employees.routes.integration.test.ts` 已補上 admin 單筆/列表敏感資料讀取的 session-only 回歸
   - `settings` 路由已停止回傳 `adminPin`，並於預設/更新時先雜湊後儲存
 - 下一個優先施工：
-  - `TASK-P0-SEC-03`
   - `TASK-P0-DATA-01`
+  - `TASK-P0-DATA-02`
+  - `TASK-P1-CODE-01`

@@ -5,6 +5,7 @@ import { registerDashboardRoutes } from './dashboard-routes';
 import { registerAdminRoutes } from './routes/admin.routes';
 import { registerAttendanceRoutes } from './routes/attendance.routes';
 import { registerEmployeeRoutes } from './routes/employees.routes';
+import { registerHealthRoutes } from './routes/health.routes';
 import { registerHolidayRoutes } from './routes/holidays.routes';
 import { registerImportRoutes } from './routes/import.routes';
 import { registerSalaryRoutes } from './routes/salary.routes';
@@ -19,6 +20,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAdminRoutes(app);
   registerAttendanceRoutes(app);
   registerEmployeeRoutes(app);
+  registerHealthRoutes(app);
   registerHolidayRoutes(app);
   registerImportRoutes(app);
   registerSalaryRoutes(app);
