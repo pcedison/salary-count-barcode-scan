@@ -485,11 +485,11 @@
 
 ### Checkpoint Ledger
 
-- `cp0-v3-baseline`：待建立
-- `cp1-env-green`：待建立
-- `cp2-test-baseline`：待建立
-- `cp3-security-foundation`：待建立
-- `cp4-admin-compat`：待建立
+- `cp0-v3-baseline`：已建立，指向 `f680638ee91e535fa991ed41b51b0d0406bc84ce`
+- `cp1-env-green`：已建立，指向 `a7fcc62`
+- `cp2-test-baseline`：已建立，指向 `b3e6ce6`
+- `cp3-security-foundation`：已建立，指向 `c00b348`
+- `cp4-admin-compat`：已建立，指向 `c00b348`
 - `cp5a-routes-admin-settings`：待建立
 - `cp5b-routes-employee-holiday`：待建立
 - `cp5c-routes-core-complete`：待建立
@@ -502,3 +502,4 @@
 
 - 本文件是正式施工主計畫
 - 實作過程若有新風險，必須先更新本文件再進入下一 phase
+- `cp3` 與 `cp4` 目前落在同一個 commit，因為安全基礎設施與管理員相容驗證共用同一批 auth / route 檔案
