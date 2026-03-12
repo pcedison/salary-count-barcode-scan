@@ -555,6 +555,11 @@
   - `startMonitoring()` 已收斂為單一啟動點，避免重複監控副作用
   - `/api/attendance/today` 已修正為相容 `YYYY/MM/DD` 與 `YYYY-MM-DD`
   - 新增 attendance 日期比對測試
+  - `salary.routes` 已拆出，`salary/history` 路由已脫離單體 `routes.ts`
+  - 修正後端薪資計算未傳入 `employeeId` 的問題，避免特殊規則誤套到預設員工
+  - 修正 PATCH 薪資紀錄時可能重複累加假日出勤加給的問題
+  - 修正匯入路由缺失 `strictLimiter` import 的 runtime 風險
+  - `.config/`、`.local/` 已納入 `.gitignore`
 - 下一個優先施工：
-  - `TASK-WP5C-02`
+  - `TASK-WP5C-03`
   - `TASK-P0-QA-01`

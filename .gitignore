@@ -56,6 +56,8 @@ pnpm-debug.log*
 # Editor directories and files
 .idea
 .vscode
+.config/
+.local/
 *.swp
 *.swo
 *.sublime-*
