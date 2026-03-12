@@ -18,3 +18,8 @@ export function handleRouteError(err: unknown, res: Response) {
     message
   });
 }
+
+export function parseNumericId(value: string): number | null {
+  const id = Number.parseInt(value, 10);
+  return Number.isNaN(id) ? null : id;
+}

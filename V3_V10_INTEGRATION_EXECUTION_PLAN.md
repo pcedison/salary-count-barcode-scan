@@ -267,6 +267,7 @@
 
 ### TASK-WP5A-01 拆出 `admin.routes`、`settings.routes`
 
+- 狀態：已完成
 - Size：M
 - 依賴：`TASK-WP4-05`
 - 驗收：設定頁、管理員登入、PIN 更新正常
@@ -275,18 +276,21 @@
 
 ### TASK-WP5B-01 拆出 `employee.routes`
 
+- 狀態：已完成
 - Size：M
 - 依賴：`TASK-WP5A-01`
 - 驗收：員工 CRUD、加密欄位、在職狀態正常
 
 ### TASK-WP5B-02 拆出 `holiday.routes`
 
+- 狀態：已完成
 - Size：L
 - 依賴：`TASK-WP5B-01`
 - 驗收：假日新增、刪除、特休反向同步正常
 
 ### TASK-WP5B-03 特休同步回歸
 
+- 狀態：已完成
 - Size：S
 - 依賴：`TASK-WP5B-02`
 - 驗收：通過 `A5`、`A6`
@@ -493,8 +497,9 @@
 - `cp2-test-baseline`：已建立，指向 `b3e6ce6`
 - `cp3-security-foundation`：已建立，指向 `c00b348`
 - `cp4-admin-compat`：已建立，指向 `c00b348`
-- `cp5a-routes-admin-settings`：待建立
-- `cp5b-routes-employee-holiday`：待建立
+- `cp4a-auth-postgres-foundation`：已建立，指向 `d817c53f995bafcb8e87c59b821c4e82cf1b5628`
+- `cp5a-routes-admin-settings`：已建立，指向 `8326edb2d3e75bb34c9a7b65b384063c40539e7b`
+- `cp5b-routes-employee-holiday`：已建立
 - `cp5c-routes-core-complete`：待建立
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
@@ -506,3 +511,4 @@
 - 本文件是正式施工主計畫
 - 實作過程若有新風險，必須先更新本文件再進入下一 phase
 - `cp3` 與 `cp4` 目前落在同一個 commit，因為安全基礎設施與管理員相容驗證共用同一批 auth / route 檔案
+- `cp5b` 以 `cp5a` 為回退基線，後續 `WP5C` 若失敗，優先回切到 `cp5b`

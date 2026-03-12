@@ -214,7 +214,7 @@
 
 ### TASK-P0-ARCH-01 完成 `WP5A` 路由模組化
 
-- 狀態：`Ready`
+- 狀態：`Done`
 - Size：M
 - 依賴：
   - `TASK-P0-SEC-01`
@@ -232,7 +232,7 @@
 
 ### TASK-P0-ARCH-02 完成 `WP5B` 路由模組化
 
-- 狀態：`Backlog`
+- 狀態：`Done`
 - Size：L
 - 依賴：`TASK-P0-ARCH-01`
 - 目標：拆 `employees`、`holidays`，保留 V3 特休同步能力
@@ -245,7 +245,7 @@
 
 ### TASK-P0-ARCH-03 完成 `WP5C` 路由模組化
 
-- 狀態：`Backlog`
+- 狀態：`Ready`
 - Size：XL
 - 依賴：
   - `TASK-P0-ARCH-02`
@@ -541,6 +541,15 @@
   - runtime 已收斂為 PostgreSQL-only
   - 假 Supabase 切換 / 遷移 / 配置入口已停用
   - 系統設定頁改為真實資料庫狀態頁
+- `TASK-P0-ARCH-01` 已完成
+  - `admin.routes`、`settings.routes` 已從單體 `routes.ts` 拆出
+  - route registration 結構已建立
+  - `cp5a-routes-admin-settings` 已建立
+- `TASK-P0-ARCH-02` 已完成
+  - `employees.routes`、`holidays.routes` 已拆出
+  - `specialLeaveUsedDates` 正反向同步保留，且改為依賴 `storage` 介面
+  - `PATCH /api/employees/:id` 補上欄位級 schema 驗證
+  - `cp5b-routes-employee-holiday` 已建立
 - 下一個優先施工：
-  - `TASK-P0-ARCH-01`
-  - `TASK-P0-ARCH-02`
+  - `TASK-P0-ARCH-03`
+  - `TASK-P0-QA-01`

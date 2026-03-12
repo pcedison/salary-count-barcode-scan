@@ -1,0 +1,268 @@
+import type { Express } from 'express';
+
+import { insertEmployeeSchema } from '@shared/schema';
+import {
+  diffSpecialLeaveDates,
+  normalizeDateToSlash,
+} from '@shared/utils/specialLeaveSync';
+
+import { requireAdmin } from '../middleware/requireAdmin';
+import { storage } from '../storage';
+
+import { handleRouteError, parseNumericId } from './route-helpers';
+
+const employeePatchSchema = insertEmployeeSchema
+  .pick({
+    specialLeaveDays: true,
+    specialLeaveWorkDateRange: true,
+    specialLeaveUsedDates: true,
+    specialLeaveCashDays: true,
+    specialLeaveCashMonth: true,
+    specialLeaveNotes: true,
+    name: true,
+    position: true,
+    department: true,
+    email: true,
+    phone: true,
+    active: true
+  })
+  .partial();
+
+function applyCreateEmployeeEncryptionFlag(
+  requestBody: Record<string, any>,
+  validatedData: Record<string, any>
+) {
+  const useEncryption = requestBody.useEncryption === true;
+
+  if (validatedData.idNumber && useEncryption) {
+    console.log(`新增員工，ID加密已啟用 ${validatedData.idNumber}`);
+    validatedData.isEncrypted = true;
+    return;
+  }
+
+  console.log(`新增員工，ID加密未啟用 ${validatedData.idNumber}`);
+  validatedData.isEncrypted = false;
+}
+
+function applyUpdateEmployeeEncryptionFlag(
+  requestBody: Record<string, any>,
+  validatedData: Record<string, any>
+) {
+  const useEncryption = requestBody.useEncryption === true;
+
+  if (validatedData.idNumber && useEncryption) {
+    console.log(`更新員工，ID加密已啟用 ${validatedData.idNumber}`);
+    validatedData.isEncrypted = true;
+    return;
+  }
+
+  if ('useEncryption' in requestBody) {
+    console.log(`更新員工，ID加密未啟用 ${validatedData.idNumber || '(未修改ID)'}`);
+    validatedData.isEncrypted = false;
+  }
+}
+
+async function syncEmployeeSpecialLeaveDates(
+  employeeId: number,
+  employeeName: string,
+  oldDates: string[] = [],
+  newDates: string[] = []
+) {
+  const { addedDates, removedDates } = diffSpecialLeaveDates(oldDates, newDates);
+  if (addedDates.length === 0 && removedDates.length === 0) {
+    return;
+  }
+
+  const allHolidays = await storage.getAllHolidays();
+  const uniqueAddedDates = Array.from(new Set(addedDates));
+  const uniqueRemovedDates = Array.from(new Set(removedDates));
+
+  for (const date of uniqueAddedDates) {
+    const dateSlash = normalizeDateToSlash(date);
+
+    try {
+      const existingHoliday = allHolidays.find(holiday =>
+        holiday.employeeId === employeeId &&
+        holiday.holidayType === 'special_leave' &&
+        (holiday.date === dateSlash || holiday.date === date)
+      );
+
+      if (existingHoliday) {
+        continue;
+      }
+
+      const holiday = await storage.createHoliday({
+        employeeId,
+        date: dateSlash,
+        name: '特別休假',
+        holidayType: 'special_leave'
+      });
+
+      const existingAttendance = await storage.getTemporaryAttendanceByEmployeeAndDate(
+        employeeId,
+        dateSlash
+      );
+
+      if (existingAttendance.length === 0) {
+        await storage.createTemporaryAttendance({
+          employeeId,
+          date: dateSlash,
+          clockIn: '--:--',
+          clockOut: '--:--',
+          isHoliday: true,
+          isBarcodeScanned: false,
+          holidayId: holiday.id,
+          holidayType: 'special_leave'
+        });
+      }
+
+      allHolidays.push(holiday);
+      console.log(`[特別假同步] 為員工 ${employeeName} 新增特別休假: ${dateSlash}`);
+    } catch (err) {
+      console.error(`[特別假同步] 新增 ${date} 失敗:`, err);
+    }
+  }
+
+  for (const date of uniqueRemovedDates) {
+    const dateSlash = normalizeDateToSlash(date);
+
+    try {
+      const holidaysToRemove = allHolidays.filter(holiday =>
+        holiday.employeeId === employeeId &&
+        holiday.holidayType === 'special_leave' &&
+        (holiday.date === dateSlash || holiday.date === date)
+      );
+
+      for (const holiday of holidaysToRemove) {
+        await storage.deleteTemporaryAttendanceByHolidayId(holiday.id);
+        await storage.deleteHoliday(holiday.id);
+        console.log(`[特別假同步] 為員工 ${employeeName} 移除特別休假: ${holiday.date}`);
+      }
+    } catch (err) {
+      console.error(`[特別假同步] 移除 ${date} 失敗:`, err);
+    }
+  }
+}
+
+export function registerEmployeeRoutes(app: Express): void {
+  app.get('/api/employees', async (_req, res) => {
+    try {
+      const employees = await storage.getAllEmployees();
+      return res.json(employees);
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.get('/api/employees/:id', async (req, res) => {
+    try {
+      const id = parseNumericId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ message: '無效的ID' });
+      }
+
+      const employee = await storage.getEmployeeById(id);
+      if (!employee) {
+        return res.status(404).json({ message: '找不到員工' });
+      }
+
+      return res.json(employee);
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.post('/api/employees', requireAdmin(), async (req, res) => {
+    try {
+      const validatedData = insertEmployeeSchema.parse(req.body);
+      applyCreateEmployeeEncryptionFlag(req.body, validatedData);
+
+      const employee = await storage.createEmployee(validatedData);
+      return res.status(201).json(employee);
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.put('/api/employees/:id', requireAdmin(), async (req, res) => {
+    try {
+      const id = parseNumericId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ message: '無效的ID' });
+      }
+
+      const validatedData = insertEmployeeSchema.partial().parse(req.body);
+      applyUpdateEmployeeEncryptionFlag(req.body, validatedData);
+
+      const updatedEmployee = await storage.updateEmployee(id, validatedData);
+      if (!updatedEmployee) {
+        return res.status(404).json({ message: '找不到員工' });
+      }
+
+      return res.json(updatedEmployee);
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.patch('/api/employees/:id', requireAdmin(), async (req, res) => {
+    try {
+      const id = parseNumericId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ message: '無效的ID' });
+      }
+
+      const filteredData = employeePatchSchema.parse(req.body);
+
+      if (filteredData.specialLeaveUsedDates !== undefined) {
+        const existingEmployee = await storage.getEmployeeById(id);
+        if (existingEmployee) {
+          const oldDates = Array.isArray(existingEmployee.specialLeaveUsedDates)
+            ? existingEmployee.specialLeaveUsedDates.filter(
+                (date): date is string => typeof date === 'string'
+              )
+            : [];
+          const newDates = Array.isArray(filteredData.specialLeaveUsedDates)
+            ? filteredData.specialLeaveUsedDates.filter(
+                (date): date is string => typeof date === 'string'
+              )
+            : [];
+
+          await syncEmployeeSpecialLeaveDates(
+            id,
+            existingEmployee.name,
+            oldDates,
+            newDates
+          );
+        }
+      }
+
+      const updatedEmployee = await storage.updateEmployee(id, filteredData);
+      if (!updatedEmployee) {
+        return res.status(404).json({ message: '找不到員工' });
+      }
+
+      return res.json(updatedEmployee);
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.delete('/api/employees/:id', requireAdmin(), async (req, res) => {
+    try {
+      const id = parseNumericId(req.params.id);
+      if (id === null) {
+        return res.status(400).json({ message: '無效的ID' });
+      }
+
+      const success = await storage.deleteEmployee(id);
+      if (!success) {
+        return res.status(404).json({ message: '找不到員工' });
+      }
+
+      return res.status(204).end();
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+}
