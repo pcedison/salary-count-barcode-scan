@@ -3,28 +3,21 @@
  */
 
 import { Request, Response } from 'express';
-import { logOperation, OperationType, getOperationLogs, getAvailableLogDates, verifyAdminPermission } from './admin-auth';
+import { PermissionLevel, logOperation, OperationType, getOperationLogs, getAvailableLogDates } from './admin-auth';
 import {
   checkDatabaseConnection, createDatabaseBackup, BackupType,
   getBackupsList, restoreFromBackup, deleteBackup, getConnectionHistory, syncDatabases
 } from './db-monitoring';
 import { synchronizeDatabases, checkDataConsistency } from './data-sync';
 import { Express } from 'express';
+import { requireAdmin } from './middleware/requireAdmin';
 
 export function registerDashboardRoutes(app: Express) {
+  const requireSuperAdmin = requireAdmin(PermissionLevel.SUPER);
+
   // 獲取數據庫連接狀態歷史
-  app.get('/api/dashboard/connection-history', async (req: Request, res: Response) => {
+  app.get('/api/dashboard/connection-history', requireSuperAdmin, async (_req: Request, res: Response) => {
     try {
-      // 驗證管理員權限，從請求頭部獲取授權信息
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       const history = getConnectionHistory();
       
       res.json({
@@ -41,18 +34,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 創建數據庫備份
-  app.post('/api/dashboard/backups', async (req: Request, res: Response) => {
+  app.post('/api/dashboard/backups', requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       // 獲取備份類型和描述
       const { type = 'manual', description } = req.body as { 
         type?: string, 
@@ -115,18 +98,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 獲取備份列表
-  app.get('/api/dashboard/backups', async (req: Request, res: Response) => {
+  app.get('/api/dashboard/backups', requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       // 從查詢參數獲取備份類型
       const typeParam = req.query.type as string | undefined;
       let backupType: BackupType | undefined;
@@ -166,18 +139,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 從備份恢復
-  app.post('/api/dashboard/backups/:backupId/restore', async (req: Request, res: Response) => {
+  app.post('/api/dashboard/backups/:backupId/restore', requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       const { backupId } = req.params;
       
       if (!backupId) {
@@ -254,18 +217,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 獲取操作日誌
-  app.get('/api/dashboard/logs', async (req: Request, res: Response) => {
+  app.get('/api/dashboard/logs', requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       // 解析日期參數
       const dateStr = req.query.date as string;
       let date: Date | undefined = undefined;
@@ -296,18 +249,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 獲取可用的日誌日期
-  app.get('/api/dashboard/logs/dates', async (req: Request, res: Response) => {
+  app.get('/api/dashboard/logs/dates', requireSuperAdmin, async (_req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       const dates = getAvailableLogDates();
       
       res.json({
@@ -324,18 +267,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 同步數據庫
-  app.post('/api/dashboard/sync', async (req: Request, res: Response) => {
+  app.post('/api/dashboard/sync', requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       // 從請求體獲取源數據庫類型
       const { source = 'postgres' } = req.body;
       
@@ -386,18 +319,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 檢查數據一致性
-  app.get('/api/dashboard/consistency', async (req: Request, res: Response) => {
+  app.get('/api/dashboard/consistency', requireSuperAdmin, async (_req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       const result = await checkDataConsistency();
       
       // 記錄操作日誌
@@ -433,18 +356,8 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 刪除備份
-  app.delete('/api/dashboard/backups/:backupId', async (req: Request, res: Response) => {
+  app.delete('/api/dashboard/backups/:backupId', requireSuperAdmin, async (req: Request, res: Response) => {
     try {
-      // 驗證管理員權限
-      const adminPin = req.headers['x-admin-pin'] as string;
-      
-      if (!adminPin || !(await verifyAdminPermission(adminPin))) {
-        return res.status(401).json({
-          success: false,
-          message: "需要管理員權限"
-        });
-      }
-      
       const { backupId } = req.params;
       
       if (!backupId) {
@@ -510,7 +423,7 @@ export function registerDashboardRoutes(app: Express) {
   });
   
   // 檢查當前數據庫連接狀態
-  app.get('/api/dashboard/connection', async (_req: Request, res: Response) => {
+  app.get('/api/dashboard/connection', requireSuperAdmin, async (_req: Request, res: Response) => {
     try {
       const status = await checkDatabaseConnection();
       

@@ -23,11 +23,9 @@
 
 ### 3.1 安全缺口
 
-- 多數寫入型 API 尚未由 server 端強制管理員驗證
-- CSV 匯入仍信任前端 `adminVerified` 旗標
 - 管理員 PIN 仍保存在 localStorage，尚未升級為 session 或 signed token
-- 匯入、設定、員工、薪資等敏感路由尚未統一授權策略
-- 員工敏感讀取面已開始收斂，但完整員工資料仍未全面切換到 admin-only 模型
+- 敏感讀取面雖已收斂到 `employees / salary / dashboard / infra status` admin-only，但仍未升級為 session 或 signed token 模型
+- AES 上線前仍需完成 server-side 顯示/編輯模型，避免前端再次承擔敏感資料解密責任
 
 ### 3.2 架構缺口
 
@@ -45,7 +43,7 @@
 
 ### 3.4 品質與維運缺口
 
-- 測試只覆蓋少數純邏輯模組
+- 已有 route integration / smoke 基線，但管理員登入/PIN 更新、restore 與列印流程仍缺少更完整的端對端保護
 - 尚未有標準 `/api/health`、`/ready`、`/live`
 - README 與實際架構不一致
 - 專案存在歷史殘留檔、JS/TS 雙軌與暫存檔
@@ -575,10 +573,16 @@
   - `scan.routes` 已加入 API 級 smoke test，覆蓋加密 ID 比對、上下班打卡、Raspberry 輕量回應、last-scan 重建
   - `employees.routes` 已加入 API 級 smoke test，覆蓋特休日期新增/移除時的假日與考勤同步
   - `settings.routes` 已加入 API 級 smoke test，覆蓋初次預設設定建立與受保護更新
+  - `salary.routes` 已加入 API 級 smoke test，覆蓋薪資資料 admin-only 讀取與列印 redirect
+  - `dashboard.routes` 已加入 API 級 smoke test，覆蓋維運入口的 admin-only 保護與授權讀取
 - `TASK-P0-SEC-01` 持續強化
   - `/api/employees` 已改為預設回傳去敏的營運資料
   - 完整員工清單已移到 `admin-only` 的 `/api/employees/admin`
   - 員工管理頁已切換為完整清單端點，避免一般頁面再取到身分證/聯絡資訊
+  - `/api/salary-records`、`/api/salary-records/:id`、`/api/salary-records/:id/pdf` 已改為 admin-only
+  - `/api/db-status`、`/api/supabase-config`、`/api/supabase-connection` 已改為 admin-only
+  - `dashboard` 維運入口已統一改走 `requireAdmin`，不再散落手寫權限驗證
+  - `History` / `PrintSalaryPage` 已補上 query gate，未授權狀態不再先打敏感 API
 - `TASK-P0-DATA-01` 前置分析已完成
   - 目前 `EmployeesPage` 仍依賴前端 Caesar 解密顯示 ID
   - AES 下一步應先做 server read-compat 與顯示模型收斂，不能直接開啟 AES 寫入

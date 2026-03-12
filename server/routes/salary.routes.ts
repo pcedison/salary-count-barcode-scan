@@ -152,7 +152,7 @@ async function buildCalculatedSalaryRecord(
 }
 
 export function registerSalaryRoutes(app: Express): void {
-  app.get('/api/salary-records', async (_req, res) => {
+  app.get('/api/salary-records', requireAdmin(), async (_req, res) => {
     try {
       const records = await storage.getAllSalaryRecords();
       return res.json(records);
@@ -161,7 +161,7 @@ export function registerSalaryRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/salary-records/:id', async (req, res) => {
+  app.get('/api/salary-records/:id', requireAdmin(), async (req, res) => {
     try {
       const id = parseNumericId(req.params.id);
       if (id === null) {
@@ -272,7 +272,7 @@ export function registerSalaryRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/test-salary-calculation', async (_req, res) => {
+  app.get('/api/test-salary-calculation', requireAdmin(), async (_req, res) => {
     try {
       const settings = await storage.getSettings();
       if (!settings) {
@@ -346,7 +346,7 @@ export function registerSalaryRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/salary-records/:id/pdf', async (req, res) => {
+  app.get('/api/salary-records/:id/pdf', requireAdmin(), async (req, res) => {
     try {
       const id = parseNumericId(req.params.id);
       if (id === null) {

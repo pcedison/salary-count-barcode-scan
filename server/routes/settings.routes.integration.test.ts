@@ -130,4 +130,63 @@ describe('settings routes integration', () => {
       await server.close();
     }
   });
+
+  it('requires admin authorization for infrastructure status endpoints', async () => {
+    const server = await createJsonTestServer(registerSettingsRoutes);
+
+    try {
+      const unauthorizedDbStatus = await jsonRequest<{ success: boolean; message: string }>(
+        server.baseUrl,
+        '/api/db-status'
+      );
+      expect(unauthorizedDbStatus.response.status).toBe(401);
+
+      const unauthorizedSupabaseConfig = await jsonRequest<{ success: boolean; message: string }>(
+        server.baseUrl,
+        '/api/supabase-config'
+      );
+      expect(unauthorizedSupabaseConfig.response.status).toBe(401);
+
+      const unauthorizedSupabaseConnection = await jsonRequest<{ success: boolean; message: string }>(
+        server.baseUrl,
+        '/api/supabase-connection'
+      );
+      expect(unauthorizedSupabaseConnection.response.status).toBe(401);
+
+      const headers = {
+        'x-admin-pin': '123456'
+      };
+
+      const dbStatus = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/db-status', {
+        headers
+      });
+      expect(dbStatus.response.status).toBe(200);
+      expect(dbStatus.body).toMatchObject({
+        currentStorage: 'postgres',
+        storageMode: 'postgres_only'
+      });
+
+      const supabaseConfig = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/supabase-config', {
+        headers
+      });
+      expect(supabaseConfig.response.status).toBe(200);
+      expect(supabaseConfig.body).toMatchObject({
+        mode: 'postgres_only',
+        disabled: true,
+        isConfigured: false
+      });
+
+      const supabaseConnection = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/supabase-connection', {
+        headers
+      });
+      expect(supabaseConnection.response.status).toBe(200);
+      expect(supabaseConnection.body).toMatchObject({
+        success: true,
+        isConnected: true,
+        disabled: true
+      });
+    } finally {
+      await server.close();
+    }
+  });
 });

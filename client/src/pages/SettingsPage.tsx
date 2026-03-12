@@ -134,8 +134,13 @@ export default function SettingsPage() {
     }
   };
   useEffect(() => {
+    if (!isAdmin) {
+      setConnectionStatus('testing');
+      return;
+    }
+
     void refreshDatabaseStatus();
-  }, []);
+  }, [isAdmin]);
   
   const handleSaveSettings = async () => {
     if (!isAdmin) return;

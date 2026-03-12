@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
+import { useAdmin } from '@/hooks/useAdmin';
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { 
   calculateSalary, 
@@ -123,6 +124,7 @@ export function useHistoryData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { settings } = useSettings();
+  const { isAdmin } = useAdmin();
   
   // Fetch all salary records
   const { 
@@ -131,7 +133,8 @@ export function useHistoryData() {
     error,
     refetch
   } = useQuery<SalaryRecord[]>({
-    queryKey: ['/api/salary-records']
+    queryKey: ['/api/salary-records'],
+    enabled: isAdmin
   });
   
   // 暫時停用重新計算以修復CSV下載問題 - 直接使用資料庫中的正確數值
@@ -205,7 +208,7 @@ export function useHistoryData() {
   
   // 單獨的函數來更新數據庫中的薪資記錄 - 使用統一的計算模塊
   const fixAndUpdateSalaryRecords = useCallback(async () => {
-    if (!settings || !rawSalaryRecords.length) return;
+    if (!isAdmin || !settings || !rawSalaryRecords.length) return;
     
     // 已修正的月份計數
     let fixedCount = 0;
@@ -296,7 +299,7 @@ export function useHistoryData() {
       });
       */
     }
-  }, [rawSalaryRecords, settings, updateSalaryRecord, toast]);
+  }, [isAdmin, rawSalaryRecords, settings, updateSalaryRecord, toast]);
   
   // 當數據加載完成後，檢查並更新薪資記錄
   // 使用ref來追蹤是否已執行過修正，避免循環更新
@@ -306,15 +309,23 @@ export function useHistoryData() {
     // 重置標記，強制執行修正
     hasFixedRecordsRef.current = false;
     
+    if (!isAdmin) {
+      return;
+    }
+
     if (!isLoading && rawSalaryRecords.length > 0 && !hasFixedRecordsRef.current && settings) {
       // 設置標記，表示已經執行過修正
       hasFixedRecordsRef.current = true;
       fixAndUpdateSalaryRecords();
     }
-  }, [isLoading, rawSalaryRecords, settings]);
+  }, [isAdmin, isLoading, rawSalaryRecords, settings, fixAndUpdateSalaryRecords]);
   
   // Fetch a specific salary record by ID - 直接返回資料庫原始數據
-  const getSalaryRecordById = async (id: number) => {
+  const getSalaryRecordById = useCallback(async (id: number) => {
+    if (!isAdmin) {
+      throw new Error('需要管理員權限才能讀取薪資紀錄');
+    }
+
     try {
       const response = await apiRequest('GET', `/api/salary-records/${id}`, undefined);
       const record = await response.json() as SalaryRecord;
@@ -331,10 +342,10 @@ export function useHistoryData() {
       });
       throw error;
     }
-  };
+  }, [isAdmin, toast]);
   
   // Check for errors in data fetching
-  if (error) {
+  if (error && isAdmin) {
     console.error("Error fetching salary records:", error);
     toast({
       title: "資料載入失敗",

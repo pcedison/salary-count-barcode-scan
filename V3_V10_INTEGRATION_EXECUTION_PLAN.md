@@ -517,7 +517,15 @@
 - `cp4a-auth-postgres-foundation`：已建立，指向 `d817c53f995bafcb8e87c59b821c4e82cf1b5628`
 - `cp5a-routes-admin-settings`：已建立，指向 `8326edb2d3e75bb34c9a7b65b384063c40539e7b`
 - `cp5b-routes-employee-holiday`：已建立
-- `cp5c-routes-core-complete`：可於本輪提交後建立
+- `cp5c-routes-core-complete`：已建立，指向 `9164818`
+
+### 最近進展補記
+
+- 已將 `salary-records` 讀取面正式收斂為 admin-only，包含列表、單筆與列印 redirect
+- 已將 `db-status / supabase-config / supabase-connection` 收斂為 admin-only，避免未授權暴露基礎設施資訊
+- `dashboard` 維運入口已統一改用 `requireAdmin(PermissionLevel.SUPER)`，移除散落的手寫 PIN 驗證
+- `History` 與 `PrintSalaryPage` 已補上前端 query gate，未授權狀態不再先命中敏感 API
+- 已新增 `salary.routes.integration.test.ts`、`dashboard-routes.integration.test.ts`，並擴充 `settings.routes.integration.test.ts`
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立

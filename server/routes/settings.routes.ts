@@ -2,6 +2,7 @@ import type { Express } from 'express';
 
 import { insertSettingsSchema } from '@shared/schema';
 
+import { PermissionLevel } from '../admin-auth';
 import { db } from '../db';
 import { strictLimiter } from '../middleware/rateLimiter';
 import { requireAdmin } from '../middleware/requireAdmin';
@@ -46,7 +47,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/db-status', async (_req, res) => {
+  app.get('/api/db-status', requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
     try {
       let postgresConnection = false;
 
@@ -77,7 +78,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/supabase-config', async (_req, res) => {
+  app.get('/api/supabase-config', requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
     try {
       return res.json({
         mode: 'postgres_only',
@@ -93,7 +94,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.post('/api/supabase-config', strictLimiter, requireAdmin(), async (_req, res) => {
+  app.post('/api/supabase-config', strictLimiter, requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
     try {
       return res.status(409).json({
         success: false,
@@ -105,7 +106,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/supabase-connection', async (_req, res) => {
+  app.get('/api/supabase-connection', requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
     try {
       let isConnected = false;
 
@@ -129,7 +130,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.post('/api/supabase-toggle', strictLimiter, requireAdmin(), async (_req, res) => {
+  app.post('/api/supabase-toggle', strictLimiter, requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
     try {
       return res.status(409).json({
         success: false,
@@ -142,7 +143,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.post('/api/supabase-migrate', strictLimiter, requireAdmin(), async (_req, res) => {
+  app.post('/api/supabase-migrate', strictLimiter, requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
     try {
       return res.status(409).json({
         success: false,

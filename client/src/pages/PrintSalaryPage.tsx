@@ -3,16 +3,20 @@ import { useLocation } from 'wouter';
 import PrintableSalarySheet from '@/components/PrintableSalarySheet';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Printer, ArrowLeft, FileDown } from 'lucide-react';
+import { Printer, ArrowLeft, Lock, Shield } from 'lucide-react';
 import { useHistoryData } from '@/hooks/useHistoryData';
+import { useAdmin } from '@/hooks/useAdmin';
+import AdminLoginDialog from '@/components/AdminLoginDialog';
 import { calculateOvertime, calculateDailyOvertimePay } from '@/lib/salaryCalculations';
 
 export default function PrintSalaryPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { isAdmin } = useAdmin();
   const { getSalaryRecordById } = useHistoryData();
   const [salaryRecord, setSalaryRecord] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
   
   // 從URL獲取記錄ID - 改善錯誤處理
   const getRecordIdFromUrl = () => {
@@ -28,6 +32,12 @@ export default function PrintSalaryPage() {
     if (!recordId || isNaN(recordId)) {
       console.log('No valid record ID found, redirecting to history page');
       setLocation('/history');
+      return;
+    }
+
+    if (!isAdmin) {
+      setSalaryRecord(null);
+      setIsLoading(false);
       return;
     }
     
@@ -47,7 +57,7 @@ export default function PrintSalaryPage() {
     };
     
     loadSalaryRecord();
-  }, [recordId]);
+  }, [isAdmin, recordId, setLocation, getSalaryRecordById]);
   
   // 列印功能 - 使用新的打印視窗和組裝式HTML結構
   const handlePrint = () => {
@@ -413,6 +423,46 @@ ${attendanceRowsHtml}${summaryRowsHtml}
   const handleBack = () => {
     setLocation('/history');
   };
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background p-6">
+        <div className="mx-auto flex min-h-[70vh] max-w-2xl flex-col items-center justify-center rounded-2xl border bg-white p-10 text-center shadow-sm">
+          <div className="mb-6 rounded-full bg-amber-100 p-4 text-amber-700">
+            <Lock className="h-10 w-10" />
+          </div>
+          <h1 className="mb-3 text-2xl font-bold text-gray-900">需要管理員權限</h1>
+          <p className="mb-8 max-w-lg text-gray-600">
+            薪資單列印包含敏感的薪資與考勤資料，僅限管理員檢視與輸出。
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={handleBack}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              返回歷史頁
+            </Button>
+            <Button onClick={() => setIsAdminDialogOpen(true)}>
+              <Shield className="mr-2 h-4 w-4" />
+              管理員登入
+            </Button>
+          </div>
+
+          <AdminLoginDialog
+            isOpen={isAdminDialogOpen}
+            onClose={() => setIsAdminDialogOpen(false)}
+            onSuccess={() => {
+              setIsAdminDialogOpen(false);
+              toast({
+                title: "管理員驗證成功",
+                description: "您現在可以檢視並列印薪資單。"
+              });
+            }}
+            title="管理員登入"
+            description="請輸入管理員 PIN 碼以列印薪資單。"
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
