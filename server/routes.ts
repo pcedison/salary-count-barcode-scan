@@ -9,15 +9,16 @@ import { fromZodError } from "zod-validation-error";
 import { eq, and } from "drizzle-orm";
 import {
   insertTemporaryAttendanceSchema,
-  insertSettingsSchema,
   insertSalaryRecordSchema,
   insertHolidaySchema,
   insertEmployeeSchema,
   temporaryAttendance
 } from "@shared/schema";
+import { registerAdminRoutes } from "./routes/admin.routes";
+import { registerSettingsRoutes } from "./routes/settings.routes";
 import { registerDashboardRoutes } from "./dashboard-routes";
 import { startMonitoring } from "./db-monitoring";
-import { hashPassword, logOperation, OperationType, verifyAdminPermission } from "./admin-auth";
+import { logOperation, OperationType } from "./admin-auth";
 // 導入凱薩加密工具
 import { tryDecrypt, isEncrypted, caesarEncrypt, caesarDecrypt } from "../shared/utils/caesarCipher";
 import {
@@ -25,8 +26,6 @@ import {
   normalizeDateToSlash,
   removeSpecialLeaveDate,
 } from "@shared/utils/specialLeaveSync";
-import { validatePin } from "@shared/utils/passwordValidator";
-import { loginLimiter, strictLimiter } from "./middleware/rateLimiter";
 import { requireAdmin } from "./middleware/requireAdmin";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -36,6 +35,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // 註冊儀表板相關路由
   registerDashboardRoutes(app);
+  registerAdminRoutes(app);
+  registerSettingsRoutes(app);
   
   // 啟動數據庫監控（每分鐘檢查一次連接狀態）
   const monitoringTimer = startMonitoring(60000);
@@ -63,61 +64,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       message: err.message || "Internal server error" 
     });
   };
-
-  // Admin verification routes
-  app.post("/api/verify-admin", loginLimiter, async (req, res) => {
-    try {
-      const { pin } = req.body;
-      
-      if (!pin) {
-        return res.status(400).json({ success: false, message: "PIN is required" });
-      }
-      
-      const isValid = await verifyAdminPermission(pin);
-      
-      return res.json({ success: isValid });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-  
-  app.post("/api/update-admin-pin", strictLimiter, async (req, res) => {
-    try {
-      const { oldPin, newPin } = req.body;
-      
-      if (!oldPin || !newPin) {
-        return res.status(400).json({ success: false, message: "Old PIN and new PIN are required" });
-      }
-      
-      const validation = validatePin(newPin);
-      if (!validation.valid) {
-        return res.status(400).json({
-          success: false,
-          message: "New PIN does not meet security requirements",
-          errors: validation.errors
-        });
-      }
-      
-      const settings = await storage.getSettings();
-      
-      if (!settings) {
-        return res.status(404).json({ success: false, message: "Settings not found" });
-      }
-      
-      if (!(await verifyAdminPermission(oldPin))) {
-        return res.status(401).json({ success: false, message: "Current PIN is incorrect" });
-      }
-      
-      await storage.createOrUpdateSettings({
-        ...settings,
-        adminPin: hashPassword(newPin)
-      });
-      
-      return res.json({ success: true, strength: validation.strength });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
 
   // Temporary attendance routes
   app.get("/api/attendance", async (_req, res) => {
@@ -231,49 +177,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // 刪除指定員工的所有考勤記錄
       await storage.deleteTemporaryAttendanceByEmployeeId(employeeId);
       res.status(204).end();
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  // Settings routes
-  app.get("/api/settings", async (_req, res) => {
-    try {
-      let settings = await storage.getSettings();
-      
-      if (!settings) {
-        // 當設置不存在時，創建一個預設設置
-        const defaultSettings = {
-          baseHourlyRate: 119,
-          ot1Multiplier: 1.34,
-          ot2Multiplier: 1.67,
-          baseMonthSalary: 28590,
-          welfareAllowance: 0,
-          adminPin: "123456", // 預設管理員PIN碼
-          deductions: [
-            { name: "勞保費", amount: 525, description: "勞工保險費用" },
-            { name: "健保費", amount: 372, description: "全民健康保險費用" }
-          ]
-        };
-        
-        // 將預設設置存儲到數據庫
-        settings = await storage.createOrUpdateSettings(defaultSettings);
-      }
-      
-      // 返回設置，但不返回管理員PIN碼（出於安全考慮）
-      const { adminPin, ...settingsToReturn } = settings;
-      
-      res.json(settingsToReturn);
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.post("/api/settings", requireAdmin(), async (req, res) => {
-    try {
-      const validatedData = insertSettingsSchema.parse(req.body);
-      const settings = await storage.createOrUpdateSettings(validatedData);
-      res.json(settings);
     } catch (err) {
       handleError(err, res);
     }
@@ -1844,117 +1747,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "內部處理錯誤",
         code: "INTERNAL_ERROR"
       });
-    }
-  });
-
-  // Database status endpoint - PostgreSQL only
-  app.get("/api/db-status", async (_req, res) => {
-    try {
-      // 檢查 PostgreSQL 連接狀態
-      let postgresConnection = false;
-      try {
-        await db.execute('SELECT 1');
-        postgresConnection = true;
-      } catch (e) {
-        console.error('PostgreSQL 連接測試失敗:', e);
-      }
-      
-      res.json({
-        currentStorage: 'postgres',
-        storageMode: 'postgres_only',
-        environment: {
-          DATABASE_URL: 'configured'
-        },
-        features: {
-          databaseSwitching: false,
-          supabaseMigration: false
-        },
-        connections: {
-          postgres: postgresConnection,
-          supabase: { isConnected: false, disabled: true }
-        }
-      });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.get("/api/supabase-config", async (_req, res) => {
-    try {
-      res.json({
-        mode: 'postgres_only',
-        disabled: true,
-        url: '',
-        key: '',
-        isConfigured: false,
-        isActive: false,
-        message: '系統已收斂為 PostgreSQL-only，前端不再支援 Supabase 切換'
-      });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.post("/api/supabase-config", strictLimiter, requireAdmin(), async (req, res) => {
-    try {
-      res.status(409).json({ 
-        success: false, 
-        message: "系統已收斂為 PostgreSQL-only，Supabase 配置入口已停用",
-        disabled: true
-      });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-  
-  // 檢查資料庫連接 (PostgreSQL)
-  app.get("/api/supabase-connection", async (_req, res) => {
-    try {
-      let isConnected = false;
-      try {
-        await db.execute('SELECT 1');
-        isConnected = true;
-      } catch (e) {
-        console.error('PostgreSQL 連接測試失敗:', e);
-      }
-      
-      res.json({ 
-        success: true, 
-        isConnected: isConnected,
-        errorMessage: isConnected ? null : 'PostgreSQL connection failed',
-        isActive: false,
-        mode: 'postgres_only',
-        disabled: true
-      });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-  
-  // 切換數據存儲實現（PostgreSQL 或 Supabase）
-  app.post("/api/supabase-toggle", strictLimiter, requireAdmin(), async (req, res) => {
-    try {
-      res.status(409).json({ 
-        success: false, 
-        message: "系統已收斂為 PostgreSQL-only，資料庫切換已停用",
-        disabled: true,
-        isActive: false
-      });
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-  
-  // 將數據遷移到 Supabase
-  app.post("/api/supabase-migrate", strictLimiter, requireAdmin(), async (_req, res) => {
-    try {
-      res.status(409).json({
-        success: false,
-        message: "系統已收斂為 PostgreSQL-only，Supabase 遷移入口已停用",
-        disabled: true
-      });
-    } catch (err) {
-      handleError(err, res);
     }
   });
 
