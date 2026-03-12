@@ -245,7 +245,7 @@
 
 ### TASK-P0-ARCH-03 完成 `WP5C` 路由模組化
 
-- 狀態：`Ready`
+- 狀態：`In Progress`
 - Size：XL
 - 依賴：
   - `TASK-P0-ARCH-02`
@@ -550,6 +550,11 @@
   - `specialLeaveUsedDates` 正反向同步保留，且改為依賴 `storage` 介面
   - `PATCH /api/employees/:id` 補上欄位級 schema 驗證
   - `cp5b-routes-employee-holiday` 已建立
+- `TASK-P0-ARCH-03` 進行中
+  - `attendance.routes` 已拆出
+  - `startMonitoring()` 已收斂為單一啟動點，避免重複監控副作用
+  - `/api/attendance/today` 已修正為相容 `YYYY/MM/DD` 與 `YYYY-MM-DD`
+  - 新增 attendance 日期比對測試
 - 下一個優先施工：
-  - `TASK-P0-ARCH-03`
+  - `TASK-WP5C-02`
   - `TASK-P0-QA-01`

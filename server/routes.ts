@@ -8,17 +8,15 @@ import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { eq, and } from "drizzle-orm";
 import {
-  insertTemporaryAttendanceSchema,
   insertSalaryRecordSchema,
   temporaryAttendance
 } from "@shared/schema";
 import { registerAdminRoutes } from "./routes/admin.routes";
+import { registerAttendanceRoutes } from "./routes/attendance.routes";
 import { registerEmployeeRoutes } from "./routes/employees.routes";
 import { registerHolidayRoutes } from "./routes/holidays.routes";
 import { registerSettingsRoutes } from "./routes/settings.routes";
 import { registerDashboardRoutes } from "./dashboard-routes";
-import { startMonitoring } from "./db-monitoring";
-import { logOperation, OperationType } from "./admin-auth";
 // 導入凱薩加密工具
 import { tryDecrypt, isEncrypted, caesarEncrypt, caesarDecrypt } from "../shared/utils/caesarCipher";
 import { requireAdmin } from "./middleware/requireAdmin";
@@ -31,19 +29,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // 註冊儀表板相關路由
   registerDashboardRoutes(app);
   registerAdminRoutes(app);
+  registerAttendanceRoutes(app);
   registerEmployeeRoutes(app);
   registerHolidayRoutes(app);
   registerSettingsRoutes(app);
-  
-  // 啟動數據庫監控（每分鐘檢查一次連接狀態）
-  const monitoringTimer = startMonitoring(60000);
-  
-  // 記錄系統啟動日誌
-  logOperation(
-    OperationType.SYSTEM_CONFIG,
-    `系統啟動，使用PostgreSQL存儲`,
-    { success: true }
-  );
   
   // Error handling middleware
   const handleError = (err: any, res: Response) => {
@@ -61,123 +50,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       message: err.message || "Internal server error" 
     });
   };
-
-  // Temporary attendance routes
-  app.get("/api/attendance", async (_req, res) => {
-    try {
-      console.log("[數據查詢] 獲取所有考勤記錄");
-      const attendanceRecords = await storage.getTemporaryAttendance();
-      
-      console.log(`[查詢考勤] 成功從儲存層獲取考勤記錄，數量: ${attendanceRecords.length}`);
-      res.json(attendanceRecords);
-    } catch (err) {
-      console.error("[查詢考勤] 獲取考勤記錄失敗:", err);
-      handleError(err, res);
-    }
-  });
-  
-  // 專門用於獲取今日考勤記錄的API
-  app.get("/api/attendance/today", async (_req, res) => {
-    try {
-      const startTime = Date.now();
-      console.log(`[查詢考勤] 獲取今日考勤記錄`);
-      
-      // 獲取今天的日期格式 (YYYY/MM/DD)
-      const todayDate = new Date().toLocaleDateString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\//g, '/');
-      
-      // 直接從儲存層獲取所有考勤記錄
-      const allAttendanceRecords = await storage.getTemporaryAttendance();
-      
-      // 篩選今天的記錄
-      const todayRecords = allAttendanceRecords.filter(record => record.date === todayDate);
-      
-      const endTime = Date.now();
-      console.log(`[查詢考勤] 今日考勤API響應時間: ${endTime - startTime}ms，找到 ${todayRecords.length} 筆記錄`);
-      
-      res.json(todayRecords);
-    } catch (err) {
-      console.error("[查詢考勤] 獲取今日考勤記錄失敗:", err);
-      handleError(err, res);
-    }
-  });
-
-  app.post("/api/attendance", requireAdmin(), async (req, res) => {
-    try {
-      const validatedData = insertTemporaryAttendanceSchema.parse(req.body);
-      const attendance = await storage.createTemporaryAttendance(validatedData);
-      res.status(201).json(attendance);
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.put("/api/attendance/:id", requireAdmin(), async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid ID" });
-      }
-
-      const validatedData = insertTemporaryAttendanceSchema.partial().parse(req.body);
-      const updatedAttendance = await storage.updateTemporaryAttendance(id, validatedData);
-      
-      if (!updatedAttendance) {
-        return res.status(404).json({ message: "Attendance record not found" });
-      }
-      
-      res.json(updatedAttendance);
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.delete("/api/attendance/:id", requireAdmin(), async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ message: "Invalid ID" });
-      }
-
-      const success = await storage.deleteTemporaryAttendance(id);
-      
-      if (!success) {
-        return res.status(404).json({ message: "Attendance record not found" });
-      }
-      
-      res.status(204).end();
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  app.delete("/api/attendance", requireAdmin(), async (_req, res) => {
-    try {
-      await storage.deleteAllTemporaryAttendance();
-      res.status(204).end();
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-  
-  // 刪除特定員工的考勤記錄
-  app.delete("/api/attendance/employee/:employeeId", requireAdmin(), async (req, res) => {
-    try {
-      const employeeId = parseInt(req.params.employeeId);
-      if (isNaN(employeeId)) {
-        return res.status(400).json({ message: "Invalid employee ID" });
-      }
-      
-      // 刪除指定員工的所有考勤記錄
-      await storage.deleteTemporaryAttendanceByEmployeeId(employeeId);
-      res.status(204).end();
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
 
   // Salary records routes
   app.get("/api/salary-records", async (_req, res) => {

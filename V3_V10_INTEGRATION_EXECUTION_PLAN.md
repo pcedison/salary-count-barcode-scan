@@ -299,12 +299,14 @@
 
 ### TASK-WP5C-01 拆出 `attendance.routes`
 
+- 狀態：已完成
 - Size：M
 - 依賴：`TASK-WP5B-03`
 - 驗收：考勤新增、刪除、清空、讀取正常
 
 ### TASK-WP5C-02 拆出 `salary.routes`、`history` 相關路由
 
+- 狀態：待開始
 - Size：L
 - 依賴：`TASK-WP5C-01`
 - 驗收：薪資計算、歷史薪資紀錄查詢與編修正常
