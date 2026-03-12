@@ -313,7 +313,7 @@
 
 ### TASK-WP5C-03 模組化總回歸
 
-- 狀態：待開始
+- 狀態：已完成
 - Size：S
 - 依賴：`TASK-WP5C-02`
 - 驗收：通過 `A1` 到 `A9`
@@ -322,9 +322,9 @@
 
 ### Phase 5 目前剩餘風險
 
-- `routes.ts` 仍殘留 `barcode / raspberry / last-scan` 相關單體邏輯
-- `WP5C` 尚未達到「主路由入口僅保留 registration」的最終狀態
-- `cp5c-routes-core-complete` 不能提前建立，必須等殘留掃碼路由與總回歸完成
+- `routes.ts` 已收斂為 registration 入口，但 `server/storage.ts` 仍保留 `@ts-nocheck`
+- 掃碼流程已改為只依賴正式 `IStorage` 介面，下一階段應把儲存層型別補齊
+- `cp5c-routes-core-complete` 可在本輪驗證與提交後建立
 
 ## Phase 6: AES 相容層導入
 
@@ -509,7 +509,7 @@
 - `cp4a-auth-postgres-foundation`：已建立，指向 `d817c53f995bafcb8e87c59b821c4e82cf1b5628`
 - `cp5a-routes-admin-settings`：已建立，指向 `8326edb2d3e75bb34c9a7b65b384063c40539e7b`
 - `cp5b-routes-employee-holiday`：已建立
-- `cp5c-routes-core-complete`：待建立
+- `cp5c-routes-core-complete`：可於本輪提交後建立
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立
@@ -521,3 +521,4 @@
 - 實作過程若有新風險，必須先更新本文件再進入下一 phase
 - `cp3` 與 `cp4` 目前落在同一個 commit，因為安全基礎設施與管理員相容驗證共用同一批 auth / route 檔案
 - `cp5b` 以 `cp5a` 為回退基線，後續 `WP5C` 若失敗，優先回切到 `cp5b`
+- `WP5C` 已完成總回歸；掃碼殘留單體邏輯已拆出為 `scan.routes`

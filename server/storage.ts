@@ -1,8 +1,9 @@
 // @ts-nocheck
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { caesarEncrypt, caesarDecrypt, isEncrypted } from "../shared/utils/caesarCipher";
+import { normalizeDateToDash, normalizeDateToSlash } from "../shared/utils/specialLeaveSync";
 
 import {
   users, type User, type InsertUser,
@@ -243,13 +244,19 @@ export class DatabaseStorage implements IStorage {
     console.log(`[數據查詢] 查詢員工ID: ${employeeId}, 日期: ${date} 的考勤記錄`);
     
     try {
+      const slashDate = normalizeDateToSlash(date);
+      const dashDate = normalizeDateToDash(date);
+
       // 使用精確匹配查詢
       const records = await db.select()
         .from(temporaryAttendance)
         .where(
           and(
-            eq(temporaryAttendance.date, date),
-            eq(temporaryAttendance.employeeId, employeeId)
+            eq(temporaryAttendance.employeeId, employeeId),
+            or(
+              eq(temporaryAttendance.date, slashDate),
+              eq(temporaryAttendance.date, dashDate)
+            )
           )
         );
       

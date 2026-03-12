@@ -30,8 +30,8 @@
 
 ### 3.2 架構缺口
 
-- `server/routes.ts` 仍是大型單體路由檔
-- `server/routes.ts`、`server/storage.ts` 仍有 `@ts-nocheck`
+- `server/routes.ts` 已收斂為 route registration，但 `server/storage.ts` 仍有 `@ts-nocheck`
+- 掃碼、儲存層與前端載入策略仍有進一步瘦身與型別化空間
 - PostgreSQL-only 與 Supabase 切換殘留邏輯並存
 - 監控與備份啟動流程存在重複啟動風險
 
@@ -245,7 +245,7 @@
 
 ### TASK-P0-ARCH-03 完成 `WP5C` 路由模組化
 
-- 狀態：`In Progress`
+- 狀態：`Done`
 - Size：XL
 - 依賴：
   - `TASK-P0-ARCH-02`
@@ -330,7 +330,6 @@
 - Size：XL
 - 依賴：`TASK-P0-ARCH-03`
 - 目標：至少清掉：
-  - `server/routes.ts`
   - `server/storage.ts`
   - `server/supabase-storage.ts` 或其替代路徑
 - 驗收：
@@ -550,7 +549,7 @@
   - `specialLeaveUsedDates` 正反向同步保留，且改為依賴 `storage` 介面
   - `PATCH /api/employees/:id` 補上欄位級 schema 驗證
   - `cp5b-routes-employee-holiday` 已建立
-- `TASK-P0-ARCH-03` 進行中
+- `TASK-P0-ARCH-03` 已完成
   - `attendance.routes` 已拆出
   - `startMonitoring()` 已收斂為單一啟動點，避免重複監控副作用
   - `/api/attendance/today` 已修正為相容 `YYYY/MM/DD` 與 `YYYY-MM-DD`
@@ -563,6 +562,11 @@
   - 新增 import 解析測試，鎖住欄位、日期、扣款與考勤區段解析
   - `useHistoryData` 的敏感 PATCH 更新已收斂回共享 `apiRequest`
   - `.config/`、`.local/` 已納入 `.gitignore`
+  - `scan.routes`、`scan-helpers` 已拆出，`routes.ts` 現在只保留 registration
+  - `/api/last-scan-result` 不再依賴不存在的 storage method，改為只走正式 `IStorage` 介面
+  - 掃碼比對與最後打卡判斷已加入 helper 測試，避免 `clockOut` 事件被 `createdAt` 排序誤判
+  - `getTemporaryAttendanceByEmployeeAndDate` 已改為同時相容 `YYYY/MM/DD` 與 `YYYY-MM-DD`，避免舊資料造成重複打卡
+  - `cp5c-routes-core-complete` 已可建立
 - 下一個優先施工：
-  - `TASK-P0-ARCH-03`
   - `TASK-P0-QA-01`
+  - `TASK-P0-DATA-01`
