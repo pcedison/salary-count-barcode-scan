@@ -10,6 +10,32 @@ export function normalizeEmployeeIdentity(value: string): string {
   return value.trim().toUpperCase();
 }
 
+export function maskEmployeeIdentityForLog(rawIdNumber: string): string {
+  const trimmedId = rawIdNumber.trim();
+
+  if (!trimmedId) {
+    return '[empty-id]';
+  }
+
+  let displayId = normalizeEmployeeIdentity(trimmedId);
+
+  try {
+    if (isAESEncrypted(trimmedId)) {
+      displayId = normalizeEmployeeIdentity(decryptAes(trimmedId));
+    } else if (isCaesarEncrypted(displayId)) {
+      displayId = normalizeEmployeeIdentity(caesarDecrypt(displayId));
+    }
+  } catch {
+    return `[protected-id:${trimmedId.length}]`;
+  }
+
+  if (displayId.length <= 4) {
+    return `${displayId.slice(0, 1)}***${displayId.slice(-1)}`;
+  }
+
+  return `${displayId.slice(0, 2)}${'*'.repeat(displayId.length - 4)}${displayId.slice(-2)}`;
+}
+
 export function isAesWriteEnabled(): boolean {
   return process.env.USE_AES_ENCRYPTION === 'true' && Boolean(process.env.ENCRYPTION_KEY);
 }

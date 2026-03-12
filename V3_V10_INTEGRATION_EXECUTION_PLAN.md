@@ -547,6 +547,7 @@
 - 已新增 `verify:ops` 指令，將 `verify:core` 與 `restore:check` 固定化為單一運維驗證入口
 - 已補上 `health.routes.integration.test.ts` 與 `envValidator.test.ts`
 - `envValidator` 現在會拒絕 production 缺少 `SESSION_SECRET`、拒絕 `SESSION_SAME_SITE=none + SESSION_SECURE=false`，並阻止未設 `ENCRYPTION_KEY` 就啟用 AES 寫入
+- 員工新增/更新與掃碼路徑的敏感 ID console log 已改為遮罩格式，且 `recordBarcodeAttendance()` 已移除重複全表 fallback 查詢
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立

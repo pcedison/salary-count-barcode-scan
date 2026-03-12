@@ -10,7 +10,11 @@ import type { Employee } from '../storage';
 import { PermissionLevel } from '../admin-auth';
 import { requireAdmin, hasAdminAuthorization } from '../middleware/requireAdmin';
 import { storage } from '../storage';
-import { getEmployeeDisplayId, getEmployeeScanId } from '../utils/employeeIdentity';
+import {
+  getEmployeeDisplayId,
+  getEmployeeScanId,
+  maskEmployeeIdentityForLog
+} from '../utils/employeeIdentity';
 
 import { handleRouteError, parseNumericId } from './route-helpers';
 
@@ -36,14 +40,15 @@ function applyCreateEmployeeEncryptionFlag(
   validatedData: Record<string, any>
 ) {
   const useEncryption = requestBody.useEncryption === true;
+  const maskedId = maskEmployeeIdentityForLog(validatedData.idNumber || '');
 
   if (validatedData.idNumber && useEncryption) {
-    console.log(`新增員工，ID加密已啟用 ${validatedData.idNumber}`);
+    console.log(`新增員工，ID加密已啟用 ${maskedId}`);
     validatedData.isEncrypted = true;
     return;
   }
 
-  console.log(`新增員工，ID加密未啟用 ${validatedData.idNumber}`);
+  console.log(`新增員工，ID加密未啟用 ${maskedId}`);
   validatedData.isEncrypted = false;
 }
 
@@ -52,15 +57,16 @@ function applyUpdateEmployeeEncryptionFlag(
   validatedData: Record<string, any>
 ) {
   const useEncryption = requestBody.useEncryption === true;
+  const maskedId = maskEmployeeIdentityForLog(validatedData.idNumber || '');
 
   if (validatedData.idNumber && useEncryption) {
-    console.log(`更新員工，ID加密已啟用 ${validatedData.idNumber}`);
+    console.log(`更新員工，ID加密已啟用 ${maskedId}`);
     validatedData.isEncrypted = true;
     return;
   }
 
   if ('useEncryption' in requestBody) {
-    console.log(`更新員工，ID加密未啟用 ${validatedData.idNumber || '(未修改ID)'}`);
+    console.log(`更新員工，ID加密未啟用 ${maskedId}`);
     validatedData.isEncrypted = false;
   }
 }

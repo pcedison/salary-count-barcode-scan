@@ -607,6 +607,7 @@
   - `envValidator` 現在會拒絕 production 缺少 `SESSION_SECRET`
   - `SESSION_SAME_SITE=none` 若未同時開啟 `SESSION_SECURE=true` 會在啟動前失敗
   - `USE_AES_ENCRYPTION=true` 若缺少 `ENCRYPTION_KEY` 會在啟動前失敗
+  - 員工新增/更新與掃碼流程的敏感 ID log 已改為遮罩格式，避免主控台留下完整證號
 - `TASK-P0-SEC-03` 已完成
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`

@@ -9,6 +9,7 @@ import {
   getEmployeeDisplayId,
   getEmployeeScanId,
   isAesWriteEnabled,
+  maskEmployeeIdentityForLog,
   matchesEmployeeIdentity,
   normalizeEmployeeIdentity,
   prepareUpdatedEmployeeIdentityForStorage
@@ -75,6 +76,17 @@ describe('employeeIdentity', () => {
     expect(matchesEmployeeIdentity(aesEmployee, 'A123456789')).toBe(true);
     expect(matchesEmployeeIdentity(aesEmployee, caesarEncrypt('A123456789'))).toBe(true);
     expect(matchesEmployeeIdentity(aesEmployee, aesId)).toBe(true);
+  });
+
+  it('masks plaintext and encrypted employee identities before logging', () => {
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    const aesId = encryptAes('A123456789');
+    const caesarId = caesarEncrypt('A123456789');
+
+    expect(maskEmployeeIdentityForLog('A123456789')).toBe('A1******89');
+    expect(maskEmployeeIdentityForLog(caesarId)).not.toBe(caesarId);
+    expect(maskEmployeeIdentityForLog(caesarId)).toContain('*');
+    expect(maskEmployeeIdentityForLog(aesId)).toBe('A1******89');
   });
 
   it('uses feature-flagged AES writes and preserves existing encrypted values when the id is unchanged', () => {

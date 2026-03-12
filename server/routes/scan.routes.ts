@@ -3,7 +3,7 @@ import type { Express } from 'express';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 
 import { storage, type Employee, type Holiday, type TemporaryAttendance } from '../storage';
-import { normalizeEmployeeIdentity } from '../utils/employeeIdentity';
+import { maskEmployeeIdentityForLog, normalizeEmployeeIdentity } from '../utils/employeeIdentity';
 
 import { handleRouteError } from './route-helpers';
 import {
@@ -195,7 +195,7 @@ export function registerScanRoutes(app: Express): void {
         });
       }
 
-      console.log(`Received scan from device: ${deviceId}, ID: ${idNumber}`);
+      console.log(`Received scan from device: ${deviceId}, ID: ${maskEmployeeIdentityForLog(idNumber)}`);
 
       const employee = await findEmployee(idNumber);
       if (!employee) {

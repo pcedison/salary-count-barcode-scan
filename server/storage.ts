@@ -6,7 +6,7 @@ import { normalizeDateToDash, normalizeDateToSlash } from "../shared/utils/speci
 import {
   buildEmployeeIdentityLookupCandidates,
   encryptEmployeeIdentityForStorage,
-  getEmployeeDisplayId,
+  maskEmployeeIdentityForLog,
   matchesEmployeeIdentity,
   prepareUpdatedEmployeeIdentityForStorage
 } from "./utils/employeeIdentity";
@@ -175,10 +175,9 @@ export class DatabaseStorage implements IStorage {
 
     if (process.env.NODE_ENV !== 'production' && processedEmployee.idNumber !== undefined) {
       console.log(
-        `ID處理: ${getEmployeeDisplayId(originalEmployee)} -> ${getEmployeeDisplayId({
-          idNumber: processedEmployee.idNumber,
-          isEncrypted: wantsEncryption
-        })} (加密=${wantsEncryption})`
+        `ID處理: ${maskEmployeeIdentityForLog(originalEmployee.idNumber)} -> ${maskEmployeeIdentityForLog(
+          processedEmployee.idNumber
+        )} (加密=${wantsEncryption})`
       );
     }
 
@@ -284,19 +283,14 @@ export class DatabaseStorage implements IStorage {
   async recordBarcodeAttendance(idNumber: string): Promise<TemporaryAttendance | null> {
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`掃描處理過程: 原始輸入的ID = ${idNumber}`);
+        console.log(`掃描處理過程: 原始輸入的ID = ${maskEmployeeIdentityForLog(idNumber)}`);
       }
 
-      let employee = await this.getEmployeeByIdNumber(idNumber);
-
-      if (!employee) {
-        const allEmployees = await this.getAllEmployees();
-        employee = allEmployees.find((emp) => matchesEmployeeIdentity(emp, idNumber));
-      }
+      const employee = await this.getEmployeeByIdNumber(idNumber);
 
       if (!employee) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`找不到匹配的員工，ID: ${idNumber}`);
+          console.log(`找不到匹配的員工，ID: ${maskEmployeeIdentityForLog(idNumber)}`);
         }
         return null;
       }
