@@ -10,6 +10,7 @@
     "check": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:smoke": "vitest run server/routes/import.routes.integration.test.ts server/routes/scan.routes.integration.test.ts",
     "verify:baseline": "npm run check && npm run build",
     "verify:core": "npm test && npm run verify:baseline",
     "db:push": "drizzle-kit push"

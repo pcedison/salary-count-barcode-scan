@@ -290,7 +290,7 @@
 
 ### TASK-P0-QA-01 建立關鍵流程整合測試與 smoke 套件
 
-- 狀態：`Ready`
+- 狀態：`In Progress`
 - Size：L
 - 依賴：`cp4-admin-compat`
 - 目標：從純邏輯測試擴展到流程級保護網
@@ -567,6 +567,10 @@
   - 掃碼比對與最後打卡判斷已加入 helper 測試，避免 `clockOut` 事件被 `createdAt` 排序誤判
   - `getTemporaryAttendanceByEmployeeAndDate` 已改為同時相容 `YYYY/MM/DD` 與 `YYYY-MM-DD`，避免舊資料造成重複打卡
   - `cp5c-routes-core-complete` 已可建立
+- `TASK-P0-QA-01` 進行中
+  - 已新增 `test:smoke` 指令，鎖定高風險 API 路徑
+  - `import.routes` 已加入 API 級 smoke test，覆蓋授權、考勤匯入、薪資匯入更新
+  - `scan.routes` 已加入 API 級 smoke test，覆蓋加密 ID 比對、上下班打卡、Raspberry 輕量回應、last-scan 重建
 - 下一個優先施工：
   - `TASK-P0-QA-01`
   - `TASK-P0-DATA-01`
