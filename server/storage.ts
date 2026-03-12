@@ -2,8 +2,13 @@
 import { eq, and, desc, or } from "drizzle-orm";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { caesarEncrypt, caesarDecrypt, isEncrypted } from "../shared/utils/caesarCipher";
 import { normalizeDateToDash, normalizeDateToSlash } from "../shared/utils/specialLeaveSync";
+import {
+  encryptEmployeeIdentityForStorage,
+  getEmployeeDisplayId,
+  matchesEmployeeIdentity,
+  prepareUpdatedEmployeeIdentityForStorage
+} from "./utils/employeeIdentity";
 
 import {
   users, type User, type InsertUser,
@@ -110,110 +115,58 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createEmployee(employee: InsertEmployee): Promise<Employee> {
-    // 處理加密選項，如果有的話
     const processedEmployee = { ...employee };
-    
-    // 如果設定了isEncrypted為true，這表示需要對ID進行加密
-    // 此時isEncrypted已在路由中根據useEncryption參數設置
-    if (processedEmployee.isEncrypted === true) {
-      try {
-        // 記錄原始ID
-        const originalId = processedEmployee.idNumber;
-        
-        // 檢查ID是否已被加密，避免重複加密
-        if (!isEncrypted(originalId)) {
-          // 進行加密處理
-          processedEmployee.idNumber = caesarEncrypt(originalId);
-          
-          // 僅在開發環境下輸出日誌
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(`建立員工：對ID進行加密 - 原始：${originalId} -> 加密後：${processedEmployee.idNumber}`);
-          }
-        } else {
-          console.log(`建立員工：ID已經是加密狀態，無需再次加密 - ${originalId}`);
-        }
-      } catch (error) {
-        console.error('加密ID時發生錯誤:', error);
-      }
-    } else {
-      // 確保未加密狀態下使用原始ID
-      console.log(`建立員工：使用原始ID（不加密）- ${processedEmployee.idNumber}`);
-    }
-    
-    // 刪除非資料庫欄位
+
+    processedEmployee.idNumber = encryptEmployeeIdentityForStorage(
+      processedEmployee.idNumber,
+      processedEmployee.isEncrypted === true
+    );
+
     delete processedEmployee.useEncryption;
-    
+
     const [newEmployee] = await db.insert(employees).values(processedEmployee).returning();
     return newEmployee;
   }
 
   async updateEmployee(id: number, employee: Partial<InsertEmployee>): Promise<Employee | undefined> {
-    // 使用更簡潔的日誌輸出
     if (process.env.NODE_ENV !== 'production') {
       console.log(`更新員工 ID ${id}, 接收到的數據:`, JSON.stringify(employee));
     }
-    
-    // 取得原始員工數據用於比較
+
     const originalEmployee = await this.getEmployeeById(id);
     if (!originalEmployee) {
       console.error(`找不到要更新的員工 ID ${id}`);
       return undefined;
     }
-    
-    // 處理加密選項，如果有的話
+
     const processedEmployee = { ...employee };
-    
-    // 如果提供了身分證號碼，需要處理加密
-    if (processedEmployee.idNumber) {
-      try {
-        // 使用資料庫中的加密標記，而不是依賴偵測函數
-        const isCurrentlyEncrypted = originalEmployee.isEncrypted || false;
-        // isEncrypted 標記現在由路由處理，這裡直接檢查它的值
-        const wantsEncryption = processedEmployee.isEncrypted === true;
-        
-        // 檢查ID是否已變更
-        const hasIdChanged = originalEmployee.idNumber !== processedEmployee.idNumber;
-        
-        // 特殊處理情況:
-        // 1. 如果原始ID已加密，且使用者想保持加密狀態
-        if (isCurrentlyEncrypted && wantsEncryption) {
-          if (hasIdChanged && !isEncrypted(processedEmployee.idNumber)) {
-            // 只在新ID未加密時加密
-            processedEmployee.idNumber = caesarEncrypt(processedEmployee.idNumber);
-          }
-          // 不需要設置 isEncrypted = true，因為已經在路由中設置過了
-        }
-        // 2. 如果原始ID已加密，但使用者不想加密
-        else if (isCurrentlyEncrypted && !wantsEncryption) {
-          if (!hasIdChanged) {
-            // 如果ID沒變，但想取消加密，則解密原本的ID
-            processedEmployee.idNumber = caesarDecrypt(originalEmployee.idNumber);
-          }
-          // 不需要設置 isEncrypted = false，因為已經在路由中設置過了
-        }
-        // 3. 如果原始ID未加密，但使用者想加密
-        else if (!isCurrentlyEncrypted && wantsEncryption) {
-          if (!isEncrypted(processedEmployee.idNumber)) {
-            // 只在新ID未加密時加密
-            processedEmployee.idNumber = caesarEncrypt(processedEmployee.idNumber);
-          }
-          // 不需要設置 isEncrypted = true，因為已經在路由中設置過了
-        }
-        // 4. 如果原始ID未加密，使用者也不想加密，不需特殊處理
-        
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(`ID處理: ${originalEmployee.idNumber} -> ${processedEmployee.idNumber} (加密=${processedEmployee.isEncrypted})`);
-        }
-      } catch (error) {
-        console.error('處理ID加密狀態時發生錯誤:', error);
-      }
+
+    const wantsEncryption =
+      processedEmployee.isEncrypted !== undefined
+        ? processedEmployee.isEncrypted === true
+        : originalEmployee.isEncrypted === true;
+
+    if (processedEmployee.idNumber !== undefined || processedEmployee.isEncrypted !== undefined) {
+      processedEmployee.idNumber = prepareUpdatedEmployeeIdentityForStorage({
+        currentEmployee: originalEmployee,
+        nextIdNumber: processedEmployee.idNumber,
+        shouldEncrypt: wantsEncryption
+      });
     }
-    
-    // 刪除非資料庫欄位
+
+    if (process.env.NODE_ENV !== 'production' && processedEmployee.idNumber !== undefined) {
+      console.log(
+        `ID處理: ${getEmployeeDisplayId(originalEmployee)} -> ${getEmployeeDisplayId({
+          idNumber: processedEmployee.idNumber,
+          isEncrypted: wantsEncryption
+        })} (加密=${wantsEncryption})`
+      );
+    }
+
     if ('useEncryption' in processedEmployee) {
       delete processedEmployee.useEncryption;
     }
-    
+
     const [updatedEmployee] = await db
       .update(employees)
       .set(processedEmployee)
@@ -311,77 +264,31 @@ export class DatabaseStorage implements IStorage {
   
   async recordBarcodeAttendance(idNumber: string): Promise<TemporaryAttendance | null> {
     try {
-      // 導入加密工具
-      const { caesarEncrypt, caesarDecrypt } = require('../shared/utils/caesarCipher');
-      
-      // 僅在開發環境輸出
       if (process.env.NODE_ENV !== 'production') {
         console.log(`掃描處理過程: 原始輸入的ID = ${idNumber}`);
       }
-      
-      // 1. 查找員工 - 處理可能的加密ID
-      // 先直接嘗試查找員工
+
       let employee = await this.getEmployeeByIdNumber(idNumber);
-      
-      // 嘗試解密後再查找
-      if (!employee) {
-        // 嘗試解密掃描的ID
-        const decrypted = caesarDecrypt(idNumber); 
-        
-        if (decrypted !== idNumber) {  // 如果解密結果不同
-          employee = await this.getEmployeeByIdNumber(decrypted);
-        }
-      }
-      
-      // 如果仍然找不到，嘗試獲取所有員工並進行智能比對
+
       if (!employee) {
         const allEmployees = await this.getAllEmployees();
-        
-        // 使用更高效的比對邏輯
-        for (const emp of allEmployees) {
-          // 情況1：直接匹配
-          if (emp.idNumber === idNumber) {
-            employee = emp;
-            break;
-          }
-          
-          // 情況2：掃描的是原始ID，資料庫儲存的是加密ID
-          if (emp.isEncrypted) {
-            const decryptedEmpId = caesarDecrypt(emp.idNumber);
-            if (decryptedEmpId === idNumber) {
-              employee = emp;
-              break;
-            }
-          }
-          
-          // 情況3：掃描的是加密ID，資料庫儲存的是原始ID
-          if (!emp.isEncrypted) {
-            const encryptedId = caesarEncrypt(emp.idNumber);
-            if (encryptedId === idNumber) {
-              employee = emp;
-              break;
-            }
-          }
-        }
+        employee = allEmployees.find((emp) => matchesEmployeeIdentity(emp, idNumber));
       }
-      
+
       if (!employee) {
         if (process.env.NODE_ENV !== 'production') {
           console.log(`找不到匹配的員工，ID: ${idNumber}`);
         }
-        return null; // 找不到員工
+        return null;
       }
-      
-      // 2. 獲取當前日期和時間
+
       const now = new Date();
       const currentDate = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(now.getDate()).padStart(2, '0')}`;
       const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
-      // 3. 檢查是否為假日
+
       const holidays = await this.getAllHolidays();
       const isHoliday = holidays.some(holiday => holiday.date === currentDate);
-      
-      // 4. 查找今天是否已有該員工打卡記錄
+
       const attendanceRecords = await db
         .select()
         .from(temporaryAttendance)
@@ -393,17 +300,14 @@ export class DatabaseStorage implements IStorage {
         );
       
       console.log(`[打卡處理] 員工ID ${employee.id}，日期 ${currentDate} 找到 ${attendanceRecords.length} 筆考勤記錄`);
-      
-      // 查找未完成的記錄（無下班時間）
+
       const incompleteRecords = attendanceRecords.filter(
         record => !record.clockOut || record.clockOut === ''
       );
-      
+
       console.log(`[打卡處理] 其中有 ${incompleteRecords.length} 筆未完成的記錄`);
-      
-      // 5. 判斷是上班還是下班打卡
+
       if (incompleteRecords.length === 0) {
-        // 沒有未完成記錄，創建新的上班打卡記錄
         console.log(`[打卡處理] 沒有未完成記錄，建立新的上班打卡`);
         const newAttendance = await this.createTemporaryAttendance({
           employeeId: employee.id,
@@ -415,8 +319,6 @@ export class DatabaseStorage implements IStorage {
         });
         return newAttendance;
       } else {
-        // 已有未完成記錄，更新為下班打卡（使用最新未完成記錄）
-        // 按時間排序，獲取最新的未完成記錄
         const latestIncompleteRecord = incompleteRecords.sort((a, b) => {
           const timeA = a.clockIn ? a.clockIn.split(':').map(Number) : [0, 0];
           const timeB = b.clockIn ? b.clockIn.split(':').map(Number) : [0, 0];

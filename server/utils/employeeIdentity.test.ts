@@ -4,10 +4,13 @@ import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { encrypt as encryptAes } from '@shared/utils/encryption';
 
 import {
+  encryptEmployeeIdentityForStorage,
   getEmployeeDisplayId,
   getEmployeeScanId,
+  isAesWriteEnabled,
   matchesEmployeeIdentity,
-  normalizeEmployeeIdentity
+  normalizeEmployeeIdentity,
+  prepareUpdatedEmployeeIdentityForStorage
 } from './employeeIdentity';
 
 const TEST_ENCRYPTION_KEY = '12345678901234567890123456789012';
@@ -15,6 +18,7 @@ const TEST_ENCRYPTION_KEY = '12345678901234567890123456789012';
 describe('employeeIdentity', () => {
   afterEach(() => {
     delete process.env.ENCRYPTION_KEY;
+    delete process.env.USE_AES_ENCRYPTION;
   });
 
   it('normalizes employee identities to trimmed uppercase values', () => {
@@ -50,5 +54,38 @@ describe('employeeIdentity', () => {
     expect(matchesEmployeeIdentity(aesEmployee, 'A123456789')).toBe(true);
     expect(matchesEmployeeIdentity(aesEmployee, caesarEncrypt('A123456789'))).toBe(true);
     expect(matchesEmployeeIdentity(aesEmployee, aesId)).toBe(true);
+  });
+
+  it('uses feature-flagged AES writes and preserves existing encrypted values when the id is unchanged', () => {
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    process.env.USE_AES_ENCRYPTION = 'true';
+
+    const aesStoredId = encryptEmployeeIdentityForStorage('A123456789', true);
+    const aesEmployee = {
+      idNumber: aesStoredId,
+      isEncrypted: true
+    };
+
+    expect(isAesWriteEnabled()).toBe(true);
+    expect(aesStoredId).not.toBe(caesarEncrypt('A123456789'));
+    expect(prepareUpdatedEmployeeIdentityForStorage({
+      currentEmployee: aesEmployee,
+      nextIdNumber: 'A123456789',
+      shouldEncrypt: true
+    })).toBe(aesStoredId);
+  });
+
+  it('falls back to Caesar writes without AES configuration and can decrypt when encryption is disabled', () => {
+    const caesarStoredId = encryptEmployeeIdentityForStorage('A123456789', true);
+
+    expect(isAesWriteEnabled()).toBe(false);
+    expect(caesarStoredId).toBe(caesarEncrypt('A123456789'));
+    expect(prepareUpdatedEmployeeIdentityForStorage({
+      currentEmployee: {
+        idNumber: caesarStoredId,
+        isEncrypted: true
+      },
+      shouldEncrypt: false
+    })).toBe('A123456789');
   });
 });

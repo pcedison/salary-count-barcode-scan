@@ -1,5 +1,5 @@
 import { caesarDecrypt, caesarEncrypt, isEncrypted as isCaesarEncrypted } from '@shared/utils/caesarCipher';
-import { decrypt as decryptAes, isAESEncrypted } from '@shared/utils/encryption';
+import { decrypt as decryptAes, encrypt as encryptAes, isAESEncrypted } from '@shared/utils/encryption';
 
 type EmployeeIdentityLike = {
   idNumber: string;
@@ -8,6 +8,10 @@ type EmployeeIdentityLike = {
 
 export function normalizeEmployeeIdentity(value: string): string {
   return value.trim().toUpperCase();
+}
+
+export function isAesWriteEnabled(): boolean {
+  return process.env.USE_AES_ENCRYPTION === 'true' && Boolean(process.env.ENCRYPTION_KEY);
 }
 
 function decryptProtectedIdentity(idNumber: string, isEncryptedHint = false): string {
@@ -54,6 +58,55 @@ export function getEmployeeScanId(employee: EmployeeIdentityLike): string {
   }
 
   return caesarEncrypt(displayId);
+}
+
+export function encryptEmployeeIdentityForStorage(
+  idNumber: string,
+  shouldEncrypt: boolean
+): string {
+  const normalizedId = normalizeEmployeeIdentity(idNumber);
+
+  if (!normalizedId || !shouldEncrypt) {
+    return normalizedId;
+  }
+
+  if (isAesWriteEnabled()) {
+    return encryptAes(normalizedId);
+  }
+
+  return caesarEncrypt(normalizedId);
+}
+
+export function prepareUpdatedEmployeeIdentityForStorage(options: {
+  currentEmployee: EmployeeIdentityLike;
+  nextIdNumber?: string | null;
+  shouldEncrypt: boolean;
+}): string {
+  const { currentEmployee, nextIdNumber, shouldEncrypt } = options;
+  const currentStoredId = (currentEmployee.idNumber || '').trim();
+  const currentDisplayId = getEmployeeDisplayId(currentEmployee);
+  const hasExplicitIdUpdate = typeof nextIdNumber === 'string';
+  const nextDisplayId = hasExplicitIdUpdate
+    ? normalizeEmployeeIdentity(nextIdNumber || '')
+    : currentDisplayId;
+
+  if (!nextDisplayId) {
+    return nextDisplayId;
+  }
+
+  if (!shouldEncrypt) {
+    return nextDisplayId;
+  }
+
+  if (
+    currentEmployee.isEncrypted &&
+    nextDisplayId === currentDisplayId &&
+    currentStoredId
+  ) {
+    return currentStoredId;
+  }
+
+  return encryptEmployeeIdentityForStorage(nextDisplayId, true);
 }
 
 export function matchesEmployeeIdentity(

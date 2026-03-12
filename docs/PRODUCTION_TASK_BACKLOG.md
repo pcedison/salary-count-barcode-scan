@@ -587,7 +587,9 @@
   - `EmployeesPage` 已改為由 server 提供 display ID / `scanIdNumber`
   - 已新增 shared AES utility 與 `employeeIdentity` 相容層
   - `scan-helpers` / `employees.routes` 已可統一處理 `plaintext + Caesar + AES`
-  - AES 下一步應接上 `storage` 寫入 feature flag，再切入相容寫入與資料遷移
+  - `server/storage.ts` 已接上 deterministic 身分證寫入規則與 `USE_AES_ENCRYPTION` feature flag
+  - 既有加密員工在「未改 ID、仍保持加密」時不會被意外降級或重加密
+  - AES 下一步應補 active storage 的讀取直查優化、restore drill，再切入正式資料遷移
 - `TASK-P0-SEC-03` 已完成
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`

@@ -537,12 +537,15 @@
 - 已搬入 `shared/utils/encryption.ts`，程式可辨識 AES-256-GCM 格式
 - 已新增 `server/utils/employeeIdentity.ts`，集中處理 `plaintext + Caesar + AES` 的 display ID / scan ID / 比對規則
 - `scan-helpers` 已改為共用 `employeeIdentity` 相容層，掃碼成功回應不再回傳加密後的顯示 ID
+- `server/storage.ts` 已接上 deterministic 身分證寫入規則，並以 `USE_AES_ENCRYPTION` feature flag 控制新寫入是否採用 AES
+- 既有加密員工若未修改 ID 且仍保持加密，更新時會保留原始 ciphertext，不做意外降級或重加密
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立
 - `cp9-line-qr-optional`：待建立
 - `cp5d-session-only-admin-auth`：已建立，指向 `86b1ad6`
-- `cp5e-identity-read-compat`：待建立
+- `cp5e-identity-read-compat`：已建立，指向 `127c15e`
+- `cp5f-storage-write-compat`：待建立
 
 ### 備註
 
