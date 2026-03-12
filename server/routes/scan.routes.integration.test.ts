@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
+import { buildEmployeeIdentityLookupCandidates, matchesEmployeeIdentity } from '../utils/employeeIdentity';
 
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
 
@@ -16,9 +17,13 @@ const scanState = vi.hoisted(() => ({
 }));
 
 const storageMock = vi.hoisted(() => ({
-  getEmployeeByIdNumber: vi.fn(async (idNumber: string) =>
-    scanState.employees.find((employee) => employee.idNumber === idNumber)
-  ),
+  getEmployeeByIdNumber: vi.fn(async (idNumber: string) => {
+    const lookupCandidates = buildEmployeeIdentityLookupCandidates(idNumber);
+    return (
+      scanState.employees.find((employee) => lookupCandidates.includes(employee.idNumber)) ||
+      scanState.employees.find((employee) => matchesEmployeeIdentity(employee, idNumber))
+    );
+  }),
   getAllEmployees: vi.fn(async () => scanState.employees),
   getAllHolidays: vi.fn(async () => scanState.holidays),
   getTemporaryAttendanceByEmployeeAndDate: vi.fn(async (employeeId: number, date: string) =>
@@ -143,6 +148,7 @@ describe('scan routes integration', () => {
         employeeName: '測試員工',
         clockTime: '08:30'
       });
+      expect(storageMock.getAllEmployees).not.toHaveBeenCalled();
       expect(scanState.attendanceRecords).toHaveLength(1);
       expect(scanState.attendanceRecords[0]).toMatchObject({
         employeeId: 5,
@@ -253,6 +259,44 @@ describe('scan routes integration', () => {
         name: '測試員工',
         time: '08:30'
       });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('supports encrypted scan tokens for plaintext employee ids without route-level full scans', async () => {
+    scanState.employees = [
+      {
+        ...scanState.employees[0],
+        idNumber: 'A123456789',
+        isEncrypted: false
+      }
+    ];
+
+    const server = await createJsonTestServer(registerScanRoutes);
+
+    try {
+      const result = await jsonRequest<{
+        success: boolean;
+        employeeName: string;
+        action: string;
+      }>(server.baseUrl, '/api/barcode-scan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          idNumber: caesarEncrypt('A123456789')
+        })
+      });
+
+      expect(result.response.status).toBe(200);
+      expect(result.body).toMatchObject({
+        success: true,
+        employeeName: '測試員工',
+        action: 'clock-in'
+      });
+      expect(storageMock.getAllEmployees).not.toHaveBeenCalled();
     } finally {
       await server.close();
     }

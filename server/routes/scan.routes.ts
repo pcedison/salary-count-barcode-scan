@@ -3,6 +3,7 @@ import type { Express } from 'express';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 
 import { storage, type Employee, type Holiday, type TemporaryAttendance } from '../storage';
+import { normalizeEmployeeIdentity } from '../utils/employeeIdentity';
 
 import { handleRouteError } from './route-helpers';
 import {
@@ -12,7 +13,6 @@ import {
   getLatestAttendanceRecord,
   getLatestIncompleteAttendanceRecord,
   getTaiwanDateTimeParts,
-  matchEmployeeByScanId,
   type ScanSuccessResult
 } from './scan-helpers';
 
@@ -50,7 +50,7 @@ export function registerScanRoutes(app: Express): void {
 
   async function findEmployee(rawIdNumber: string): Promise<Employee | undefined> {
     const now = Date.now();
-    const normalizedInput = rawIdNumber.trim().toUpperCase();
+    const normalizedInput = normalizeEmployeeIdentity(rawIdNumber);
     const cacheKey = buildEmployeeCacheKey(normalizedInput);
     const cachedEmployee = getCachedValue(employeeCache.get(cacheKey), now);
     if (cachedEmployee) {
@@ -61,13 +61,6 @@ export function registerScanRoutes(app: Express): void {
     if (directEmployee) {
       employeeCache.set(cacheKey, setCachedValue(directEmployee, EMPLOYEE_CACHE_TTL_MS, now));
       return directEmployee;
-    }
-
-    const allEmployees = await storage.getAllEmployees();
-    const matchedEmployee = matchEmployeeByScanId(allEmployees, normalizedInput);
-    if (matchedEmployee) {
-      employeeCache.set(cacheKey, setCachedValue(matchedEmployee, EMPLOYEE_CACHE_TTL_MS, now));
-      return matchedEmployee;
     }
 
     return undefined;

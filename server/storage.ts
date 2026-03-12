@@ -4,6 +4,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { normalizeDateToDash, normalizeDateToSlash } from "../shared/utils/specialLeaveSync";
 import {
+  buildEmployeeIdentityLookupCandidates,
   encryptEmployeeIdentityForStorage,
   getEmployeeDisplayId,
   matchesEmployeeIdentity,
@@ -110,8 +111,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEmployeeByIdNumber(idNumber: string): Promise<Employee | undefined> {
-    const [employee] = await db.select().from(employees).where(eq(employees.idNumber, idNumber));
-    return employee;
+    const lookupCandidates = buildEmployeeIdentityLookupCandidates(idNumber);
+
+    for (const candidate of lookupCandidates) {
+      const [employee] = await db
+        .select()
+        .from(employees)
+        .where(eq(employees.idNumber, candidate))
+        .limit(1);
+
+      if (employee) {
+        return employee;
+      }
+    }
+
+    if (lookupCandidates.length === 0) {
+      return undefined;
+    }
+
+    const allEmployees = await this.getAllEmployees();
+    return allEmployees.find((employee) => matchesEmployeeIdentity(employee, idNumber));
   }
 
   async createEmployee(employee: InsertEmployee): Promise<Employee> {

@@ -589,7 +589,9 @@
   - `scan-helpers` / `employees.routes` 已可統一處理 `plaintext + Caesar + AES`
   - `server/storage.ts` 已接上 deterministic 身分證寫入規則與 `USE_AES_ENCRYPTION` feature flag
   - 既有加密員工在「未改 ID、仍保持加密」時不會被意外降級或重加密
-  - AES 下一步應補 active storage 的讀取直查優化、restore drill，再切入正式資料遷移
+  - `storage.getEmployeeByIdNumber()` 已加入 direct lookup 候選值與 compatibility fallback，`scan.routes` 不再自行掃全表
+  - 掃碼已補回 plaintext 員工 + encrypted scan token 的 route regression
+  - AES 下一步應補 restore drill，再切入正式資料遷移
 - `TASK-P0-SEC-03` 已完成
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`

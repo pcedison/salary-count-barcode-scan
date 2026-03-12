@@ -14,6 +14,29 @@ export function isAesWriteEnabled(): boolean {
   return process.env.USE_AES_ENCRYPTION === 'true' && Boolean(process.env.ENCRYPTION_KEY);
 }
 
+function maybeDecryptInputIdentity(rawIdNumber: string): string {
+  const trimmedId = rawIdNumber.trim();
+  const normalizedId = normalizeEmployeeIdentity(trimmedId);
+
+  if (!trimmedId) {
+    return '';
+  }
+
+  try {
+    if (isAESEncrypted(trimmedId)) {
+      return normalizeEmployeeIdentity(decryptAes(trimmedId));
+    }
+
+    if (isCaesarEncrypted(normalizedId)) {
+      return normalizeEmployeeIdentity(caesarDecrypt(normalizedId));
+    }
+  } catch (error) {
+    console.error('掃碼身分證號碼解密失敗:', error);
+  }
+
+  return normalizedId;
+}
+
 function decryptProtectedIdentity(idNumber: string, isEncryptedHint = false): string {
   const normalizedId = normalizeEmployeeIdentity(idNumber);
 
@@ -58,6 +81,39 @@ export function getEmployeeScanId(employee: EmployeeIdentityLike): string {
   }
 
   return caesarEncrypt(displayId);
+}
+
+export function buildEmployeeIdentityLookupCandidates(rawIdNumber: string): string[] {
+  const trimmedId = rawIdNumber.trim();
+  if (!trimmedId) {
+    return [];
+  }
+
+  const normalizedId = normalizeEmployeeIdentity(trimmedId);
+  const displayId = maybeDecryptInputIdentity(trimmedId);
+  const scanId = displayId ? caesarEncrypt(displayId) : '';
+
+  const candidates = new Set<string>();
+
+  candidates.add(trimmedId);
+
+  if (normalizedId !== trimmedId) {
+    candidates.add(normalizedId);
+  }
+
+  if (isAESEncrypted(trimmedId)) {
+    candidates.add(trimmedId.toLowerCase());
+  }
+
+  if (displayId) {
+    candidates.add(displayId);
+  }
+
+  if (scanId) {
+    candidates.add(scanId);
+  }
+
+  return Array.from(candidates).filter(Boolean);
 }
 
 export function encryptEmployeeIdentityForStorage(
@@ -113,9 +169,8 @@ export function matchesEmployeeIdentity(
   employee: EmployeeIdentityLike,
   rawIdNumber: string
 ): boolean {
-  const normalizedInput = normalizeEmployeeIdentity(rawIdNumber);
-
-  if (!normalizedInput) {
+  const inputCandidates = new Set(buildEmployeeIdentityLookupCandidates(rawIdNumber).map(normalizeEmployeeIdentity));
+  if (inputCandidates.size === 0) {
     return false;
   }
 
@@ -123,5 +178,7 @@ export function matchesEmployeeIdentity(
   const displayId = getEmployeeDisplayId(employee);
   const scanId = getEmployeeScanId(employee);
 
-  return [storedId, displayId, scanId].some((candidate) => candidate === normalizedInput);
+  return [storedId, displayId, scanId].some((candidate) =>
+    inputCandidates.has(normalizeEmployeeIdentity(candidate))
+  );
 }

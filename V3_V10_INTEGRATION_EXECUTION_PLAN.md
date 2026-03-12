@@ -539,6 +539,8 @@
 - `scan-helpers` 已改為共用 `employeeIdentity` 相容層，掃碼成功回應不再回傳加密後的顯示 ID
 - `server/storage.ts` 已接上 deterministic 身分證寫入規則，並以 `USE_AES_ENCRYPTION` feature flag 控制新寫入是否採用 AES
 - 既有加密員工若未修改 ID 且仍保持加密，更新時會保留原始 ciphertext，不做意外降級或重加密
+- `storage.getEmployeeByIdNumber()` 已加入 direct lookup 候選值與 compatibility fallback，`scan.routes` 不再自行掃全表
+- 已補上 plaintext 員工 + encrypted scan token 的掃碼回歸，確認 route-level fallback 移除後行為不退化
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立

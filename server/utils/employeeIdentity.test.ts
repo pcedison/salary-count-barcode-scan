@@ -4,6 +4,7 @@ import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { encrypt as encryptAes } from '@shared/utils/encryption';
 
 import {
+  buildEmployeeIdentityLookupCandidates,
   encryptEmployeeIdentityForStorage,
   getEmployeeDisplayId,
   getEmployeeScanId,
@@ -23,6 +24,26 @@ describe('employeeIdentity', () => {
 
   it('normalizes employee identities to trimmed uppercase values', () => {
     expect(normalizeEmployeeIdentity(' a123456789 ')).toBe('A123456789');
+  });
+
+  it('builds direct lookup candidates for plaintext, Caesar, and AES inputs', () => {
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    const aesId = encryptAes('A123456789');
+
+    expect(buildEmployeeIdentityLookupCandidates('A123456789')).toEqual([
+      'A123456789',
+      caesarEncrypt('A123456789')
+    ]);
+    expect(buildEmployeeIdentityLookupCandidates(caesarEncrypt('A123456789'))).toEqual([
+      caesarEncrypt('A123456789'),
+      caesarEncrypt(caesarEncrypt('A123456789'))
+    ]);
+    expect(buildEmployeeIdentityLookupCandidates(aesId)).toEqual([
+      aesId,
+      aesId.toUpperCase(),
+      'A123456789',
+      caesarEncrypt('A123456789')
+    ]);
   });
 
   it('returns display ids and scan ids for plaintext and Caesar-encrypted employees', () => {
