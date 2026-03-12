@@ -534,11 +534,15 @@
 - `EmployeesPage` 已移除前端 Caesar 解密邏輯，管理員 ID 顯示與 `scanIdNumber` 改由 server 端提供
 - `settings` 路由已停止回傳 `adminPin`，預設 PIN 與設定更新 PIN 也會先雜湊再存入資料庫
 - 已補上 `employees.routes.integration.test.ts` 的 session-only 回歸，涵蓋公開脫敏、admin 顯示 ID 與 `scanIdNumber`
+- 已搬入 `shared/utils/encryption.ts`，程式可辨識 AES-256-GCM 格式
+- 已新增 `server/utils/employeeIdentity.ts`，集中處理 `plaintext + Caesar + AES` 的 display ID / scan ID / 比對規則
+- `scan-helpers` 已改為共用 `employeeIdentity` 相容層，掃碼成功回應不再回傳加密後的顯示 ID
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立
 - `cp9-line-qr-optional`：待建立
-- `cp5d-session-only-admin-auth`：待建立
+- `cp5d-session-only-admin-auth`：已建立，指向 `86b1ad6`
+- `cp5e-identity-read-compat`：待建立
 
 ### 備註
 

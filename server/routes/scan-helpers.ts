@@ -1,7 +1,11 @@
-import { caesarDecrypt, isEncrypted } from '@shared/utils/caesarCipher';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 
 import type { Employee, TemporaryAttendance } from '../storage';
+import {
+  getEmployeeDisplayId,
+  matchesEmployeeIdentity,
+  normalizeEmployeeIdentity
+} from '../utils/employeeIdentity';
 
 const TAIWAN_TIME_OFFSET_MS = 8 * 60 * 60 * 1000;
 
@@ -53,7 +57,7 @@ export function getTaiwanDateTimeParts(now: Date = new Date()): TaiwanDateTimePa
 }
 
 export function normalizeScanId(idNumber: string): string {
-  return idNumber.trim().toUpperCase();
+  return normalizeEmployeeIdentity(idNumber);
 }
 
 export function buildEmployeeCacheKey(idNumber: string): string {
@@ -65,30 +69,9 @@ export function matchEmployeeByScanId(
   rawIdNumber: string
 ): Employee | undefined {
   const normalizedIdNumber = normalizeScanId(rawIdNumber);
-  const decryptedInput = normalizeScanId(caesarDecrypt(normalizedIdNumber));
 
   for (const employee of employees) {
-    const employeeIdNumber = normalizeScanId(employee.idNumber);
-    const decryptedEmployeeId = normalizeScanId(caesarDecrypt(employeeIdNumber));
-    const employeeUsesEncryptedStorage = employee.isEncrypted || isEncrypted(employeeIdNumber);
-
-    if (employeeIdNumber === normalizedIdNumber) {
-      return employee;
-    }
-
-    if (employeeUsesEncryptedStorage && decryptedEmployeeId === normalizedIdNumber) {
-      return employee;
-    }
-
-    if (employeeIdNumber === decryptedInput) {
-      return employee;
-    }
-
-    if (
-      isEncrypted(normalizedIdNumber) &&
-      employeeUsesEncryptedStorage &&
-      decryptedEmployeeId === decryptedInput
-    ) {
+    if (matchesEmployeeIdentity(employee, normalizedIdNumber)) {
       return employee;
     }
   }
@@ -168,12 +151,13 @@ export function buildScanSuccessResult(
   const department = employee.department || '生產部';
   const clockTime = isClockIn ? attendance.clockIn : attendance.clockOut || attendance.clockIn;
   const message = `${employee.name} ${actionText}打卡成功`;
+  const displayId = getEmployeeDisplayId(employee);
 
   return {
     employeeId: employee.id,
     employeeName: employee.name,
     department,
-    idNumber: employee.idNumber,
+    idNumber: displayId,
     action,
     isClockIn,
     attendance,
@@ -187,7 +171,7 @@ export function buildScanSuccessResult(
       id: employee.id,
       name: employee.name,
       department,
-      idNumber: employee.idNumber
+      idNumber: displayId
     }
   };
 }

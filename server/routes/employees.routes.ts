@@ -1,7 +1,6 @@
 import type { Express, Request } from 'express';
 
 import { insertEmployeeSchema } from '@shared/schema';
-import { caesarDecrypt, caesarEncrypt, isEncrypted } from '@shared/utils/caesarCipher';
 import {
   diffSpecialLeaveDates,
   normalizeDateToSlash,
@@ -11,6 +10,7 @@ import type { Employee } from '../storage';
 import { PermissionLevel } from '../admin-auth';
 import { requireAdmin, hasAdminAuthorization } from '../middleware/requireAdmin';
 import { storage } from '../storage';
+import { getEmployeeDisplayId, getEmployeeScanId } from '../utils/employeeIdentity';
 
 import { handleRouteError, parseNumericId } from './route-helpers';
 
@@ -168,29 +168,11 @@ function toEmployeeOperationalProfile(employee: Employee) {
   };
 }
 
-function resolveAdminDisplayId(employee: Employee): string {
-  if (!employee.isEncrypted) {
-    return employee.idNumber;
-  }
-
-  return caesarDecrypt(employee.idNumber);
-}
-
-function resolveScanId(employee: Employee): string {
-  const displayId = resolveAdminDisplayId(employee);
-
-  if (employee.isEncrypted || isEncrypted(employee.idNumber)) {
-    return employee.idNumber;
-  }
-
-  return caesarEncrypt(displayId);
-}
-
 function toAdminEmployeeProfile(employee: Employee) {
   return {
     ...employee,
-    idNumber: resolveAdminDisplayId(employee),
-    scanIdNumber: resolveScanId(employee)
+    idNumber: getEmployeeDisplayId(employee),
+    scanIdNumber: getEmployeeScanId(employee)
   };
 }
 

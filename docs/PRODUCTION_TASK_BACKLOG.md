@@ -24,7 +24,7 @@
 ### 3.1 安全缺口
 
 - 管理員授權已切到 session/cookie，下一步要持續補齊 session timeout、cookie policy 與 restore drill 文件
-- AES 上線前仍需完成 server-side 顯示/編輯模型，避免前端再次承擔敏感資料解密責任
+- AES 上線前仍需完成 storage read/write compatibility 與 migration guard，避免前端再次承擔敏感資料解密責任
 
 ### 3.2 架構缺口
 
@@ -258,7 +258,7 @@
 
 ### TASK-P0-DATA-01 導入 AES 相容讀寫層
 
-- 狀態：`Backlog`
+- 狀態：`In Progress`
 - Size：L
 - 依賴：`TASK-P0-ARCH-03`
 - 目標：實作 `plaintext + Caesar + AES` 相容，舊資料先不強制遷移
@@ -583,9 +583,11 @@
   - `dashboard` 維運入口已統一改走 `requireAdmin`，不再散落手寫權限驗證
   - `History` / `PrintSalaryPage` 已補上 query gate，未授權狀態不再先打敏感 API
 - `TASK-P0-DATA-01` 前置分析已完成
-- `TASK-P0-DATA-01` 前置工程已完成一半
+- `TASK-P0-DATA-01` 前置工程已完成第一階段
   - `EmployeesPage` 已改為由 server 提供 display ID / `scanIdNumber`
-  - AES 下一步應先做 server read-compat，再切入相容寫入與資料遷移
+  - 已新增 shared AES utility 與 `employeeIdentity` 相容層
+  - `scan-helpers` / `employees.routes` 已可統一處理 `plaintext + Caesar + AES`
+  - AES 下一步應接上 `storage` 寫入 feature flag，再切入相容寫入與資料遷移
 - `TASK-P0-SEC-03` 已完成
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`

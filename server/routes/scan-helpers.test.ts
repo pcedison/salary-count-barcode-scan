@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { caesarEncrypt } from '@shared/utils/caesarCipher';
+import { encrypt as encryptAes } from '@shared/utils/encryption';
 
 import {
   buildScanSuccessResult,
@@ -9,6 +10,8 @@ import {
   getLatestIncompleteAttendanceRecord,
   matchEmployeeByScanId
 } from './scan-helpers';
+
+const TEST_ENCRYPTION_KEY = '12345678901234567890123456789012';
 
 describe('scan route helpers', () => {
   const employee = {
@@ -30,6 +33,10 @@ describe('scan route helpers', () => {
     createdAt: new Date('2026-03-12T00:00:00.000Z')
   };
 
+  afterEach(() => {
+    delete process.env.ENCRYPTION_KEY;
+  });
+
   it('matches a plain scanned id against encrypted employee data', () => {
     const encryptedEmployee = {
       ...employee,
@@ -42,6 +49,18 @@ describe('scan route helpers', () => {
 
   it('matches an encrypted scanned id against plain employee data', () => {
     expect(matchEmployeeByScanId([employee], caesarEncrypt(employee.idNumber))).toEqual(employee);
+  });
+
+  it('matches plaintext and Caesar scan tokens against AES-encrypted employee data', () => {
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    const aesEmployee = {
+      ...employee,
+      idNumber: encryptAes(employee.idNumber),
+      isEncrypted: true
+    };
+
+    expect(matchEmployeeByScanId([aesEmployee], employee.idNumber)).toEqual(aesEmployee);
+    expect(matchEmployeeByScanId([aesEmployee], caesarEncrypt(employee.idNumber))).toEqual(aesEmployee);
   });
 
   it('filters mixed date formats and returns the latest event by clock-out time', () => {
@@ -110,8 +129,13 @@ describe('scan route helpers', () => {
   });
 
   it('builds a compatible clock-out payload for barcode scan responses', () => {
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
     const result = buildScanSuccessResult(
-      employee,
+      {
+        ...employee,
+        idNumber: encryptAes(employee.idNumber),
+        isEncrypted: true
+      },
       {
         id: 5,
         employeeId: 7,
@@ -131,5 +155,7 @@ describe('scan route helpers', () => {
     expect(result.isClockIn).toBe(false);
     expect(result.clockTime).toBe('17:00');
     expect(result.message).toContain('下班');
+    expect(result.idNumber).toBe(employee.idNumber);
+    expect(result.employee.idNumber).toBe(employee.idNumber);
   });
 });
