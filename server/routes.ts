@@ -21,6 +21,11 @@ import { startMonitoring } from "./db-monitoring";
 import { logOperation, OperationType } from "./admin-auth";
 // 導入凱薩加密工具
 import { tryDecrypt, isEncrypted, caesarEncrypt, caesarDecrypt } from "../shared/utils/caesarCipher";
+import {
+  diffSpecialLeaveDates,
+  normalizeDateToSlash,
+  removeSpecialLeaveDate,
+} from "@shared/utils/specialLeaveSync";
 // 導入子進程模組
 import { spawn } from "child_process";
 
@@ -716,12 +721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const employee = await storage.getEmployeeById(holiday.employeeId);
           if (employee) {
             const currentDates: string[] = (employee.specialLeaveUsedDates as string[]) || [];
-            const holidayDateDash = holiday.date.replace(/\//g, '-');
-            const holidayDateSlash = holiday.date.replace(/-/g, '/');
-            const updatedDates = currentDates.filter(d => {
-              const dNorm = d.replace(/\//g, '-');
-              return dNorm !== holidayDateDash && dNorm !== holidayDateSlash.replace(/\//g, '-');
-            });
+            const updatedDates = removeSpecialLeaveDate(currentDates, holiday.date);
             
             if (updatedDates.length !== currentDates.length) {
               await storage.updateEmployee(holiday.employeeId, {
@@ -1011,17 +1011,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (existingEmployee) {
           const oldDates: string[] = (existingEmployee.specialLeaveUsedDates as string[]) || [];
           const newDates: string[] = filteredData.specialLeaveUsedDates || [];
-          
-          // 標準化日期格式為 YYYY/MM/DD（假日系統使用此格式）
-          const normalizeDateToSlash = (d: string) => d.replace(/-/g, '/');
-          const normalizeDateToDash = (d: string) => d.replace(/\//g, '-');
-          const oldDatesNorm = oldDates.map(normalizeDateToDash);
-          const newDatesNorm = newDates.map(normalizeDateToDash);
-          
-          // 找出新增的日期
-          const addedDates = newDatesNorm.filter(d => !oldDatesNorm.includes(d));
-          // 找出刪除的日期
-          const removedDates = oldDatesNorm.filter(d => !newDatesNorm.includes(d));
+          const { addedDates, removedDates } = diffSpecialLeaveDates(oldDates, newDates);
           
           // 為新增的日期創建假日記錄和考勤記錄
           for (const date of addedDates) {

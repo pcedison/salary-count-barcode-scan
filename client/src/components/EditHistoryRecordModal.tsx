@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCurrency } from '@/lib/utils';
+import { calculateHistoryRecordTotals } from '@/lib/historyRecordMath';
 import { Loader2, Save, XCircle, Plus, Trash2, Calendar, DollarSign, Clock } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -97,16 +98,15 @@ export default function EditHistoryRecordModal({
   };
   
   const calculateTotals = () => {
-    const totalAllowances = allowances.reduce((sum, a) => sum + (a.amount || 0), 0);
-    const totalDeductions = deductions.reduce((sum, d) => sum + (d.amount || 0), 0);
-    const welfareAllowance = totalAllowances;
-    
-    const grossSalary = baseSalary + housingAllowance + welfareAllowance + 
-      (record?.totalOvertimePay || 0) + (record?.totalHolidayPay || 0) +
-      (specialLeaveInfo?.cashAmount || 0);
-    const netSalary = grossSalary - totalDeductions;
-    
-    return { totalAllowances, totalDeductions, welfareAllowance, grossSalary, netSalary };
+    return calculateHistoryRecordTotals({
+      allowances,
+      deductions,
+      baseSalary,
+      housingAllowance,
+      totalOvertimePay: record?.totalOvertimePay || 0,
+      totalHolidayPay: record?.totalHolidayPay || 0,
+      specialLeaveInfo
+    });
   };
   
   const handleSave = async () => {
