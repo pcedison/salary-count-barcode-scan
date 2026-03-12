@@ -18,7 +18,7 @@ import {
 // Removed Supabase API imports - using direct PostgreSQL connection only
 import { registerDashboardRoutes } from "./dashboard-routes";
 import { startMonitoring } from "./db-monitoring";
-import { logOperation, OperationType } from "./admin-auth";
+import { hashPassword, logOperation, OperationType, verifyAdminPermission } from "./admin-auth";
 // 導入凱薩加密工具
 import { tryDecrypt, isEncrypted, caesarEncrypt, caesarDecrypt } from "../shared/utils/caesarCipher";
 import {
@@ -26,6 +26,8 @@ import {
   normalizeDateToSlash,
   removeSpecialLeaveDate,
 } from "@shared/utils/specialLeaveSync";
+import { validatePin } from "@shared/utils/passwordValidator";
+import { loginLimiter, strictLimiter } from "./middleware/rateLimiter";
 // 導入子進程模組
 import { spawn } from "child_process";
 
@@ -65,7 +67,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Admin verification routes
-  app.post("/api/verify-admin", async (req, res) => {
+  app.post("/api/verify-admin", loginLimiter, async (req, res) => {
     try {
       const { pin } = req.body;
       
@@ -73,13 +75,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ success: false, message: "PIN is required" });
       }
       
-      const settings = await storage.getSettings();
-      
-      if (!settings) {
-        return res.status(404).json({ success: false, message: "Settings not found" });
-      }
-      
-      const isValid = settings.adminPin === pin;
+      const isValid = await verifyAdminPermission(pin);
       
       return res.json({ success: isValid });
     } catch (err) {
@@ -87,7 +83,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/update-admin-pin", async (req, res) => {
+  app.post("/api/update-admin-pin", strictLimiter, async (req, res) => {
     try {
       const { oldPin, newPin } = req.body;
       
@@ -95,8 +91,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ success: false, message: "Old PIN and new PIN are required" });
       }
       
-      if (newPin.length !== 6 || !/^\d+$/.test(newPin)) {
-        return res.status(400).json({ success: false, message: "New PIN must be 6 digits" });
+      const validation = validatePin(newPin);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "New PIN does not meet security requirements",
+          errors: validation.errors
+        });
       }
       
       const settings = await storage.getSettings();
@@ -105,16 +106,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ success: false, message: "Settings not found" });
       }
       
-      if (settings.adminPin !== oldPin) {
+      if (!(await verifyAdminPermission(oldPin))) {
         return res.status(401).json({ success: false, message: "Current PIN is incorrect" });
       }
       
-      const updatedSettings = await storage.createOrUpdateSettings({
+      await storage.createOrUpdateSettings({
         ...settings,
-        adminPin: newPin
+        adminPin: hashPassword(newPin)
       });
       
-      return res.json({ success: true });
+      return res.json({ success: true, strength: validation.strength });
     } catch (err) {
       handleError(err, res);
     }
@@ -554,76 +555,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(204).end();
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-
-  // Admin verification
-  app.post("/api/verify-admin", async (req, res) => {
-    try {
-      const { pin } = req.body;
-      
-      if (!pin) {
-        return res.status(400).json({ success: false, message: "PIN is required" });
-      }
-      
-      // 由於剛剛建立新的數據庫，設置可能還沒有初始化
-      // 所以這裡先檢查緊急管理員密碼
-      const emergencyPin = '000000';
-      if (pin === emergencyPin) {
-        console.log('使用緊急管理員密碼成功登入');
-        return res.json({ success: true });
-      }
-      
-      // 再嘗試從數據庫讀取設置
-      try {
-        const settings = await storage.getSettings();
-        if (settings) {
-          const isValid = pin === settings.adminPin;
-          return res.json({ success: isValid });
-        } else {
-          console.log('設置不存在，只能使用緊急密碼');
-          return res.json({ success: false });
-        }
-      } catch (settingsError) {
-        console.error('獲取設置時出錯:', settingsError);
-        // 數據庫錯誤已通過緊急密碼處理
-        return res.json({ success: false });
-      }
-    } catch (err) {
-      handleError(err, res);
-    }
-  });
-  
-  app.post("/api/update-admin-pin", async (req, res) => {
-    try {
-      const { oldPin, newPin } = req.body;
-      
-      if (!oldPin || !newPin) {
-        return res.status(400).json({ success: false, message: "Both old and new PINs are required" });
-      }
-      
-      if (newPin.length !== 6 || !/^\d+$/.test(newPin)) {
-        return res.status(400).json({ success: false, message: "New PIN must be a 6-digit number" });
-      }
-      
-      const settings = await storage.getSettings();
-      if (!settings) {
-        return res.status(404).json({ success: false, message: "Settings not found" });
-      }
-      
-      if (oldPin !== settings.adminPin) {
-        return res.status(400).json({ success: false, message: "Current PIN is incorrect" });
-      }
-      
-      // Update the admin PIN
-      const updatedSettings = await storage.createOrUpdateSettings({
-        ...settings,
-        adminPin: newPin
-      });
-      
-      res.json({ success: true });
     } catch (err) {
       handleError(err, res);
     }
@@ -2018,18 +1949,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // 從數據庫獲取設置以驗證 PIN
-        let settings;
-        try {
-          const settingsFromDb = await storage.getSettings();
-          settings = settingsFromDb || { adminPin: "123456" }; // 默認 PIN
-        } catch (error) {
-          console.error("獲取設置時出錯:", error);
-          settings = { adminPin: "123456" }; // 備用 PIN
-        }
-        
-        // 驗證 PIN 是否正確
-        if (settings.adminPin !== adminPin) {
+        if (!(await verifyAdminPermission(adminPin))) {
           return res.status(401).json({
             success: false,
             message: "管理員密碼不正確，無法切換數據庫"

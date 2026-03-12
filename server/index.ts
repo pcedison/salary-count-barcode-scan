@@ -1,10 +1,17 @@
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupAutomaticBackups, startMonitoring } from './db-monitoring';
 import { logOperation, OperationType } from './admin-auth';
+import { validateEnv } from './config/envValidator';
+import { setupSecurity, setupTrustProxy } from './middleware/security';
+
+validateEnv();
 
 const app = express();
+setupTrustProxy(app);
+setupSecurity(app);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

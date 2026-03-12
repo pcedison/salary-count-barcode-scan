@@ -6,8 +6,12 @@
 
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import { storage } from './storage';
+import {
+  hashAdminPin,
+  verifyHashedAdminPin,
+  verifyStoredAdminPin
+} from './utils/adminPinAuth';
 
 // 操作日誌目錄
 const AUDIT_LOG_DIR = path.join(process.cwd(), 'logs');
@@ -133,8 +137,7 @@ export async function verifyAdminPermission(
       return false;
     }
     
-    // 基本PIN碼驗證
-    const isPinValid = settings.adminPin === pin;
+    const isPinValid = verifyStoredAdminPin(settings.adminPin, pin);
     
     // 這裡可以擴展為根據用戶ID或其他標識符檢查不同的權限級別
     // 在此簡化版本中，我們假定正確的PIN碼具有最高權限
@@ -307,24 +310,12 @@ export function getPermissionLevelName(level: PermissionLevel): string {
  * 安全地雜湊密碼
  */
 export function hashPassword(password: string): string {
-  // 生成隨機鹽值
-  const salt = crypto.randomBytes(16).toString('hex');
-  
-  // 使用PBKDF2進行雜湊
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  
-  // 返回格式：鹽值:雜湊值
-  return `${salt}:${hash}`;
+  return hashAdminPin(password);
 }
 
 /**
  * 驗證雜湊密碼
  */
 export function verifyPassword(storedHash: string, providedPassword: string): boolean {
-  const [salt, hash] = storedHash.split(':');
-  
-  // 使用相同參數生成雜湊
-  const providedHash = crypto.pbkdf2Sync(providedPassword, salt, 1000, 64, 'sha512').toString('hex');
-  
-  return hash === providedHash;
+  return verifyHashedAdminPin(storedHash, providedPassword);
 }

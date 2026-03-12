@@ -27,6 +27,17 @@ function buildFullUrl(path: string): string {
   return `${apiBase}${url}`;
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const adminPin = localStorage.getItem('adminPin');
+
+  if (adminPin) {
+    headers['x-admin-pin'] = adminPin;
+  }
+
+  return headers;
+}
+
 /**
  * 具有自動重試功能的API請求
  */
@@ -37,13 +48,17 @@ export async function apiRequest(
   retryCount = 0,
 ): Promise<Response> {
   const fullUrl = buildFullUrl(path);
+  const authHeaders = getAuthHeaders();
   
   console.log(`API Request: ${method} ${fullUrl}`);
   
   try {
     const res = await fetch(fullUrl, {
       method,
-      headers: data ? { "Content-Type": "application/json" } : {},
+      headers: {
+        ...(data ? { "Content-Type": "application/json" } : {}),
+        ...authHeaders
+      },
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
     });
@@ -79,6 +94,7 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const path = queryKey[0] as string;
     const fullUrl = buildFullUrl(path);
+    const authHeaders = getAuthHeaders();
     
     console.log(`Query: GET ${fullUrl}`);
     
@@ -88,6 +104,7 @@ export const getQueryFn: <T>(options: {
       try {
         const res = await fetch(fullUrl, {
           credentials: "include",
+          headers: authHeaders,
         });
 
         // 處理未授權的情況

@@ -43,6 +43,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         setIsAdmin(false);
         setAdminPin(null);
         localStorage.removeItem("isAdmin");
+        localStorage.removeItem("adminPin");
         toast({
           title: "自動登出",
           description: "因為閒置時間超過5分鐘，您已被自動登出管理員模式",
@@ -95,8 +96,13 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         if (elapsed > ADMIN_SESSION_TIMEOUT) {
           localStorage.removeItem("isAdmin");
           localStorage.removeItem("adminLoginTime");
+          localStorage.removeItem("adminPin");
           return;
         }
+      }
+      const storedPin = localStorage.getItem("adminPin");
+      if (storedPin) {
+        setAdminPin(storedPin);
       }
       setIsAdmin(true);
       // 初始化活動時間
@@ -115,6 +121,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         // 存儲登入狀態和登入時間
         localStorage.setItem("isAdmin", "true");
         localStorage.setItem("adminLoginTime", Date.now().toString());
+        localStorage.setItem("adminPin", pin);
         return true;
       } else {
         toast({
@@ -142,6 +149,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       
       if (result.success) {
         setAdminPin(newPin);
+        localStorage.setItem("adminPin", newPin);
         toast({
           title: "更新成功",
           description: "管理員密碼已成功更新",
@@ -171,6 +179,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     setAdminPin(null);
     localStorage.removeItem("isAdmin");
     localStorage.removeItem("adminLoginTime");
+    localStorage.removeItem("adminPin");
     
     // 清除閒置計時器
     if (idleTimerRef.current) {
