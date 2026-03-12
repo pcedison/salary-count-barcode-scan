@@ -559,7 +559,10 @@
   - 修正後端薪資計算未傳入 `employeeId` 的問題，避免特殊規則誤套到預設員工
   - 修正 PATCH 薪資紀錄時可能重複累加假日出勤加給的問題
   - 修正匯入路由缺失 `strictLimiter` import 的 runtime 風險
+  - `import.routes` 已拆出，CSV 解析已改為可處理 quoted field 的 helper
+  - 新增 import 解析測試，鎖住欄位、日期、扣款與考勤區段解析
+  - `useHistoryData` 的敏感 PATCH 更新已收斂回共享 `apiRequest`
   - `.config/`、`.local/` 已納入 `.gitignore`
 - 下一個優先施工：
-  - `TASK-WP5C-03`
+  - `TASK-P0-ARCH-03`
   - `TASK-P0-QA-01`

@@ -45,10 +45,14 @@ export async function apiRequest(
   method: string,
   path: string,
   data?: unknown | undefined,
+  options?: {
+    headers?: Record<string, string>;
+  },
   retryCount = 0,
 ): Promise<Response> {
   const fullUrl = buildFullUrl(path);
   const authHeaders = getAuthHeaders();
+  const customHeaders = options?.headers || {};
   
   console.log(`API Request: ${method} ${fullUrl}`);
   
@@ -57,7 +61,8 @@ export async function apiRequest(
       method,
       headers: {
         ...(data ? { "Content-Type": "application/json" } : {}),
-        ...authHeaders
+        ...authHeaders,
+        ...customHeaders
       },
       body: data ? JSON.stringify(data) : undefined,
       credentials: "include",
@@ -75,7 +80,7 @@ export async function apiRequest(
       
       // 延遲後重試
       await new Promise(resolve => setTimeout(resolve, delayMs));
-      return apiRequest(method, path, data, retryCount + 1);
+      return apiRequest(method, path, data, options, retryCount + 1);
     }
     
     throw error;

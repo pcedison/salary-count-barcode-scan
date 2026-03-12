@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest, getAuthHeaders } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { 
@@ -166,23 +166,18 @@ export function useHistoryData() {
   // Update a salary record
   const updateSalaryRecordMutation = useMutation({
     mutationFn: async ({ id, data, forceUpdate = false }: { id: number; data: Partial<Omit<SalaryRecord, 'id' | 'createdAt'>>; forceUpdate?: boolean }) => {
-      // 如果 forceUpdate 為 true，添加標頭告訴伺服器不要重新計算
-      const headers: Record<string, string> = {};
-      if (forceUpdate) {
-        headers['x-force-update'] = 'true';
-      }
-      const response = await fetch(`/api/salary-records/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-          ...headers
-        },
-        body: JSON.stringify(data)
-      });
-      if (!response.ok) {
-        throw new Error('Failed to update salary record');
-      }
+      const response = await apiRequest(
+        'PATCH',
+        `/api/salary-records/${id}`,
+        data,
+        forceUpdate
+          ? {
+              headers: {
+                'x-force-update': 'true'
+              }
+            }
+          : undefined
+      );
       return await response.json();
     },
     onSuccess: () => {

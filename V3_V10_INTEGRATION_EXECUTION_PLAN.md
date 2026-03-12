@@ -320,6 +320,12 @@
 - Checkpoint：`cp5c-routes-core-complete`
 - 回滾點：`cp5b-routes-employee-holiday`
 
+### Phase 5 目前剩餘風險
+
+- `routes.ts` 仍殘留 `barcode / raspberry / last-scan` 相關單體邏輯
+- `WP5C` 尚未達到「主路由入口僅保留 registration」的最終狀態
+- `cp5c-routes-core-complete` 不能提前建立，必須等殘留掃碼路由與總回歸完成
+
 ## Phase 6: AES 相容層導入
 
 ### TASK-WP6-01 搬入 AES 加密工具
