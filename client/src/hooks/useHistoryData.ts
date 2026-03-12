@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, getAuthHeaders } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { 
@@ -175,6 +175,7 @@ export function useHistoryData() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          ...getAuthHeaders(),
           ...headers
         },
         body: JSON.stringify(data)

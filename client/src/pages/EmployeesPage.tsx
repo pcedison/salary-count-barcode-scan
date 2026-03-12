@@ -90,10 +90,7 @@ export default function EmployeesPage() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['/api/employees'],
     queryFn: async () => {
-      const response = await fetch('/api/employees');
-      if (!response.ok) {
-        throw new Error('Failed to fetch employees');
-      }
+      const response = await apiRequest('GET', '/api/employees');
       return response.json();
     },
     enabled: isAdmin // 只有管理員可以查看
@@ -102,18 +99,7 @@ export default function EmployeesPage() {
   // 創建新員工
   const createMutation = useMutation({
     mutationFn: async (data: EmployeeFormData) => {
-      const response = await fetch('/api/employees', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create employee');
-      }
-      
+      const response = await apiRequest('POST', '/api/employees', data);
       return response.json();
     },
     onSuccess: () => {
@@ -138,18 +124,7 @@ export default function EmployeesPage() {
     mutationFn: async ({ id, data }: { id: number, data: EmployeeFormData }) => {
       console.log('提交更新資料:', JSON.stringify(data));
       
-      const response = await fetch(`/api/employees/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to update employee');
-      }
-      
+      const response = await apiRequest('PUT', `/api/employees/${id}`, data);
       const result = await response.json();
       console.log('更新結果:', JSON.stringify(result));
       return result;
@@ -174,17 +149,7 @@ export default function EmployeesPage() {
   // 刪除員工
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/employees/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete employee');
-      }
-      
+      const response = await apiRequest('DELETE', `/api/employees/${id}`);
       return response.status === 204 ? null : response.json();
     },
     onSuccess: () => {

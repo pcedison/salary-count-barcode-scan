@@ -27,7 +27,7 @@ function buildFullUrl(path: string): string {
   return `${apiBase}${url}`;
 }
 
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   const adminPin = localStorage.getItem('adminPin');
 

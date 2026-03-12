@@ -800,7 +800,7 @@ export function useAttendanceData() {
       
       // 清空假日設定（但不影響歷史記錄中的假日）
       try {
-        const response = await fetch('/api/holidays', { method: 'DELETE' });
+        const response = await apiRequest('DELETE', '/api/holidays');
         if (response.ok) {
           console.log('假日設定已清空，以便下次考勤週期使用');
           // 刷新假日查詢

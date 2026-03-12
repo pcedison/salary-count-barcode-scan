@@ -31,6 +31,7 @@ export enum PermissionLevel {
 
 // 操作類型定義
 export enum OperationType {
+  AUTHORIZATION = 'authorization',
   VIEW = 'view',
   CREATE = 'create',
   UPDATE = 'update',

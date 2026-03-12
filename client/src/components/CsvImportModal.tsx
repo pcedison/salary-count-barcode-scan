@@ -164,8 +164,7 @@ export function CsvImportModal({ open, onOpenChange, onImportSuccess }: CsvImpor
       
       // 準備請求數據
       const requestData = {
-        csvContent: fileContent,
-        adminVerified: true // 在客戶端已經通過管理員驗證
+        csvContent: fileContent
       };
 
       // 發送API請求

@@ -1,5 +1,8 @@
 # V3 與 V10 正式整合執行計畫
 
+> Production backlog 與任務優先級請同步參考：
+> `docs/PRODUCTION_TASK_BACKLOG.md`
+
 ## 1. 專案定位
 
 - 主體版本：`Xin-Zi-Ji-Suan-Sao-Ma-Qiang-V3`

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import type { Express, Request, Response } from "express";
+import type { Express, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -15,7 +15,6 @@ import {
   insertEmployeeSchema,
   temporaryAttendance
 } from "@shared/schema";
-// Removed Supabase API imports - using direct PostgreSQL connection only
 import { registerDashboardRoutes } from "./dashboard-routes";
 import { startMonitoring } from "./db-monitoring";
 import { hashPassword, logOperation, OperationType, verifyAdminPermission } from "./admin-auth";
@@ -28,8 +27,7 @@ import {
 } from "@shared/utils/specialLeaveSync";
 import { validatePin } from "@shared/utils/passwordValidator";
 import { loginLimiter, strictLimiter } from "./middleware/rateLimiter";
-// 導入子進程模組
-import { spawn } from "child_process";
+import { requireAdmin } from "./middleware/requireAdmin";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // 初始化數據庫 - 直接使用 PostgreSQL 連接到 Supabase
@@ -164,7 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/attendance", async (req, res) => {
+  app.post("/api/attendance", requireAdmin(), async (req, res) => {
     try {
       const validatedData = insertTemporaryAttendanceSchema.parse(req.body);
       const attendance = await storage.createTemporaryAttendance(validatedData);
@@ -174,7 +172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/attendance/:id", async (req, res) => {
+  app.put("/api/attendance/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -194,7 +192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/attendance/:id", async (req, res) => {
+  app.delete("/api/attendance/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -213,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/attendance", async (_req, res) => {
+  app.delete("/api/attendance", requireAdmin(), async (_req, res) => {
     try {
       await storage.deleteAllTemporaryAttendance();
       res.status(204).end();
@@ -223,7 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // 刪除特定員工的考勤記錄
-  app.delete("/api/attendance/employee/:employeeId", async (req, res) => {
+  app.delete("/api/attendance/employee/:employeeId", requireAdmin(), async (req, res) => {
     try {
       const employeeId = parseInt(req.params.employeeId);
       if (isNaN(employeeId)) {
@@ -271,7 +269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/settings", async (req, res) => {
+  app.post("/api/settings", requireAdmin(), async (req, res) => {
     try {
       const validatedData = insertSettingsSchema.parse(req.body);
       const settings = await storage.createOrUpdateSettings(validatedData);
@@ -310,7 +308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/salary-records", async (req, res) => {
+  app.post("/api/salary-records", requireAdmin(), async (req, res) => {
     try {
       // 獲取系統設置以進行薪資計算
       const settings = await storage.getSettings();
@@ -407,7 +405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.patch("/api/salary-records/:id", async (req, res) => {
+  app.patch("/api/salary-records/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -541,7 +539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.delete("/api/salary-records/:id", async (req, res) => {
+  app.delete("/api/salary-records/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -570,7 +568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/holidays", async (req, res) => {
+  app.post("/api/holidays", requireAdmin(), async (req, res) => {
     try {
       const validatedData = insertHolidaySchema.parse(req.body);
       const holiday = await storage.createHoliday(validatedData);
@@ -628,7 +626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/holidays/:id", async (req, res) => {
+  app.delete("/api/holidays/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -679,7 +677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // 清空所有假日設定 (用於計算薪資後重置)
-  app.delete("/api/holidays", async (_req, res) => {
+  app.delete("/api/holidays", requireAdmin(), async (_req, res) => {
     try {
       await storage.deleteAllHolidays();
       res.status(204).end();
@@ -842,7 +840,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/employees", async (req, res) => {
+  app.post("/api/employees", requireAdmin(), async (req, res) => {
     try {
       // 先獲取原始請求中的 useEncryption 值
       const useEncryption = req.body.useEncryption === true;
@@ -867,7 +865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/employees/:id", async (req, res) => {
+  app.put("/api/employees/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -904,7 +902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // PATCH route for partial employee updates (including special leave fields)
-  app.patch("/api/employees/:id", async (req, res) => {
+  app.patch("/api/employees/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1031,7 +1029,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/employees/:id", async (req, res) => {
+  app.delete("/api/employees/:id", requireAdmin(), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1862,13 +1860,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({
-        currentStorage: 'PostgreSQL (Supabase)',
+        currentStorage: 'postgres',
+        storageMode: 'postgres_only',
         environment: {
           DATABASE_URL: 'configured'
         },
+        features: {
+          databaseSwitching: false,
+          supabaseMigration: false
+        },
         connections: {
           postgres: postgresConnection,
-          supabase: { isConnected: postgresConnection } // For frontend compatibility
+          supabase: { isConnected: false, disabled: true }
         }
       });
     } catch (err) {
@@ -1878,26 +1881,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/supabase-config", async (_req, res) => {
     try {
-      // Return mock config indicating PostgreSQL connection is active
-      const safeConfig = {
-        url: 'postgresql://postgres.pezkrfptwoudqpruaier...', 
-        key: 'POSTGRES_CONNECTION',
-        isConfigured: true,
-        isActive: true
-      };
-      res.json(safeConfig);
+      res.json({
+        mode: 'postgres_only',
+        disabled: true,
+        url: '',
+        key: '',
+        isConfigured: false,
+        isActive: false,
+        message: '系統已收斂為 PostgreSQL-only，前端不再支援 Supabase 切換'
+      });
     } catch (err) {
       handleError(err, res);
     }
   });
 
-  app.post("/api/supabase-config", async (req, res) => {
+  app.post("/api/supabase-config", strictLimiter, requireAdmin(), async (req, res) => {
     try {
-      // Always return success for PostgreSQL connection
-      res.json({ 
-        success: true, 
-        message: "Supabase 配置已成功保存", 
-        isActive: true
+      res.status(409).json({ 
+        success: false, 
+        message: "系統已收斂為 PostgreSQL-only，Supabase 配置入口已停用",
+        disabled: true
       });
     } catch (err) {
       handleError(err, res);
@@ -1919,7 +1922,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: true, 
         isConnected: isConnected,
         errorMessage: isConnected ? null : 'PostgreSQL connection failed',
-        isActive: true
+        isActive: false,
+        mode: 'postgres_only',
+        disabled: true
       });
     } catch (err) {
       handleError(err, res);
@@ -1927,54 +1932,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // 切換數據存儲實現（PostgreSQL 或 Supabase）
-  app.post("/api/supabase-toggle", async (req, res) => {
+  app.post("/api/supabase-toggle", strictLimiter, requireAdmin(), async (req, res) => {
     try {
-      const { enable, adminPin } = req.body;
-      
-      // 檢查 enable 是否是一個布爾值
-      if (typeof enable !== 'boolean') {
-        return res.status(400).json({ 
-          success: false, 
-          message: "請提供有效的 enable 參數（布爾值）" 
-        });
-      }
-      
-      // 如果禁用 Supabase（切換到 PostgreSQL），需要管理員驗證
-      if (!enable) {
-        // 驗證管理員密碼
-        if (!adminPin || adminPin.trim() === '') {
-          return res.status(401).json({
-            success: false,
-            message: "切換到本地數據庫需要管理員密碼驗證"
-          });
-        }
-        
-        if (!(await verifyAdminPermission(adminPin))) {
-          return res.status(401).json({
-            success: false,
-            message: "管理員密碼不正確，無法切換數據庫"
-          });
-        }
-      }
-      
-      // 如果啟用 Supabase，先檢查連接
-      if (enable) {
-        const connectionStatus = await checkSupabaseConnection();
-        if (!connectionStatus.isConnected) {
-          return res.status(400).json({ 
-            success: false, 
-            message: `無法連接到 Supabase：${connectionStatus.errorMessage || '請檢查URL和API Key是否正確'}`
-          });
-        }
-        enableSupabase();
-      } else {
-        disableSupabase();
-      }
-      
-      res.json({ 
-        success: true, 
-        message: enable ? "已切換到 Supabase 存儲" : "已切換到 PostgreSQL 存儲",
-        isActive: isUsingSupabase()
+      res.status(409).json({ 
+        success: false, 
+        message: "系統已收斂為 PostgreSQL-only，資料庫切換已停用",
+        disabled: true,
+        isActive: false
       });
     } catch (err) {
       handleError(err, res);
@@ -1982,54 +1946,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // 將數據遷移到 Supabase
-  app.post("/api/supabase-migrate", async (_req, res) => {
+  app.post("/api/supabase-migrate", strictLimiter, requireAdmin(), async (_req, res) => {
     try {
-      // 檢查 Supabase 連接狀態
-      const connectionStatus = await checkSupabaseConnection();
-      if (!connectionStatus.isConnected) {
-        return res.status(400).json({
-          success: false,
-          message: `無法連接到 Supabase：${connectionStatus.errorMessage || '請檢查URL和API Key是否正確'}`
-        });
-      }
-      
-      // 使用 child_process 啟動遷移腳本，確保環境變數正確傳遞
-      const migration = spawn('node', ['migrate-to-supabase.cjs'], {
-        env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL }
-      });
-      
-      let output = '';
-      let errorOutput = '';
-      
-      migration.stdout.on('data', (data: Buffer) => {
-        const text = data.toString();
-        output += text;
-        console.log(`遷移輸出: ${text}`);
-      });
-      
-      migration.stderr.on('data', (data: Buffer) => {
-        const text = data.toString();
-        errorOutput += text;
-        console.error(`遷移錯誤: ${text}`);
-      });
-      
-      migration.on('close', (code: number) => {
-        if (code === 0) {
-          // 成功完成
-          enableSupabase(); // 自動切換到 Supabase 存儲
-          res.json({
-            success: true,
-            message: "數據遷移成功完成，已切換到 Supabase 存儲",
-            details: output,
-            isActive: true
-          });
-        } else {
-          res.status(500).json({
-            success: false,
-            message: "遷移過程中發生錯誤",
-            details: errorOutput || "未知錯誤"
-          });
-        }
+      res.status(409).json({
+        success: false,
+        message: "系統已收斂為 PostgreSQL-only，Supabase 遷移入口已停用",
+        disabled: true
       });
     } catch (err) {
       handleError(err, res);
@@ -2037,13 +1959,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV 匯入相關路由 - 處理考勤記錄匯入
-  app.post("/api/admin/import/attendance", async (req, res) => {
+  app.post("/api/admin/import/attendance", strictLimiter, requireAdmin(), async (req, res) => {
     try {
-      // 驗證管理員權限
-      if (!req.body.adminVerified && !req.query.adminVerified) {
-        return res.status(403).json({ success: false, message: "需要管理員權限才能匯入資料" });
-      }
-
       // 解析CSV檔案內容
       const csvContent = req.body.csvContent;
       if (!csvContent) {
@@ -2139,13 +2056,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV 匯入相關路由 - 處理完整薪資記錄匯入
-  app.post("/api/admin/import/salary-record", async (req, res) => {
+  app.post("/api/admin/import/salary-record", strictLimiter, requireAdmin(), async (req, res) => {
     try {
-      // 驗證管理員權限
-      if (!req.body.adminVerified && !req.query.adminVerified) {
-        return res.status(403).json({ success: false, message: "需要管理員權限才能匯入資料" });
-      }
-
       // 解析CSV檔案內容
       const csvContent = req.body.csvContent;
       if (!csvContent) {

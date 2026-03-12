@@ -444,127 +444,62 @@ export default function SettingsForm({
       
       {showSystem && isAdmin && (
         <div className="bg-white p-6 rounded-lg shadow-sm">
-          <h3 className="text-lg font-medium mb-4">資料庫連線設定</h3>
-          
-          <div className="mb-6 p-4 bg-gray-50 rounded-md">
-            <h4 className="text-base font-medium mb-2">當前資料庫類型</h4>
-            
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div 
-                className={`flex-1 p-3 rounded-md border cursor-pointer flex items-center justify-between ${
-                  !isSupabaseActive ? 'border-primary bg-primary/5' : 'border-gray-200'
-                }`}
-                onClick={() => onToggleDatabase && onToggleDatabase(false)}
-              >
-                <div className="flex items-center">
-                  <span className="material-icons text-base mr-2 text-blue-600">storage</span>
-                  <div>
-                    <div className="font-medium">PostgreSQL</div>
-                    <div className="text-xs text-gray-500">本地數據庫</div>
-                  </div>
-                </div>
-                <div className={`w-5 h-5 rounded-full border ${!isSupabaseActive ? 'bg-primary border-primary' : 'border-gray-300'}`}>
-                  {!isSupabaseActive && (
-                    <span className="material-icons text-white text-sm flex items-center justify-center">check</span>
-                  )}
-                </div>
-              </div>
-              
-              <div 
-                className={`flex-1 p-3 rounded-md border cursor-pointer flex items-center justify-between ${
-                  isSupabaseActive ? 'border-primary bg-primary/5' : 'border-gray-200'
-                }`}
-                onClick={() => connectionStatus === 'connected' && onToggleDatabase && onToggleDatabase(true)}
-              >
-                <div className="flex items-center">
-                  <span className="material-icons text-base mr-2 text-green-600">cloud</span>
-                  <div>
-                    <div className="font-medium">Supabase</div>
-                    <div className="text-xs text-gray-500">雲端數據庫</div>
-                  </div>
-                </div>
-                <div className={`w-5 h-5 rounded-full border ${isSupabaseActive ? 'bg-primary border-primary' : 'border-gray-300'}`}>
-                  {isSupabaseActive && (
-                    <span className="material-icons text-white text-sm flex items-center justify-center">check</span>
-                  )}
-                </div>
-              </div>
-            </div>
-            
-            {connectionStatus !== 'connected' && (
-              <div className="mt-2 text-xs text-amber-600">
-                <span className="material-icons text-xs mr-1 align-middle">info</span>
-                請先設定並測試連接 Supabase 後，再嘗試切換到 Supabase 資料庫
-              </div>
-            )}
-          </div>
-          
+          <h3 className="text-lg font-medium mb-4">資料庫與部署狀態</h3>
+
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label htmlFor="supabaseUrl" className="block text-sm font-medium text-gray-700">Supabase URL</label>
-                <Input 
-                  id="supabaseUrl" 
-                  value={supabaseUrl} 
-                  onChange={(e) => onSupabaseUrlChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary font-['Roboto_Mono']"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="supabaseAnonKey" className="block text-sm font-medium text-gray-700">Supabase Anon Key</label>
-                <Input 
-                  id="supabaseAnonKey" 
-                  type="password" 
-                  value={supabaseAnonKey} 
-                  onChange={(e) => onSupabaseAnonKeyChange(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-primary focus:border-primary font-['Roboto_Mono']"
-                />
+            <div className="rounded-md border border-green-200 bg-green-50 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="font-medium text-green-800">目前運行模式：PostgreSQL-only</div>
+                  <div className="mt-1 text-sm text-green-700">
+                    生產策略已固定為單一 PostgreSQL 存儲。資料庫切換、Supabase 設定與遷移入口已停用，避免誤操作。
+                  </div>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-green-800 border border-green-200">
+                  Production Baseline
+                </span>
               </div>
             </div>
-            <div className="flex justify-between items-center mt-4">
-              <div className="flex items-center text-sm">
-                {connectionStatus === 'connected' && (
-                  <>
-                    <span className="material-icons text-success text-sm mr-1">check_circle</span>
-                    <span className="text-success">連線狀態: 已連線</span>
-                  </>
-                )}
-                {connectionStatus === 'disconnected' && (
-                  <>
-                    <span className="material-icons text-error text-sm mr-1">error</span>
-                    <span className="text-error">連線狀態: 連線失敗</span>
-                  </>
-                )}
-                {connectionStatus === 'testing' && (
-                  <>
-                    <span className="material-icons text-warning text-sm mr-1 animate-spin">sync</span>
-                    <span className="text-warning">連線狀態: 測試中...</span>
-                  </>
-                )}
-                {connectionStatus === 'migrating' && (
-                  <>
-                    <span className="material-icons text-warning text-sm mr-1 animate-spin">sync</span>
-                    <span className="text-warning">數據遷移中...</span>
-                  </>
-                )}
-              </div>
-              <div className="flex space-x-2">
-                <Button 
+
+            <div className="rounded-md border border-gray-200 p-4">
+              <div className="mb-2 text-sm font-medium text-gray-700">資料庫連線狀態</div>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center text-sm">
+                  {connectionStatus === 'connected' && (
+                    <>
+                      <span className="material-icons text-success text-sm mr-1">check_circle</span>
+                      <span className="text-success">PostgreSQL 連線正常</span>
+                    </>
+                  )}
+                  {connectionStatus === 'disconnected' && (
+                    <>
+                      <span className="material-icons text-error text-sm mr-1">error</span>
+                      <span className="text-error">PostgreSQL 連線異常</span>
+                    </>
+                  )}
+                  {connectionStatus === 'testing' && (
+                    <>
+                      <span className="material-icons text-warning text-sm mr-1 animate-spin">sync</span>
+                      <span className="text-warning">檢查中...</span>
+                    </>
+                  )}
+                  {connectionStatus === 'migrating' && (
+                    <>
+                      <span className="material-icons text-warning text-sm mr-1 animate-spin">sync</span>
+                      <span className="text-warning">檢查中...</span>
+                    </>
+                  )}
+                </div>
+                <Button
                   onClick={onTestConnection}
                   disabled={connectionStatus === 'testing' || connectionStatus === 'migrating'}
                   className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md"
                 >
-                  測試連線
+                  重新檢查
                 </Button>
-                {connectionStatus === 'connected' && (
-                  <Button 
-                    onClick={onMigrateData}
-                    disabled={false}
-                    className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-md"
-                  >
-                    遷移數據
-                  </Button>
-                )}
+              </div>
+              <div className="mt-3 text-xs text-gray-500">
+                實際連線由伺服器端 `DATABASE_URL` 管理，不接受前端 UI 直接切換。
               </div>
             </div>
           </div>

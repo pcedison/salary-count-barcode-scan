@@ -3,13 +3,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useSettings } from '@/hooks/useSettings';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useEmployees } from '@/hooks/useEmployees';
+import { apiRequest } from '@/lib/queryClient';
 import SettingsForm from '@/components/SettingsForm';
 import SpecialLeaveCounter from '@/components/SpecialLeaveCounter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { constants } from '@/lib/constants';
-import { supabaseClient, updateSupabaseConnection } from '@/lib/supabase';
 import { Lock, Shield, Loader2, Save, AlertCircle, DollarSign, CalendarDays, Settings } from 'lucide-react';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 
@@ -59,10 +59,7 @@ export default function SettingsPage() {
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave'>('national_holiday');
-  const [supabaseUrl, setSupabaseUrl] = useState<string>(import.meta.env.VITE_SUPABASE_URL || '');
-  const [supabaseAnonKey, setSupabaseAnonKey] = useState<string>(import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
-  const [isSupabaseActive, setIsSupabaseActive] = useState<boolean>(false);
   
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -104,327 +101,40 @@ export default function SettingsPage() {
     }
   }, [baseHourlyRate, baseMonthSalary, ot1Multiplier, ot2Multiplier, deductions, allowances, settings, isLoading]);
   
-  const testConnection = async () => {
+  const refreshDatabaseStatus = async (showToast = false) => {
     setConnectionStatus('testing');
     
     try {
-      const response = await fetch('/api/supabase-config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: supabaseUrl, key: supabaseAnonKey })
-      });
-      
-      if (!response.ok) {
-        console.error('Failed to save config to server:', await response.text());
+      const response = await apiRequest('GET', '/api/db-status');
+      const data = await response.json();
+      const postgresConnected = Boolean(data.connections?.postgres);
+
+      setConnectionStatus(postgresConnected ? 'connected' : 'disconnected');
+
+      if (showToast) {
         toast({
-          title: "警告",
-          description: "無法將連接配置保存到服務器，但仍嘗試連接。",
+          title: postgresConnected ? "資料庫連線正常" : "資料庫連線異常",
+          description: postgresConnected
+            ? "系統目前固定使用 PostgreSQL-only 模式。"
+            : "無法連接到 PostgreSQL，請檢查 DATABASE_URL 與資料庫服務狀態。",
+          variant: postgresConnected ? "default" : "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Database status refresh failed:', error);
+      setConnectionStatus('disconnected');
+
+      if (showToast) {
+        toast({
+          title: "連線檢查失敗",
+          description: "無法取得資料庫狀態，請稍後再試。",
           variant: "destructive"
         });
-      } else {
-        console.log('Config saved to server successfully');
       }
-      
-      localStorage.setItem('supabaseUrl', supabaseUrl);
-      localStorage.setItem('supabaseAnonKey', supabaseAnonKey);
-      
-      const success = updateSupabaseConnection(supabaseUrl, supabaseAnonKey);
-      
-      if (!success) {
-        throw new Error("Supabase client update failed");
-      }
-      
-      const connectionResponse = await fetch('/api/supabase-connection');
-      const connectionData = await connectionResponse.json();
-      
-      if (!connectionData.isConnected) {
-        console.warn('Server-side connection test failed, trying client-side test...');
-        
-        await import('@/lib/supabase').then(async ({ supabaseClient }) => {
-          try {
-            if (!supabaseClient) {
-              throw new Error("Supabase client is not available");
-            }
-            
-            const { data: data1, error: error1 } = await supabaseClient
-              .from('settings')
-              .select('id')
-              .limit(1);
-              
-            if (error1) {
-              console.log('First attempt failed:', error1.message);
-              
-              if (error1.message && error1.message.includes('Invalid API')) {
-                throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
-              }
-              
-              const { data: data2, error: error2 } = await supabaseClient
-                .from('設置')
-                .select('id')
-                .limit(1);
-                
-              if (error2) {
-                console.log('Second attempt failed:', error2.message);
-                
-                if (error2.message && error2.message.includes('Invalid API')) {
-                  throw new Error('Supabase API密鑰無效。請確保您使用了正確的anon key。');
-                }
-                
-                try {
-                  const authResponse = await supabaseClient.auth.getSession();
-                  console.log('Auth check result:', authResponse);
-                  
-                  if (authResponse.error) {
-                    throw authResponse.error;
-                  }
-                } catch (finalError) {
-                  console.error('Final connection check failed:', finalError);
-                  throw finalError;
-                }
-              }
-            }
-            
-            setConnectionStatus('connected');
-            toast({
-              title: "連線成功",
-              description: "客戶端 Supabase 連線測試成功，設定已同時保存到本地及服務器，Redeploy 後將自動使用此連線資訊。",
-            });
-          } catch (connectionError) {
-            console.error('Connection test failed in inner try-catch:', connectionError);
-            throw connectionError;
-          }
-        }).catch(error => {
-          console.error('Connection test failed:', error);
-          setConnectionStatus('disconnected');
-          toast({
-            title: "連線失敗",
-            description: "無法連接到 Supabase，請檢查 URL 和密鑰是否正確。",
-            variant: "destructive"
-          });
-        });
-      } else {
-        setConnectionStatus('connected');
-        setIsSupabaseActive(connectionData.isActive || false);
-        toast({
-          title: "連線成功",
-          description: "服務器端 Supabase 連線測試成功。設定已保存，重啟應用後將自動使用此連線資訊。",
-        });
-      }
-    } catch (error) {
-      console.error('Connection test failed:', error);
-      setConnectionStatus('disconnected');
-      toast({
-        title: "連線失敗",
-        description: "無法連接到 Supabase，請檢查 URL 和密鑰是否正確。",
-        variant: "destructive"
-      });
     }
   };
-  
-  const migrateData = async () => {
-    if (connectionStatus !== 'connected') {
-      toast({
-        title: "無法遷移",
-        description: "請先成功測試 Supabase 連接後再嘗試遷移數據。",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    if (!window.confirm("確定要將所有數據遷移到 Supabase 嗎？這可能需要一些時間，且期間無法使用系統。")) {
-      return;
-    }
-    
-    setConnectionStatus('migrating');
-    
-    try {
-      const response = await fetch('/api/supabase-migrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "遷移失敗");
-      }
-      
-      toast({
-        title: "遷移成功",
-        description: "所有數據已成功遷移到 Supabase，系統現在將使用 Supabase 作為默認存儲。",
-      });
-      
-      setConnectionStatus('connected');
-    } catch (error) {
-      console.error('Migration failed:', error);
-      toast({
-        title: "遷移失敗",
-        description: error instanceof Error ? error.message : "遷移過程中發生錯誤，請檢查控制台日誌。",
-        variant: "destructive"
-      });
-      
-      setConnectionStatus('connected');
-    }
-  };
-  
-  const toggleDatabaseConnection = async (enableSupabase: boolean) => {
-    try {
-      if (!enableSupabase && isSupabaseActive) {
-        const adminPin = prompt("請輸入管理員密碼以確認切換到本地 PostgreSQL 數據庫");
-        
-        if (!adminPin) {
-          toast({
-            title: "操作已取消",
-            description: "沒有提供管理員密碼，數據庫切換已取消。",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        const confirmMessage = "警告：切換到本地 PostgreSQL 數據庫將停止使用 Supabase 雲端數據。請確認：\n\n" +
-                              "1. 您已經備份了所有重要數據\n" +
-                              "2. 了解切換後系統將使用本地數據庫\n\n" +
-                              "確定要繼續嗎？";
-                              
-        if (!window.confirm(confirmMessage)) {
-          toast({
-            title: "操作已取消",
-            description: "數據庫切換已取消。",
-          });
-          return;
-        }
-        
-        const response = await fetch('/api/supabase-toggle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            enable: enableSupabase,
-            adminPin: adminPin
-          })
-        });
-        
-        const result = await response.json();
-        
-        if (!response.ok || !result.success) {
-          throw new Error(result.message || "切換失敗");
-        }
-        
-        setIsSupabaseActive(result.isActive);
-        
-        toast({
-          title: "數據庫切換成功",
-          description: "系統現在使用 PostgreSQL 作為數據庫。來自 Supabase 的數據仍然保留在雲端。",
-        });
-      } else {
-        const response = await fetch('/api/supabase-toggle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ enable: enableSupabase })
-        });
-        
-        const result = await response.json();
-        
-        if (!response.ok || !result.success) {
-          throw new Error(result.message || "切換失敗");
-        }
-        
-        setIsSupabaseActive(result.isActive);
-        
-        toast({
-          title: "數據庫切換成功",
-          description: "系統現在使用 Supabase 作為數據庫",
-        });
-      }
-    } catch (error) {
-      console.error('Database toggle failed:', error);
-      toast({
-        title: "切換失敗",
-        description: error instanceof Error ? error.message : "無法切換數據庫，請檢查連接配置和日誌。",
-        variant: "destructive"
-      });
-    }
-  };
-  
-  const initializeConnection = () => {
-    const savedUrl = localStorage.getItem('supabaseUrl') || import.meta.env.VITE_SUPABASE_URL || '';
-    const savedKey = localStorage.getItem('supabaseAnonKey') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-    
-    setSupabaseUrl(savedUrl);
-    setSupabaseAnonKey(savedKey);
-    
-    fetch('/api/supabase-connection')
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          setIsSupabaseActive(data.isActive);
-          
-          if (data.isConnected) {
-            setConnectionStatus('connected');
-          } else {
-            setConnectionStatus('disconnected');
-          }
-        }
-      })
-      .catch(error => {
-        console.error('Error checking Supabase connection status:', error);
-        setConnectionStatus('disconnected');
-      });
-    
-    if (savedUrl && savedKey && 
-        savedUrl !== 'YOUR_SUPABASE_URL' && 
-        savedKey !== 'YOUR_SUPABASE_ANON_KEY') {
-      updateSupabaseConnection(savedUrl, savedKey);
-      fetch('/api/supabase-connection')
-        .then(response => response.json())
-        .then(data => {
-          setConnectionStatus(data.isConnected ? 'connected' : 'disconnected');
-          console.log('測試Supabase連線狀態:', data.isConnected ? '已連線' : '未連線');
-        })
-        .catch(error => {
-          console.error('Error testing Supabase connection:', error);
-          setConnectionStatus('disconnected');
-        });
-    } else {
-      fetch('/api/supabase-config')
-        .then(response => response.json())
-        .then(data => {
-          if (data && data.url && data.key && 
-              data.url !== '' && data.key !== '' && 
-              data.url !== 'YOUR_SUPABASE_URL' && 
-              data.key !== 'YOUR_SUPABASE_ANON_KEY') {
-            
-            setSupabaseUrl(data.url);
-            setSupabaseAnonKey(data.key);
-            setIsSupabaseActive(data.isActive);
-            
-            localStorage.setItem('supabaseUrl', data.url);
-            localStorage.setItem('supabaseAnonKey', data.key);
-            
-            updateSupabaseConnection(data.url, data.key);
-            
-            fetch('/api/supabase-connection')
-              .then(response => response.json())
-              .then(connData => {
-                setConnectionStatus(connData.isConnected ? 'connected' : 'disconnected');
-                console.log('從配置測試Supabase連線狀態:', connData.isConnected ? '已連線' : '未連線');
-              })
-              .catch(error => {
-                console.error('Error testing Supabase connection:', error);
-                setConnectionStatus('disconnected');
-              });
-          } else {
-            setConnectionStatus('disconnected');
-          }
-        })
-        .catch(error => {
-          console.error('Error loading Supabase config from server:', error);
-          setConnectionStatus('disconnected');
-        });
-    }
-  };
-  
   useEffect(() => {
-    initializeConnection();
+    void refreshDatabaseStatus();
   }, []);
   
   const handleSaveSettings = async () => {
@@ -757,10 +467,10 @@ export default function SettingsPage() {
     newHolidayDescription,
     selectedEmployeeId,
     holidayType,
-    supabaseUrl,
-    supabaseAnonKey,
+    supabaseUrl: '',
+    supabaseAnonKey: '',
     connectionStatus,
-    isSupabaseActive,
+    isSupabaseActive: false,
     isAdmin,
     onBaseHourlyRateChange: setBaseHourlyRate,
     onBaseMonthSalaryChange: setBaseMonthSalary,
@@ -778,11 +488,13 @@ export default function SettingsPage() {
     onHolidayTypeChange: setHolidayType,
     onAddHoliday: handleAddHoliday,
     onDeleteHoliday: handleDeleteHoliday,
-    onSupabaseUrlChange: setSupabaseUrl,
-    onSupabaseAnonKeyChange: setSupabaseAnonKey,
-    onTestConnection: testConnection,
-    onMigrateData: migrateData,
-    onToggleDatabase: toggleDatabaseConnection,
+    onSupabaseUrlChange: () => undefined,
+    onSupabaseAnonKeyChange: () => undefined,
+    onTestConnection: () => {
+      void refreshDatabaseStatus(true);
+    },
+    onMigrateData: () => undefined,
+    onToggleDatabase: () => undefined,
   };
 
   return (
