@@ -39,6 +39,7 @@
 
 - 身分證資料仍以 Caesar cipher 為主
 - 尚未導入 AES 相容層與正式遷移機制
+- 管理員員工頁仍假設可在前端直接做 Caesar 解密，AES 寫入切換前需先收斂顯示/編輯模型
 - 尚未完成資料 restore drill
 
 ### 3.4 品質與維運缺口
@@ -571,6 +572,11 @@
   - 已新增 `test:smoke` 指令，鎖定高風險 API 路徑
   - `import.routes` 已加入 API 級 smoke test，覆蓋授權、考勤匯入、薪資匯入更新
   - `scan.routes` 已加入 API 級 smoke test，覆蓋加密 ID 比對、上下班打卡、Raspberry 輕量回應、last-scan 重建
+  - `employees.routes` 已加入 API 級 smoke test，覆蓋特休日期新增/移除時的假日與考勤同步
+  - `settings.routes` 已加入 API 級 smoke test，覆蓋初次預設設定建立與受保護更新
+- `TASK-P0-DATA-01` 前置分析已完成
+  - 目前 `EmployeesPage` 仍依賴前端 Caesar 解密顯示 ID
+  - AES 下一步應先做 server read-compat 與顯示模型收斂，不能直接開啟 AES 寫入
 - 下一個優先施工：
   - `TASK-P0-QA-01`
   - `TASK-P0-DATA-01`

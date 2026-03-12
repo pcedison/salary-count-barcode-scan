@@ -344,6 +344,9 @@
   - 支援 Caesar
   - 支援 AES
   - 預設仍不強制遷移舊資料
+- 前置提醒：
+  - 員工管理 UI 目前仍假設可在前端直接做 Caesar 解密
+  - 因此 Phase 6 第一段只能先做 server-side read compatibility，不可直接打開 AES 寫入
 - 驗收：舊資料照常可讀寫
 
 ### TASK-WP6-03 建立 feature flag
