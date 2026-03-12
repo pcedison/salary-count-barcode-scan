@@ -1,12 +1,12 @@
 import { createContext, useState, useContext, ReactNode, useEffect, useRef, useCallback } from "react";
 import { toast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { ADMIN_SESSION_INVALIDATED_EVENT, apiRequest } from "@/lib/queryClient";
+import { useQueryClient } from "@tanstack/react-query";
 
 type AdminContextType = {
   isAdmin: boolean;
-  adminPin: string | null;
   verifyPin: (pin: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updatePin: (oldPin: string, newPin: string) => Promise<boolean>;
   resetIdleTimer: () => void; // 新增重置計時器方法
 };
@@ -18,9 +18,110 @@ const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
 export function AdminProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [adminPin, setAdminPin] = useState<string | null>(null);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
+  const isAdminRef = useRef<boolean>(false);
+  const queryClient = useQueryClient();
+
+  const clearLegacyAdminStorage = useCallback(() => {
+    localStorage.removeItem("isAdmin");
+    localStorage.removeItem("adminLoginTime");
+    localStorage.removeItem("adminPin");
+  }, []);
+
+  const clearAdminQueries = useCallback(() => {
+    const adminQueryPrefixes = [
+      '/api/employees/admin',
+      '/api/salary-records',
+      '/api/db-status',
+      '/api/supabase-config',
+      '/api/supabase-connection',
+      '/api/dashboard'
+    ];
+
+    queryClient.removeQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0];
+        return (
+          typeof key === 'string' &&
+          adminQueryPrefixes.some(prefix => key.startsWith(prefix))
+        );
+      }
+    });
+  }, [queryClient]);
+
+  const clearAdminState = useCallback((options?: {
+    showToast?: boolean;
+    title?: string;
+    description?: string;
+  }) => {
+    setIsAdmin(false);
+    isAdminRef.current = false;
+    clearLegacyAdminStorage();
+    clearAdminQueries();
+
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+
+    if (options?.showToast) {
+      toast({
+        title: options.title || "登出成功",
+        description: options.description || "您已登出管理員模式",
+      });
+    }
+  }, [clearAdminQueries, clearLegacyAdminStorage]);
+
+  const syncAdminSession = useCallback(async () => {
+    clearLegacyAdminStorage();
+
+    try {
+      const response = await fetch("/api/admin/session", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to restore admin session: ${response.status}`);
+      }
+
+      const result = await response.json();
+      const authenticated = result?.isAdmin === true;
+
+      setIsAdmin(authenticated);
+      isAdminRef.current = authenticated;
+
+      if (authenticated) {
+        lastActivityRef.current = Date.now();
+      } else {
+        clearAdminQueries();
+      }
+
+      return authenticated;
+    } catch (error) {
+      console.error("Admin session restore error:", error);
+      clearAdminState();
+      return false;
+    }
+  }, [clearAdminQueries, clearAdminState, clearLegacyAdminStorage]);
+
+  const logout = useCallback(async (options?: {
+    showToast?: boolean;
+    title?: string;
+    description?: string;
+  }) => {
+    try {
+      await fetch("/api/admin/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Admin logout error:", error);
+    } finally {
+      clearAdminState(options);
+    }
+  }, [clearAdminState]);
 
   // 重置閒置計時器
   const resetIdleTimer = useCallback(() => {
@@ -39,18 +140,14 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       // 檢查距離上次活動時間是否超過閒置時間限制
       const timeSinceLastActivity = Date.now() - lastActivityRef.current;
       if (timeSinceLastActivity >= ADMIN_SESSION_TIMEOUT) {
-        // 自動登出管理員
-        setIsAdmin(false);
-        setAdminPin(null);
-        localStorage.removeItem("isAdmin");
-        localStorage.removeItem("adminPin");
-        toast({
+        void logout({
+          showToast: true,
           title: "自動登出",
           description: "因為閒置時間超過5分鐘，您已被自動登出管理員模式",
         });
       }
     }, ADMIN_SESSION_TIMEOUT);
-  }, [isAdmin]);
+  }, [isAdmin, logout]);
 
   // 當管理員狀態改變時，處理計時器
   useEffect(() => {
@@ -86,29 +183,32 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   // Try to restore admin session from localStorage
   useEffect(() => {
-    const storedIsAdmin = localStorage.getItem("isAdmin");
-    if (storedIsAdmin === "true") {
-      // 檢查是否有存儲的登入時間
-      const lastLoginTime = localStorage.getItem("adminLoginTime");
-      if (lastLoginTime) {
-        const elapsed = Date.now() - parseInt(lastLoginTime, 10);
-        // 如果超過閒置時限，則不恢復登入狀態
-        if (elapsed > ADMIN_SESSION_TIMEOUT) {
-          localStorage.removeItem("isAdmin");
-          localStorage.removeItem("adminLoginTime");
-          localStorage.removeItem("adminPin");
-          return;
-        }
+    void syncAdminSession();
+  }, [syncAdminSession]);
+
+  useEffect(() => {
+    isAdminRef.current = isAdmin;
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const handleSessionInvalidated = () => {
+      if (isAdminRef.current) {
+        clearAdminState({
+          showToast: true,
+          title: "管理員會話失效",
+          description: "管理員會話已過期，請重新登入。"
+        });
+        return;
       }
-      const storedPin = localStorage.getItem("adminPin");
-      if (storedPin) {
-        setAdminPin(storedPin);
-      }
-      setIsAdmin(true);
-      // 初始化活動時間
-      lastActivityRef.current = Date.now();
-    }
-  }, []);
+
+      clearAdminState();
+    };
+
+    window.addEventListener(ADMIN_SESSION_INVALIDATED_EVENT, handleSessionInvalidated);
+    return () => {
+      window.removeEventListener(ADMIN_SESSION_INVALIDATED_EVENT, handleSessionInvalidated);
+    };
+  }, [clearAdminState]);
 
   const verifyPin = async (pin: string): Promise<boolean> => {
     try {
@@ -117,11 +217,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       
       if (result.success) {
         setIsAdmin(true);
-        setAdminPin(pin);
-        // 存儲登入狀態和登入時間
-        localStorage.setItem("isAdmin", "true");
-        localStorage.setItem("adminLoginTime", Date.now().toString());
-        localStorage.setItem("adminPin", pin);
+        isAdminRef.current = true;
+        lastActivityRef.current = Date.now();
         return true;
       } else {
         toast({
@@ -148,8 +245,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       const result = await response.json();
       
       if (result.success) {
-        setAdminPin(newPin);
-        localStorage.setItem("adminPin", newPin);
         toast({
           title: "更新成功",
           description: "管理員密碼已成功更新",
@@ -174,27 +269,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setIsAdmin(false);
-    setAdminPin(null);
-    localStorage.removeItem("isAdmin");
-    localStorage.removeItem("adminLoginTime");
-    localStorage.removeItem("adminPin");
-    
-    // 清除閒置計時器
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
-    
-    toast({
-      title: "登出成功",
-      description: "您已登出管理員模式",
-    });
-  };
-
   return (
-    <AdminContext.Provider value={{ isAdmin, adminPin, verifyPin, logout, updatePin, resetIdleTimer }}>
+    <AdminContext.Provider value={{ isAdmin, verifyPin, logout, updatePin, resetIdleTimer }}>
       {children}
     </AdminContext.Provider>
   );

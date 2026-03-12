@@ -21,6 +21,7 @@ import { extractAdminPin, requireAdmin } from './requireAdmin';
 
 function createMockResponse() {
   return {
+    setHeader: vi.fn(),
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis()
   } as unknown as Response;
@@ -59,6 +60,31 @@ describe('requireAdmin middleware', () => {
     await requireAdmin()(req, res, next);
 
     expect(verifyAdminPermissionMock).toHaveBeenCalledWith('123456', 3);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('allows requests with an authenticated admin session', async () => {
+    const req = {
+      headers: {},
+      session: {
+        adminAuth: {
+          isAdmin: true,
+          permissionLevel: 4,
+          authenticatedAt: Date.now(),
+          lastVerifiedAt: Date.now()
+        }
+      },
+      method: 'GET',
+      originalUrl: '/api/salary-records',
+      ip: '127.0.0.1'
+    } as unknown as Request;
+    const res = createMockResponse();
+    const next = vi.fn() as unknown as NextFunction;
+
+    await requireAdmin()(req, res, next);
+
+    expect(verifyAdminPermissionMock).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });

@@ -14,10 +14,16 @@ export interface TestHttpServer {
 }
 
 export async function createJsonTestServer(
-  registerRoutes: (app: Express) => void | Promise<void>
+  registerRoutes: (app: Express) => void | Promise<void>,
+  options?: {
+    setupApp?: (app: Express) => void | Promise<void>;
+  }
 ): Promise<TestHttpServer> {
   const app = express();
   app.use(express.json());
+  if (options?.setupApp) {
+    await options.setupApp(app);
+  }
   await registerRoutes(app);
 
   const server = await new Promise<Server>((resolve) => {

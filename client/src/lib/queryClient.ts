@@ -1,5 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+export const ADMIN_SESSION_INVALIDATED_EVENT = "admin-session-invalidated";
+
 // 最大重試次數
 const MAX_RETRIES = 3;
 // 重試延遲基數（毫秒）
@@ -10,6 +12,14 @@ const RETRY_DELAY_BASE = 300;
  */
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      res.headers.get("x-admin-session-required") === "true" &&
+      typeof window !== "undefined"
+    ) {
+      window.dispatchEvent(new CustomEvent(ADMIN_SESSION_INVALIDATED_EVENT));
+    }
+
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
@@ -28,14 +38,7 @@ function buildFullUrl(path: string): string {
 }
 
 export function getAuthHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {};
-  const adminPin = localStorage.getItem('adminPin');
-
-  if (adminPin) {
-    headers['x-admin-pin'] = adminPin;
-  }
-
-  return headers;
+  return {};
 }
 
 /**

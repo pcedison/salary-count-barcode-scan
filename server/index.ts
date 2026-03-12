@@ -6,12 +6,14 @@ import { setupAutomaticBackups, startMonitoring } from './db-monitoring';
 import { logOperation, OperationType } from './admin-auth';
 import { validateEnv } from './config/envValidator';
 import { setupSecurity, setupTrustProxy } from './middleware/security';
+import { setupAdminSession } from './session';
 
 validateEnv();
 
 const app = express();
 setupTrustProxy(app);
 setupSecurity(app);
+setupAdminSession(app);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

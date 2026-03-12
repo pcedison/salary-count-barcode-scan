@@ -1,7 +1,9 @@
 import type { Express } from 'express';
 
-import { hashPassword, verifyAdminPermission } from '../admin-auth';
+import { PermissionLevel, hashPassword, logOperation, OperationType, verifyAdminPermission } from '../admin-auth';
 import { loginLimiter, strictLimiter } from '../middleware/rateLimiter';
+import { requireAdmin } from '../middleware/requireAdmin';
+import { clearAdminSession, createAdminSession, hasAdminSession } from '../session';
 import { storage } from '../storage';
 import { validatePin } from '@shared/utils/passwordValidator';
 
@@ -17,13 +19,67 @@ export function registerAdminRoutes(app: Express): void {
       }
 
       const isValid = await verifyAdminPermission(pin);
-      return res.json({ success: isValid });
+      if (!isValid) {
+        logOperation(OperationType.LOGIN, '管理員登入失敗', {
+          ip: req.ip,
+          success: false,
+          errorMessage: 'invalid_admin_pin'
+        });
+        return res.json({ success: false });
+      }
+
+      await createAdminSession(req, PermissionLevel.SUPER);
+      logOperation(OperationType.LOGIN, '管理員登入成功', {
+        ip: req.ip,
+        success: true
+      });
+
+      return res.json({
+        success: true,
+        authMode: 'session'
+      });
     } catch (err) {
       return handleRouteError(err, res);
     }
   });
 
-  app.post('/api/update-admin-pin', strictLimiter, async (req, res) => {
+  app.get('/api/admin/session', async (req, res) => {
+    try {
+      const isAdmin = hasAdminSession(req, PermissionLevel.ADMIN);
+
+      return res.json({
+        success: true,
+        isAdmin,
+        authMode: 'session',
+        permissionLevel: isAdmin ? req.session.adminAuth?.permissionLevel : null,
+        authenticatedAt: isAdmin ? req.session.adminAuth?.authenticatedAt : null
+      });
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.post('/api/admin/logout', async (req, res) => {
+    try {
+      const hadSession = hasAdminSession(req, PermissionLevel.ADMIN);
+      await clearAdminSession(req, res);
+
+      if (hadSession) {
+        logOperation(OperationType.LOGOUT, '管理員登出成功', {
+          ip: req.ip,
+          success: true
+        });
+      }
+
+      return res.json({
+        success: true
+      });
+    } catch (err) {
+      return handleRouteError(err, res);
+    }
+  });
+
+  app.post('/api/update-admin-pin', strictLimiter, requireAdmin(PermissionLevel.ADMIN), async (req, res) => {
     try {
       const { oldPin, newPin } = req.body;
 
@@ -58,6 +114,11 @@ export function registerAdminRoutes(app: Express): void {
       await storage.createOrUpdateSettings({
         ...settings,
         adminPin: hashPassword(newPin)
+      });
+
+      logOperation(OperationType.UPDATE, '管理員 PIN 更新成功', {
+        ip: req.ip,
+        success: true
       });
 
       return res.json({ success: true, strength: validation.strength });

@@ -290,14 +290,10 @@ export default function SettingsPage() {
     }
   };
   
-  const handleAdminAction = () => {
+  const handleAdminAction = async () => {
     if (isAdmin) {
-      logout();
+      await logout();
       setShowChangePin(false);
-      toast({
-        title: "登出成功",
-        description: "您已登出管理員模式",
-      });
     } else {
       setIsLoginModalOpen(true);
     }
@@ -379,7 +375,9 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={logout}
+              onClick={() => {
+                void logout();
+              }}
             >
               登出管理員
             </Button>

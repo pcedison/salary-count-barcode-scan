@@ -1,4 +1,4 @@
-import type { Express } from 'express';
+import type { Express, Request } from 'express';
 import type { IncomingHttpHeaders } from 'http';
 
 import { insertEmployeeSchema } from '@shared/schema';
@@ -8,9 +8,8 @@ import {
 } from '@shared/utils/specialLeaveSync';
 import type { Employee } from '../storage';
 
-import { PermissionLevel, verifyAdminPermission } from '../admin-auth';
-import { requireAdmin } from '../middleware/requireAdmin';
-import { extractAdminPin } from '../middleware/requireAdmin';
+import { PermissionLevel } from '../admin-auth';
+import { requireAdmin, hasAdminAuthorization } from '../middleware/requireAdmin';
 import { storage } from '../storage';
 
 import { handleRouteError, parseNumericId } from './route-helpers';
@@ -169,13 +168,14 @@ function toEmployeeOperationalProfile(employee: Employee) {
   };
 }
 
-async function hasSensitiveEmployeeReadAccess(headers: IncomingHttpHeaders) {
-  const adminPin = extractAdminPin({ headers });
-  if (!adminPin) {
-    return false;
-  }
-
-  return verifyAdminPermission(adminPin, PermissionLevel.ADMIN);
+async function hasSensitiveEmployeeReadAccess({
+  headers,
+  session
+}: {
+  headers: IncomingHttpHeaders;
+  session?: Request['session'];
+}) {
+  return hasAdminAuthorization({ headers, session }, PermissionLevel.ADMIN);
 }
 
 export function registerEmployeeRoutes(app: Express): void {
@@ -209,7 +209,7 @@ export function registerEmployeeRoutes(app: Express): void {
         return res.status(404).json({ message: '找不到員工' });
       }
 
-      const includeSensitiveFields = await hasSensitiveEmployeeReadAccess(req.headers);
+      const includeSensitiveFields = await hasSensitiveEmployeeReadAccess(req);
       return res.json(includeSensitiveFields ? employee : toEmployeeOperationalProfile(employee));
     } catch (err) {
       return handleRouteError(err, res);

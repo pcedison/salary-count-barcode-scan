@@ -526,6 +526,11 @@
 - `dashboard` 維運入口已統一改用 `requireAdmin(PermissionLevel.SUPER)`，移除散落的手寫 PIN 驗證
 - `History` 與 `PrintSalaryPage` 已補上前端 query gate，未授權狀態不再先命中敏感 API
 - 已新增 `salary.routes.integration.test.ts`、`dashboard-routes.integration.test.ts`，並擴充 `settings.routes.integration.test.ts`
+- 已導入 server-side admin session middleware，登入成功後改以 secure cookie 維持管理員會話
+- `verify-admin` 已建立 session，並新增 `/api/admin/session`、`/api/admin/logout`
+- 前端 `useAdmin` 已移除 localStorage 明文 PIN 依賴，改為 session 恢復與 server logout
+- `requireAdmin` 現在優先驗證 session，`x-admin-pin` 僅保留相容層
+- 已新增 `admin.routes.integration.test.ts`，覆蓋 cookie session 的登入、恢復、登出與 PIN 更新
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立

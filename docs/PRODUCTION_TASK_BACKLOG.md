@@ -23,8 +23,8 @@
 
 ### 3.1 安全缺口
 
-- 管理員 PIN 仍保存在 localStorage，尚未升級為 session 或 signed token
-- 敏感讀取面雖已收斂到 `employees / salary / dashboard / infra status` admin-only，但仍未升級為 session 或 signed token 模型
+- 前端已切到 session/cookie 管理員授權，但 server 端仍保留 `x-admin-pin` header 相容層，尚未完全移除 legacy 模型
+- 管理員授權狀態雖已不再依賴 localStorage 明文 PIN，但仍需補齊 session-only 路徑的全面回歸與文件
 - AES 上線前仍需完成 server-side 顯示/編輯模型，避免前端再次承擔敏感資料解密責任
 
 ### 3.2 架構缺口
@@ -168,7 +168,7 @@
 
 ### TASK-P0-SEC-03 將管理員授權升級為 session 或 signed token
 
-- 狀態：`Backlog`
+- 狀態：`In Progress`
 - Size：XL
 - 依賴：
   - `TASK-P0-SEC-01`
@@ -586,6 +586,13 @@
 - `TASK-P0-DATA-01` 前置分析已完成
   - 目前 `EmployeesPage` 仍依賴前端 Caesar 解密顯示 ID
   - AES 下一步應先做 server read-compat 與顯示模型收斂，不能直接開啟 AES 寫入
+- `TASK-P0-SEC-03` 進行中
+  - server 已導入 `express-session` + secure cookie 管理員會話
+  - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`
+  - `requireAdmin` 已支援 session 驗證，前端 `queryClient` 不再從 localStorage 讀取 `adminPin`
+  - `useAdmin` 已改為透過 session 狀態恢復、server logout、admin-only cache 清理
+  - `admin.routes.integration.test.ts` 已覆蓋 cookie session 的登入、恢復、登出與 PIN 更新
+  - 目前仍保留 `x-admin-pin` 相容授權，下一步要逐步移除 legacy header flow
 - 下一個優先施工：
-  - `TASK-P0-QA-01`
+  - `TASK-P0-SEC-03`
   - `TASK-P0-DATA-01`
