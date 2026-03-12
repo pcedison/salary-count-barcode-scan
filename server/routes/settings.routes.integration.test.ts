@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
+import { TEST_ADMIN_HEADER, setupTestAdminSession } from '../test-utils/admin-test-session';
 
 const settingsState = vi.hoisted(() => ({
   settings: null as null | Record<string, any>,
@@ -35,8 +36,8 @@ vi.mock('../middleware/rateLimiter', () => ({
 }));
 
 vi.mock('../middleware/requireAdmin', () => ({
-  requireAdmin: () => (req: { headers: Record<string, string | undefined> }, res: any, next: () => void) => {
-    if (!req.headers['x-admin-pin']) {
+  requireAdmin: () => (req: { session?: { adminAuth?: { isAdmin?: boolean } } }, res: any, next: () => void) => {
+    if (!req.session?.adminAuth?.isAdmin) {
       return res.status(401).json({
         success: false,
         message: '缺少管理員授權，請重新登入管理員模式'
@@ -61,7 +62,11 @@ beforeEach(() => {
 
 describe('settings routes integration', () => {
   it('creates default settings on first read and does not expose adminPin', async () => {
-    const server = await createJsonTestServer(registerSettingsRoutes);
+    const server = await createJsonTestServer(registerSettingsRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const result = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/settings');
@@ -70,9 +75,9 @@ describe('settings routes integration', () => {
       expect(result.body?.adminPin).toBeUndefined();
       expect(settingsState.savedSettings).toMatchObject({
         baseHourlyRate: 119,
-        baseMonthSalary: 28590,
-        adminPin: '123456'
+        baseMonthSalary: 28590
       });
+      expect(settingsState.savedSettings?.adminPin).toContain(':');
     } finally {
       await server.close();
     }
@@ -92,14 +97,18 @@ describe('settings routes integration', () => {
       updatedAt: new Date('2026-03-12T00:00:00.000Z')
     };
 
-    const server = await createJsonTestServer(registerSettingsRoutes);
+    const server = await createJsonTestServer(registerSettingsRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const result = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/settings', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-admin-pin': '123456'
+          [TEST_ADMIN_HEADER]: 'true'
         },
         body: JSON.stringify({
           baseHourlyRate: 125,
@@ -117,22 +126,26 @@ describe('settings routes integration', () => {
       expect(settingsState.savedSettings).toMatchObject({
         baseHourlyRate: 125,
         baseMonthSalary: 30000,
-        welfareAllowance: 500,
-        adminPin: '654321'
+        welfareAllowance: 500
       });
+      expect(settingsState.savedSettings?.adminPin).toContain(':');
       expect(result.body).toMatchObject({
         baseHourlyRate: 125,
         baseMonthSalary: 30000,
-        welfareAllowance: 500,
-        adminPin: '654321'
+        welfareAllowance: 500
       });
+      expect(result.body?.adminPin).toBeUndefined();
     } finally {
       await server.close();
     }
   });
 
   it('requires admin authorization for infrastructure status endpoints', async () => {
-    const server = await createJsonTestServer(registerSettingsRoutes);
+    const server = await createJsonTestServer(registerSettingsRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const unauthorizedDbStatus = await jsonRequest<{ success: boolean; message: string }>(
@@ -154,7 +167,7 @@ describe('settings routes integration', () => {
       expect(unauthorizedSupabaseConnection.response.status).toBe(401);
 
       const headers = {
-        'x-admin-pin': '123456'
+        [TEST_ADMIN_HEADER]: 'true'
       };
 
       const dbStatus = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/db-status', {

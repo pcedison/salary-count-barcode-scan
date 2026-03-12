@@ -1,23 +1,23 @@
 import type { NextFunction, Request, Response } from 'express';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { verifyAdminPermissionMock, logOperationMock } = vi.hoisted(() => ({
-  verifyAdminPermissionMock: vi.fn(),
+const { logOperationMock } = vi.hoisted(() => ({
   logOperationMock: vi.fn()
 }));
 
 vi.mock('../admin-auth', () => ({
   PermissionLevel: {
-    ADMIN: 3
+    BASIC: 1,
+    ADMIN: 3,
+    SUPER: 4
   },
   OperationType: {
     AUTHORIZATION: 'authorization'
   },
-  verifyAdminPermission: verifyAdminPermissionMock,
   logOperation: logOperationMock
 }));
 
-import { extractAdminPin, requireAdmin } from './requireAdmin';
+import { requireAdmin } from './requireAdmin';
 
 function createMockResponse() {
   return {
@@ -29,39 +29,7 @@ function createMockResponse() {
 
 describe('requireAdmin middleware', () => {
   beforeEach(() => {
-    verifyAdminPermissionMock.mockReset();
     logOperationMock.mockReset();
-  });
-
-  it('extracts admin pin from x-admin-pin header', () => {
-    const pin = extractAdminPin({
-      headers: {
-        'x-admin-pin': '123456'
-      }
-    } as Pick<Request, 'headers'>);
-
-    expect(pin).toBe('123456');
-  });
-
-  it('allows authorized requests to continue', async () => {
-    verifyAdminPermissionMock.mockResolvedValue(true);
-
-    const req = {
-      headers: {
-        'x-admin-pin': '123456'
-      },
-      method: 'POST',
-      originalUrl: '/api/settings',
-      ip: '127.0.0.1'
-    } as unknown as Request;
-    const res = createMockResponse();
-    const next = vi.fn() as unknown as NextFunction;
-
-    await requireAdmin()(req, res, next);
-
-    expect(verifyAdminPermissionMock).toHaveBeenCalledWith('123456', 3);
-    expect(next).toHaveBeenCalled();
-    expect(res.status).not.toHaveBeenCalled();
   });
 
   it('allows requests with an authenticated admin session', async () => {
@@ -84,7 +52,6 @@ describe('requireAdmin middleware', () => {
 
     await requireAdmin()(req, res, next);
 
-    expect(verifyAdminPermissionMock).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });
@@ -102,6 +69,7 @@ describe('requireAdmin middleware', () => {
     await requireAdmin()(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.setHeader).toHaveBeenCalledWith('x-admin-session-required', 'true');
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
         success: false
@@ -111,12 +79,16 @@ describe('requireAdmin middleware', () => {
     expect(logOperationMock).toHaveBeenCalled();
   });
 
-  it('rejects requests with invalid admin pin', async () => {
-    verifyAdminPermissionMock.mockResolvedValue(false);
-
+  it('rejects requests with insufficient admin permission level', async () => {
     const req = {
-      headers: {
-        'x-admin-pin': 'bad-pin'
+      headers: {},
+      session: {
+        adminAuth: {
+          isAdmin: true,
+          permissionLevel: 1,
+          authenticatedAt: Date.now(),
+          lastVerifiedAt: Date.now()
+        }
       },
       method: 'DELETE',
       originalUrl: '/api/employees/1',

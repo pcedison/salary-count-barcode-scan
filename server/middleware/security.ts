@@ -38,9 +38,7 @@ export function setupSecurity(app: Express): void {
       allowedHeaders: [
         'Content-Type',
         'Authorization',
-        'X-Requested-With',
-        'X-Admin-Pin',
-        'x-admin-pin'
+        'X-Requested-With'
       ]
     })
   );

@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createJsonTestServer, jsonRequest } from './test-utils/http-test-server';
+import { TEST_ADMIN_HEADER, setupTestAdminSession } from './test-utils/admin-test-session';
 
 const checkDatabaseConnectionMock = vi.hoisted(() => vi.fn(async () => ({
   currentStorage: 'postgres',
@@ -54,8 +55,8 @@ vi.mock('./data-sync', () => ({
 }));
 
 vi.mock('./middleware/requireAdmin', () => ({
-  requireAdmin: () => (req: { headers: Record<string, string | undefined> }, res: any, next: () => void) => {
-    if (!req.headers['x-admin-pin']) {
+  requireAdmin: () => (req: { session?: { adminAuth?: { isAdmin?: boolean } } }, res: any, next: () => void) => {
+    if (!req.session?.adminAuth?.isAdmin) {
       return res.status(401).json({
         success: false,
         message: '缺少管理員授權，請重新登入管理員模式'
@@ -79,7 +80,11 @@ beforeEach(() => {
 
 describe('dashboard routes integration', () => {
   it('requires admin authorization for all dashboard operations routes', async () => {
-    const server = await createJsonTestServer(registerDashboardRoutes);
+    const server = await createJsonTestServer(registerDashboardRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const endpoints = [
@@ -114,7 +119,11 @@ describe('dashboard routes integration', () => {
   });
 
   it('returns connection status for authorized admin requests', async () => {
-    const server = await createJsonTestServer(registerDashboardRoutes);
+    const server = await createJsonTestServer(registerDashboardRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const result = await jsonRequest<Record<string, any>>(
@@ -122,7 +131,7 @@ describe('dashboard routes integration', () => {
         '/api/dashboard/connection',
         {
           headers: {
-            'x-admin-pin': '123456'
+            [TEST_ADMIN_HEADER]: 'true'
           }
         }
       );

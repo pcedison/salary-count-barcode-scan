@@ -128,7 +128,7 @@ describe('admin routes integration', () => {
     }
   });
 
-  it('updates admin pin through an authenticated session without x-admin-pin headers', async () => {
+  it('updates admin pin through an authenticated session without legacy header auth', async () => {
     const server = await createJsonTestServer(registerAdminRoutes, {
       setupApp: async (app) => {
         setupAdminSession(app);

@@ -181,7 +181,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     }
   }, [isAdmin, resetIdleTimer]);
 
-  // Try to restore admin session from localStorage
+  // Restore admin session from the server-side cookie
   useEffect(() => {
     void syncAdminSession();
   }, [syncAdminSession]);

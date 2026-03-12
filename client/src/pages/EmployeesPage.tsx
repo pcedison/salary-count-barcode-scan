@@ -10,14 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, BadgeAlert, Lock, Unlock, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, BadgeAlert, Lock, Copy } from 'lucide-react';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
-import { caesarEncrypt, caesarDecrypt, isEncrypted } from '@shared/utils/caesarCipher';
 
 interface Employee {
   id: number;
   name: string;
   idNumber: string; // 身分證字號或居留證號碼
+  scanIdNumber?: string;
   isEncrypted?: boolean; // 標記是否已加密
   position: string;
   department: string;
@@ -55,29 +55,6 @@ export default function EmployeesPage() {
   const { toast } = useToast();
   const { isAdmin } = useAdmin();
   const queryClient = useQueryClient();
-  
-  // 顯示解密後的原始身分證號碼（用於已加密的ID）
-  const showOriginalId = (idNumber: string, encryptedId: string) => {
-    // 特殊處理某些已知ID的解密結果
-    let displayId = idNumber;
-    
-    // 已知的特殊ID映射（手動維護）
-    const specialIdMapping: Record<string, string> = {
-      'N90728491': 'E01839602', // 陳文山
-      'K011133456': 'B122244567' // 張小文
-    };
-    
-    // 如果是已知的特殊ID，使用映射值
-    if (encryptedId in specialIdMapping) {
-      displayId = specialIdMapping[encryptedId];
-    }
-    
-    toast({
-      title: "原始身分證號碼",
-      description: `身分證號碼：${displayId}`,
-      duration: 5000, // 顯示時間延長
-    });
-  };
   
   const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
@@ -213,15 +190,10 @@ export default function EmployeesPage() {
     
     // 使用資料庫中的加密標記
     const isIdNumberEncrypted = employee.isEncrypted || false;
-    
-    // 對於編輯表單，如果ID已加密，顯示解密後的版本
-    const displayIdNumber = isIdNumberEncrypted 
-      ? caesarDecrypt(employee.idNumber) 
-      : employee.idNumber;
       
     setFormData({
       name: employee.name,
-      idNumber: displayIdNumber,
+      idNumber: employee.idNumber,
       position: employee.position || '',
       department: employee.department || '',
       email: employee.email || '',
@@ -345,79 +317,40 @@ export default function EmployeesPage() {
                     <TableCell className="font-medium">{employee.name}</TableCell>
                     <TableCell className="font-mono">
                       <div className="flex items-center">
-                        {/* 
-                          顯示邏輯：
-                          直接顯示資料庫中的值（加密或未加密）
-                        */}
                         <span 
-                          title={employee.isEncrypted ? "加密後的身分證號碼" : "身分證號碼"} 
+                          title={employee.isEncrypted ? "系統以加密形式儲存，畫面顯示原始證號" : "身分證號碼"} 
                           className="truncate mr-1 max-w-[120px]"
                         >
-                          {employee.idNumber} {/* 直接顯示資料庫中的值 */}
+                          {employee.idNumber}
                         </span>
                         
-                        {/* 只有加密狀態才顯示鎖定圖標 */}
                         {employee.isEncrypted && (
                           <span 
-                            title="已加密" 
+                            title="資料庫內為加密儲存" 
                             className="text-amber-600 bg-amber-50 rounded-full p-1"
                           >
                             <Lock className="h-3 w-3" />
                           </span>
                         )}
                         
-                        {/* 複製按鈕 - 複製資料庫中的加密值 */}
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 ml-1"
-                          title="複製加密ID用於條碼掃描"
+                          title="複製掃碼專用 ID"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // 確保複製的是加密後的值
-                            let idToClipboard = employee.idNumber;
-                            
-                            // 如果當前ID未加密，但需要加密才能掃描，則進行加密
-                            if (!employee.isEncrypted) {
-                              // 使用更新後的加密函數（包含映射表）
-                              idToClipboard = caesarEncrypt(employee.idNumber);
-                              toast({
-                                title: "已複製加密後的ID",
-                                description: `已將ID加密後複製到剪貼簿，可用於條碼掃描`,
-                              });
-                            } else {
-                              // 已加密，直接使用
-                              toast({
-                                title: "已複製加密ID",
-                                description: `加密ID已複製到剪貼簿，可用於條碼掃描`,
-                              });
-                            }
-                            
-                            navigator.clipboard.writeText(idToClipboard);
+                            const scanIdNumber = employee.scanIdNumber || employee.idNumber;
+
+                            navigator.clipboard.writeText(scanIdNumber);
+                            toast({
+                              title: "已複製掃碼 ID",
+                              description: "掃碼專用 ID 已複製到剪貼簿，可直接用於條碼掃描。",
+                            });
                           }}
                         >
                           <Copy className="h-3 w-3" />
                         </Button>
-                        
-                        {/* 解鎖按鈕 - 只有加密狀態才顯示 */}
-                        {employee.isEncrypted && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 ml-1"
-                            title="查看原始身分證號碼"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              
-                              // 使用更新後的解密函數（包含映射表）
-                              const originalId = caesarDecrypt(employee.idNumber);
-                              // 同時傳遞加密的ID，以便針對特殊情況處理
-                              showOriginalId(originalId, employee.idNumber);
-                            }}
-                          >
-                            <Unlock className="h-3 w-3" />
-                          </Button>
-                        )}
                       </div>
                     </TableCell>
                     <TableCell>{employee.department || '-'}</TableCell>

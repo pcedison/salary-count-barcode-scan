@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
+import { TEST_ADMIN_HEADER, setupTestAdminSession } from '../test-utils/admin-test-session';
 
 const salaryState = vi.hoisted(() => ({
   records: [
@@ -41,8 +42,8 @@ vi.mock('../storage', () => ({
 }));
 
 vi.mock('../middleware/requireAdmin', () => ({
-  requireAdmin: () => (req: { headers: Record<string, string | undefined> }, res: any, next: () => void) => {
-    if (!req.headers['x-admin-pin']) {
+  requireAdmin: () => (req: { session?: { adminAuth?: { isAdmin?: boolean } } }, res: any, next: () => void) => {
+    if (!req.session?.adminAuth?.isAdmin) {
       return res.status(401).json({
         success: false,
         message: '缺少管理員授權，請重新登入管理員模式'
@@ -89,7 +90,11 @@ beforeEach(() => {
 
 describe('salary routes integration', () => {
   it('requires admin authorization for salary record reads and debug endpoints', async () => {
-    const server = await createJsonTestServer(registerSalaryRoutes);
+    const server = await createJsonTestServer(registerSalaryRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const endpoints = [
@@ -117,11 +122,15 @@ describe('salary routes integration', () => {
   });
 
   it('returns salary data and print redirect for authorized admin requests', async () => {
-    const server = await createJsonTestServer(registerSalaryRoutes);
+    const server = await createJsonTestServer(registerSalaryRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const headers = {
-        'x-admin-pin': '123456'
+        [TEST_ADMIN_HEADER]: 'true'
       };
 
       const listResult = await jsonRequest<Array<Record<string, unknown>>>(

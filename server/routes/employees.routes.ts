@@ -1,7 +1,7 @@
 import type { Express, Request } from 'express';
-import type { IncomingHttpHeaders } from 'http';
 
 import { insertEmployeeSchema } from '@shared/schema';
+import { caesarDecrypt, caesarEncrypt, isEncrypted } from '@shared/utils/caesarCipher';
 import {
   diffSpecialLeaveDates,
   normalizeDateToSlash,
@@ -168,14 +168,36 @@ function toEmployeeOperationalProfile(employee: Employee) {
   };
 }
 
-async function hasSensitiveEmployeeReadAccess({
-  headers,
-  session
-}: {
-  headers: IncomingHttpHeaders;
+function resolveAdminDisplayId(employee: Employee): string {
+  if (!employee.isEncrypted) {
+    return employee.idNumber;
+  }
+
+  return caesarDecrypt(employee.idNumber);
+}
+
+function resolveScanId(employee: Employee): string {
+  const displayId = resolveAdminDisplayId(employee);
+
+  if (employee.isEncrypted || isEncrypted(employee.idNumber)) {
+    return employee.idNumber;
+  }
+
+  return caesarEncrypt(displayId);
+}
+
+function toAdminEmployeeProfile(employee: Employee) {
+  return {
+    ...employee,
+    idNumber: resolveAdminDisplayId(employee),
+    scanIdNumber: resolveScanId(employee)
+  };
+}
+
+async function hasSensitiveEmployeeReadAccess(req: {
   session?: Request['session'];
 }) {
-  return hasAdminAuthorization({ headers, session }, PermissionLevel.ADMIN);
+  return hasAdminAuthorization({ session: req.session }, PermissionLevel.ADMIN);
 }
 
 export function registerEmployeeRoutes(app: Express): void {
@@ -191,7 +213,7 @@ export function registerEmployeeRoutes(app: Express): void {
   app.get('/api/employees/admin', requireAdmin(), async (_req, res) => {
     try {
       const employees = await storage.getAllEmployees();
-      return res.json(employees);
+      return res.json(employees.map(toAdminEmployeeProfile));
     } catch (err) {
       return handleRouteError(err, res);
     }
@@ -210,7 +232,7 @@ export function registerEmployeeRoutes(app: Express): void {
       }
 
       const includeSensitiveFields = await hasSensitiveEmployeeReadAccess(req);
-      return res.json(includeSensitiveFields ? employee : toEmployeeOperationalProfile(employee));
+      return res.json(includeSensitiveFields ? toAdminEmployeeProfile(employee) : toEmployeeOperationalProfile(employee));
     } catch (err) {
       return handleRouteError(err, res);
     }

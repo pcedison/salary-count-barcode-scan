@@ -23,8 +23,7 @@
 
 ### 3.1 安全缺口
 
-- 前端已切到 session/cookie 管理員授權，但 server 端仍保留 `x-admin-pin` header 相容層，尚未完全移除 legacy 模型
-- 管理員授權狀態雖已不再依賴 localStorage 明文 PIN，但仍需補齊 session-only 路徑的全面回歸與文件
+- 管理員授權已切到 session/cookie，下一步要持續補齊 session timeout、cookie policy 與 restore drill 文件
 - AES 上線前仍需完成 server-side 顯示/編輯模型，避免前端再次承擔敏感資料解密責任
 
 ### 3.2 架構缺口
@@ -38,7 +37,7 @@
 
 - 身分證資料仍以 Caesar cipher 為主
 - 尚未導入 AES 相容層與正式遷移機制
-- 管理員員工頁仍假設可在前端直接做 Caesar 解密，AES 寫入切換前需先收斂顯示/編輯模型
+- 管理員員工頁已收斂為 server-side 提供 display ID / scan ID，但 AES 寫入切換前仍需完成 storage read-compat
 - 尚未完成資料 restore drill
 
 ### 3.4 品質與維運缺口
@@ -168,7 +167,7 @@
 
 ### TASK-P0-SEC-03 將管理員授權升級為 session 或 signed token
 
-- 狀態：`In Progress`
+- 狀態：`Done`
 - Size：XL
 - 依賴：
   - `TASK-P0-SEC-01`
@@ -584,15 +583,17 @@
   - `dashboard` 維運入口已統一改走 `requireAdmin`，不再散落手寫權限驗證
   - `History` / `PrintSalaryPage` 已補上 query gate，未授權狀態不再先打敏感 API
 - `TASK-P0-DATA-01` 前置分析已完成
-  - 目前 `EmployeesPage` 仍依賴前端 Caesar 解密顯示 ID
-  - AES 下一步應先做 server read-compat 與顯示模型收斂，不能直接開啟 AES 寫入
-- `TASK-P0-SEC-03` 進行中
+- `TASK-P0-DATA-01` 前置工程已完成一半
+  - `EmployeesPage` 已改為由 server 提供 display ID / `scanIdNumber`
+  - AES 下一步應先做 server read-compat，再切入相容寫入與資料遷移
+- `TASK-P0-SEC-03` 已完成
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`
-  - `requireAdmin` 已支援 session 驗證，前端 `queryClient` 不再從 localStorage 讀取 `adminPin`
+  - `requireAdmin` 已切為 session-only 驗證，runtime 不再接受 `x-admin-pin`
   - `useAdmin` 已改為透過 session 狀態恢復、server logout、admin-only cache 清理
   - `admin.routes.integration.test.ts` 已覆蓋 cookie session 的登入、恢復、登出與 PIN 更新
-  - 目前仍保留 `x-admin-pin` 相容授權，下一步要逐步移除 legacy header flow
+  - `employees.routes.integration.test.ts` 已補上 admin 單筆/列表敏感資料讀取的 session-only 回歸
+  - `settings` 路由已停止回傳 `adminPin`，並於預設/更新時先雜湊後儲存
 - 下一個優先施工：
   - `TASK-P0-SEC-03`
   - `TASK-P0-DATA-01`

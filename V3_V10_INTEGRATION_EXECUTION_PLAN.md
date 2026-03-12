@@ -253,7 +253,7 @@
 - Size：M
 - 依賴：`TASK-WP4-03`
 - 來源：`V10/client/src/lib/queryClient.ts`、`V10/client/src/hooks/useAdmin.tsx`
-- 驗收：敏感 API 一律能帶 `x-admin-pin`
+- 驗收：敏感 API 一律走 server-side session / secure cookie 授權
 
 ### TASK-WP4-05 認證回歸驗證
 
@@ -345,8 +345,8 @@
   - 支援 AES
   - 預設仍不強制遷移舊資料
 - 前置提醒：
-  - 員工管理 UI 目前仍假設可在前端直接做 Caesar 解密
-  - 因此 Phase 6 第一段只能先做 server-side read compatibility，不可直接打開 AES 寫入
+  - 員工管理 UI 已收斂為 server-side 提供 display ID / scan ID
+  - 因此 Phase 6 第一段可直接做 server-side read compatibility，但仍不可直接打開 AES 寫入
 - 驗收：舊資料照常可讀寫
 
 ### Phase 6 補充前置條件
@@ -529,12 +529,16 @@
 - 已導入 server-side admin session middleware，登入成功後改以 secure cookie 維持管理員會話
 - `verify-admin` 已建立 session，並新增 `/api/admin/session`、`/api/admin/logout`
 - 前端 `useAdmin` 已移除 localStorage 明文 PIN 依賴，改為 session 恢復與 server logout
-- `requireAdmin` 現在優先驗證 session，`x-admin-pin` 僅保留相容層
+- `requireAdmin` 已完全移除 `x-admin-pin` runtime 相容層，敏感 API 改為 session-only 驗證
 - 已新增 `admin.routes.integration.test.ts`，覆蓋 cookie session 的登入、恢復、登出與 PIN 更新
+- `EmployeesPage` 已移除前端 Caesar 解密邏輯，管理員 ID 顯示與 `scanIdNumber` 改由 server 端提供
+- `settings` 路由已停止回傳 `adminPin`，預設 PIN 與設定更新 PIN 也會先雜湊再存入資料庫
+- 已補上 `employees.routes.integration.test.ts` 的 session-only 回歸，涵蓋公開脫敏、admin 顯示 ID 與 `scanIdNumber`
 - `cp6-aes-compatible`：待建立
 - `cp7-aes-migrated`：待建立
 - `cp8-ops-hardening`：待建立
 - `cp9-line-qr-optional`：待建立
+- `cp5d-session-only-admin-auth`：待建立
 
 ### 備註
 

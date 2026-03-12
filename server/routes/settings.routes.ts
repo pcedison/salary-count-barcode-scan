@@ -7,8 +7,25 @@ import { db } from '../db';
 import { strictLimiter } from '../middleware/rateLimiter';
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
+import { hashAdminPin, isHashedPin } from '../utils/adminPinAuth';
 
 import { handleRouteError } from './route-helpers';
+
+function sanitizeSettingsResponse(settings: Record<string, any>) {
+  const { adminPin, ...settingsToReturn } = settings;
+  return settingsToReturn;
+}
+
+function normalizeAdminPinForStorage(settings: Record<string, any>) {
+  if (!settings.adminPin || isHashedPin(settings.adminPin)) {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    adminPin: hashAdminPin(settings.adminPin)
+  };
+}
 
 export function registerSettingsRoutes(app: Express): void {
   app.get('/api/settings', async (_req, res) => {
@@ -16,7 +33,7 @@ export function registerSettingsRoutes(app: Express): void {
       let settings = await storage.getSettings();
 
       if (!settings) {
-        settings = await storage.createOrUpdateSettings({
+        settings = await storage.createOrUpdateSettings(normalizeAdminPinForStorage({
           baseHourlyRate: 119,
           ot1Multiplier: 1.34,
           ot2Multiplier: 1.67,
@@ -27,11 +44,10 @@ export function registerSettingsRoutes(app: Express): void {
             { name: '勞保費', amount: 525, description: '勞工保險費用' },
             { name: '健保費', amount: 372, description: '全民健康保險費用' }
           ]
-        });
+        }));
       }
 
-      const { adminPin, ...settingsToReturn } = settings;
-      return res.json(settingsToReturn);
+      return res.json(sanitizeSettingsResponse(settings));
     } catch (err) {
       return handleRouteError(err, res);
     }
@@ -40,8 +56,10 @@ export function registerSettingsRoutes(app: Express): void {
   app.post('/api/settings', requireAdmin(), async (req, res) => {
     try {
       const validatedData = insertSettingsSchema.parse(req.body);
-      const settings = await storage.createOrUpdateSettings(validatedData);
-      return res.json(settings);
+      const settings = await storage.createOrUpdateSettings(
+        normalizeAdminPinForStorage(validatedData)
+      );
+      return res.json(sanitizeSettingsResponse(settings));
     } catch (err) {
       return handleRouteError(err, res);
     }

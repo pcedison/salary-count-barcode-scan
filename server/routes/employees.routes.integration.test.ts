@@ -1,8 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
-
-const verifyAdminPermissionMock = vi.hoisted(() => vi.fn());
+import { TEST_ADMIN_HEADER, setupTestAdminSession } from '../test-utils/admin-test-session';
 
 const employeeState = vi.hoisted(() => ({
   employee: {
@@ -95,16 +95,9 @@ vi.mock('../storage', () => ({
   storage: storageMock
 }));
 
-vi.mock('../admin-auth', () => ({
-  PermissionLevel: {
-    ADMIN: 3
-  },
-  verifyAdminPermission: verifyAdminPermissionMock
-}));
-
 vi.mock('../middleware/requireAdmin', () => ({
-  requireAdmin: () => (req: { headers: Record<string, string | undefined> }, res: any, next: () => void) => {
-    if (!req.headers['x-admin-pin']) {
+  requireAdmin: () => (req: { session?: { adminAuth?: { isAdmin?: boolean; permissionLevel?: number } } }, res: any, next: () => void) => {
+    if (!req.session?.adminAuth?.isAdmin) {
       return res.status(401).json({
         success: false,
         message: '缺少管理員授權，請重新登入管理員模式'
@@ -112,7 +105,10 @@ vi.mock('../middleware/requireAdmin', () => ({
     }
 
     next();
-  }
+  },
+  hasAdminAuthorization: vi.fn(async (req: { session?: { adminAuth?: { isAdmin?: boolean; permissionLevel?: number } } }, requiredLevel = 3) =>
+    Boolean(req.session?.adminAuth?.isAdmin && (req.session.adminAuth.permissionLevel || 0) >= requiredLevel)
+  )
 }));
 
 let registerEmployeeRoutes: typeof import('./employees.routes').registerEmployeeRoutes;
@@ -147,8 +143,6 @@ beforeEach(() => {
   employeeState.deletedHolidayIds = [];
   employeeState.deletedAttendanceHolidayIds = [];
   employeeState.nextHolidayId = 1;
-  verifyAdminPermissionMock.mockReset();
-  verifyAdminPermissionMock.mockResolvedValue(true);
   vi.clearAllMocks();
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
   vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -156,7 +150,11 @@ beforeEach(() => {
 
 describe('employee routes integration', () => {
   it('returns a redacted operational employee list from the public endpoint', async () => {
-    const server = await createJsonTestServer(registerEmployeeRoutes);
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const result = await jsonRequest<Array<Record<string, unknown>>>(
@@ -185,7 +183,11 @@ describe('employee routes integration', () => {
   });
 
   it('requires admin authorization for the full employee list endpoint', async () => {
-    const server = await createJsonTestServer(registerEmployeeRoutes);
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const unauthorized = await jsonRequest<{ success: boolean; message: string }>(
@@ -199,7 +201,7 @@ describe('employee routes integration', () => {
         '/api/employees/admin',
         {
           headers: {
-            'x-admin-pin': '123456'
+            [TEST_ADMIN_HEADER]: 'true'
           }
         }
       );
@@ -209,6 +211,7 @@ describe('employee routes integration', () => {
         expect.objectContaining({
           id: 5,
           idNumber: 'A123456789',
+          scanIdNumber: caesarEncrypt('A123456789'),
           department: '生產部'
         })
       ]);
@@ -217,8 +220,66 @@ describe('employee routes integration', () => {
     }
   });
 
+  it('returns redacted single-employee data publicly but includes scan-safe identifiers for admin sessions', async () => {
+    employeeState.employee = {
+      ...employeeState.employee,
+      idNumber: caesarEncrypt('A123456789'),
+      isEncrypted: true
+    };
+
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
+
+    try {
+      const publicResult = await jsonRequest<Record<string, unknown>>(
+        server.baseUrl,
+        '/api/employees/5'
+      );
+
+      expect(publicResult.response.status).toBe(200);
+      expect(publicResult.body).toEqual(
+        expect.objectContaining({
+          id: 5,
+          idNumber: '',
+          email: '',
+          phone: '',
+          isEncrypted: false
+        })
+      );
+
+      const adminResult = await jsonRequest<Record<string, unknown>>(
+        server.baseUrl,
+        '/api/employees/5',
+        {
+          headers: {
+            [TEST_ADMIN_HEADER]: 'true'
+          }
+        }
+      );
+
+      expect(adminResult.response.status).toBe(200);
+      expect(adminResult.body).toEqual(
+        expect.objectContaining({
+          id: 5,
+          idNumber: 'A123456789',
+          scanIdNumber: caesarEncrypt('A123456789'),
+          isEncrypted: true
+        })
+      );
+    } finally {
+      await server.close();
+    }
+  });
+
   it('adds special leave holidays and placeholder attendance when specialLeaveUsedDates grow', async () => {
-    const server = await createJsonTestServer(registerEmployeeRoutes);
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const result = await jsonRequest<{ specialLeaveUsedDates: string[] }>(
@@ -228,7 +289,7 @@ describe('employee routes integration', () => {
           method: 'PATCH',
           headers: {
             'content-type': 'application/json',
-            'x-admin-pin': '123456'
+            [TEST_ADMIN_HEADER]: 'true'
           },
           body: JSON.stringify({
             specialLeaveUsedDates: ['2026-03-12']
@@ -288,7 +349,11 @@ describe('employee routes integration', () => {
       }
     ];
 
-    const server = await createJsonTestServer(registerEmployeeRoutes);
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
 
     try {
       const result = await jsonRequest<{ specialLeaveUsedDates: string[] }>(
@@ -298,7 +363,7 @@ describe('employee routes integration', () => {
           method: 'PATCH',
           headers: {
             'content-type': 'application/json',
-            'x-admin-pin': '123456'
+            [TEST_ADMIN_HEADER]: 'true'
           },
           body: JSON.stringify({
             specialLeaveUsedDates: []
