@@ -1,5 +1,9 @@
 import { z } from 'zod';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('env');
+
 const optionalSecret = (name: string) =>
   z
     .string()
@@ -25,14 +29,20 @@ const envSchema = z.object({
     .refine(value => /^postgres(ql)?:\/\//.test(value), {
       message: 'DATABASE_URL 必須是 PostgreSQL 連線字串'
     }),
-  USE_SUPABASE: z.enum(['true', 'false']).optional(),
   USE_AES_ENCRYPTION: z.enum(['true', 'false']).optional(),
   ALLOWED_ORIGINS: z.string().optional(),
   TRUST_PROXY: z.enum(['true', 'false']).optional(),
   SESSION_SECURE: z.enum(['true', 'false']).optional(),
   SESSION_SAME_SITE: z.enum(['lax', 'strict', 'none']).optional(),
   SESSION_SECRET: optionalSecret('SESSION_SECRET'),
-  ENCRYPTION_KEY: optionalSecret('ENCRYPTION_KEY')
+  ENCRYPTION_KEY: optionalSecret('ENCRYPTION_KEY'),
+  ENCRYPTION_SALT: z.string().optional(),
+  // LINE 打卡功能（全部選用，但若任一有值則五個必須全部設定）
+  LINE_LOGIN_CHANNEL_ID: z.string().optional(),
+  LINE_LOGIN_CHANNEL_SECRET: z.string().optional(),
+  LINE_LOGIN_CALLBACK_URL: z.string().url('LINE_LOGIN_CALLBACK_URL 必須是有效 URL').optional(),
+  LINE_MESSAGING_CHANNEL_ACCESS_TOKEN: z.string().optional(),
+  LINE_MESSAGING_CHANNEL_SECRET: z.string().optional()
 });
 
 export type ValidatedEnv = z.infer<typeof envSchema>;
@@ -56,11 +66,35 @@ export function validateEnv(): ValidatedEnv {
   }
 
   if (!validated.SESSION_SECRET) {
-    console.warn('SESSION_SECRET 未設定，目前僅使用管理員 PIN 驗證流程');
+    log.warn('SESSION_SECRET 未設定，目前僅使用管理員 PIN 驗證流程');
   }
 
   if (!validated.ENCRYPTION_KEY) {
-    console.warn('ENCRYPTION_KEY 未設定，AES 加密升級前請補齊');
+    log.warn('ENCRYPTION_KEY 未設定，AES 加密升級前請補齊');
+  }
+
+  if (validated.USE_AES_ENCRYPTION === 'true' && !validated.ENCRYPTION_SALT) {
+    log.warn('ENCRYPTION_SALT 未設定，AES 加密將使用預設 salt（建議明確設定）');
+  }
+
+  // LINE 環境變數一致性檢查：若任一有值，5 個必須全部設定
+  const lineVars = [
+    validated.LINE_LOGIN_CHANNEL_ID,
+    validated.LINE_LOGIN_CHANNEL_SECRET,
+    validated.LINE_LOGIN_CALLBACK_URL,
+    validated.LINE_MESSAGING_CHANNEL_ACCESS_TOKEN,
+    validated.LINE_MESSAGING_CHANNEL_SECRET
+  ];
+  const lineSetCount = lineVars.filter(Boolean).length;
+  if (lineSetCount > 0 && lineSetCount < 5) {
+    throw new Error(
+      'LINE 打卡功能需同時設定全部五個環境變數：' +
+      'LINE_LOGIN_CHANNEL_ID, LINE_LOGIN_CHANNEL_SECRET, LINE_LOGIN_CALLBACK_URL, ' +
+      'LINE_MESSAGING_CHANNEL_ACCESS_TOKEN, LINE_MESSAGING_CHANNEL_SECRET'
+    );
+  }
+  if (lineSetCount === 0) {
+    log.warn('LINE 打卡功能未啟用（LINE 環境變數未設定）');
   }
 
   return validated;

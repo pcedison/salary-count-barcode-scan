@@ -1,176 +1,206 @@
-# Employee Salary Management System
+# 員工薪資與掃碼打卡系統 V3
 
-一個全功能的員工薪資計算與考勤管理系統，專為中小型企業設計。
+這個專案目前的主線是：
 
-## ✨ 主要功能
+- 前後端單一 repo
+- PostgreSQL-only
+- 管理員授權採 server-side session / cookie
+- 員工敏感證號支援 `plaintext + Caesar + AES` 相容讀寫
+- 具備 health probe、backup / restore readiness、AES migration readiness
 
-### 📊 薪資計算
-- **多層加班費計算**：支援 OT1 (1.34x) 和 OT2 (1.67x) 費率
-- **每日計算法**：符合勞動法規的每日加班計算後匯總
-- **假日工作費**：週末和國定假日的特殊費率
-- **扣款管理**：支援勞保、健保等各項扣款
-- **津貼補助**：福利金、房屋津貼等額外給付
+目前 repo 的 production hardening 已進到最後收尾階段；最新施工與驗證基線請看：
 
-### 👥 員工管理
-- **完整員工資料**：包含部門、職位追蹤
-- **資料加密**：敏感個資（身分證號）採用 Caesar 加密
-- **狀態管理**：在職/離職狀態管理
+- `docs/PRODUCTION_EXECUTION_QUEUE.md`
+- `docs/PRODUCTION_TASK_BACKLOG.md`
+- `docs/CLAUDE_CODE_SUBAGENT_HANDOFF.md`
 
-### ⏰ 考勤系統
-- **條碼掃描器整合**：支援實體條碼掃描器快速打卡
-- **手動時間輸入**：網頁介面手動記錄考勤
-- **即時追蹤**：即時顯示目前考勤狀態
-- **彈性記錄**：支援半日、加班、假日工作
+## 功能範圍
 
-### 📈 報表功能
-- **月度薪資報表**：詳細薪資計算明細
-- **CSV 匯出**：完整資料匯出供外部分析
-- **列印友善**：最佳化的列印版面
-- **歷史記錄**：完整的薪資計算審計軌跡
+- 員工資料管理
+- 條碼掃描打卡與 Raspberry Pi 掃碼入口
+- 考勤紀錄維護
+- 薪資計算、歷史查詢、列印、CSV 匯出
+- 假日與特休管理
+- 管理員 PIN 驗證、session restore、logout、PIN 更新
+- backup / restore readiness、AES migration dry-run / rehearsal / readiness gate
 
-## 🛠️ 技術架構
+## 技術主線
 
 ### 前端
-- **React 18** with TypeScript
-- **Vite** 快速開發工具
-- **Tailwind CSS + shadcn/ui** 現代化 UI 設計
-- **TanStack Query** 高效資料獲取與狀態管理
-- **React Hook Form + Zod** 表單處理與驗證
-- **Wouter** 輕量級路由
+
+- React 18 + TypeScript
+- Vite
+- Wouter
+- TanStack Query
+- Tailwind CSS + Radix UI
 
 ### 後端
-- **Node.js + Express.js** RESTful API 服務
-- **TypeScript** 類型安全的伺服器開發
-- **Drizzle ORM** 現代化資料庫操作
-- **Passport.js** 基於會話的身份驗證
-- **自訂管理員驗證** PIN 碼存取控制
 
-### 資料庫
-- **PostgreSQL** 主要資料庫（支援 Neon/Supabase）
-- **自動備份系統** 每日、每週、每月備份
-- **資料完整性檢查** 自動監控和恢復
+- Express + TypeScript
+- Drizzle ORM
+- express-session + connect-pg-simple
+- Zod schema validation
 
-## 🚀 快速開始
+### 資料層
 
-### 前置需求
+- PostgreSQL
+- `user_sessions` 由 session store 自動建立
+- 備份檔輸出於 `backups/`
+
+## 快速開始
+
+### 需求
+
 - Node.js 18+
-- PostgreSQL 資料庫
-- Git
+- PostgreSQL
+- 可用的 `DATABASE_URL`
 
-### 安裝步驟
+### 1. 安裝
 
-1. **克隆專案**
-```bash
-git clone https://github.com/YOUR_USERNAME/employee-salary-system.git
-cd employee-salary-system
-```
-
-2. **安裝依賴**
 ```bash
 npm install
 ```
 
-3. **設定環境變數**
-```bash
-cp .env.example .env
-# 編輯 .env 檔案，填入您的資料庫連線資訊
+### 2. 設定環境變數
+
+最少需要：
+
+```env
+NODE_ENV=development
+PORT=5000
+DATABASE_URL=postgresql://app_user:password@localhost:5432/employee_salary_db
+SESSION_SECRET=replace-with-at-least-32-characters-for-production
+DEFAULT_ADMIN_PIN=123456
 ```
 
-4. **資料庫設定**
+常用但非必填：
+
+```env
+SESSION_TIMEOUT=60
+TRUST_PROXY=true
+SESSION_SECURE=true
+SESSION_SAME_SITE=lax
+ALLOWED_ORIGINS=https://your-frontend.example.com
+USE_AES_ENCRYPTION=false
+ENCRYPTION_KEY=replace-with-at-least-32-characters
+ENCRYPTION_SALT=replace-with-explicit-salt
+LOG_LEVEL=info
+```
+
+說明：
+
+- `DATABASE_URL` 必須是 PostgreSQL 連線字串
+- production 必須提供 `SESSION_SECRET`
+- 只有在 `USE_AES_ENCRYPTION=true` 時才強制要求 `ENCRYPTION_KEY`
+- `DEFAULT_ADMIN_PIN` 只用於首次建立 settings；若未提供，系統會產生隨機 PIN 並在 log 提示立即更改
+
+若要直接產生可貼到 Zeabur Variables 或 `.env` 的 secrets：
+
 ```bash
-# 推送資料庫結構
+npm run secrets:generate
+```
+
+### 3. 推送 schema
+
+```bash
 npm run db:push
-
-# （可選）填入範例資料
-npm run db:seed
 ```
 
-5. **啟動應用程式**
+### 4. 開發模式
+
 ```bash
 npm run dev
 ```
 
-應用程式將在 `http://localhost:5000` 啟動。
+預設網址：`http://localhost:5000`
 
-## 📁 專案結構
+## 驗證命令
 
-```
-├── client/                 # 前端 React 應用
-│   ├── src/
-│   │   ├── components/     # UI 組件
-│   │   ├── pages/          # 頁面組件
-│   │   ├── hooks/          # 自訂 Hooks
-│   │   └── lib/            # 工具函數
-├── server/                 # 後端 API 服務
-│   ├── routes.ts           # API 路由
-│   ├── storage.ts          # 資料存取層
-│   └── auth.ts             # 身份驗證
-├── shared/                 # 共用程式碼
-│   ├── schema.ts           # 資料庫結構定義
-│   └── utils/              # 共用工具
-└── docs/                   # 文件
+### 開發基線
+
+```bash
+npm run check
+npm test
+npm run test:smoke
+npm run build
 ```
 
-## 🔧 配置選項
+### 真實資料庫驗證
 
-### 環境變數
-
-```env
-DATABASE_URL=postgresql://username:password@host:port/database
-SESSION_SECRET=your-secure-session-secret
+```bash
+npm run test:real-db
 ```
 
-### 薪資計算設定
+### 維運驗證
 
-在系統設定頁面可配置：
-- 基本時薪
-- 加班費倍率（OT1, OT2）
-- 各項扣款比例
-- 津貼金額
+```bash
+npm run verify:ops
+npm run restore:rehearse
+```
 
-## 📱 支援的硬體
+## AES migration 指令
 
-- **USB 條碼掃描器**：標準 USB HID 條碼掃描器
-- **Raspberry Pi**：專用的條碼掃描工作站
-- **行動裝置**：響應式設計支援手機、平板
+這些指令都需要 `ENCRYPTION_KEY`：
 
-## 🔒 安全特性
+```bash
+npm run aes:inspect
+ENCRYPTION_KEY=... npm run aes:report
+ENCRYPTION_KEY=... npm run aes:snapshot
+ENCRYPTION_KEY=... npm run aes:rehearse
+ENCRYPTION_KEY=... npm run aes:status
+ENCRYPTION_KEY=... npm run aes:ready
+ENCRYPTION_KEY=... npm run aes:migrate
+ENCRYPTION_KEY=... npm run aes:rollback
+```
 
-- **資料加密**：敏感個資採用加密存儲
-- **會話管理**：安全的使用者會話處理
-- **權限控制**：分層的存取控制系統
-- **審計日誌**：完整的操作記錄追蹤
+若還沒生成 `SESSION_SECRET` / `ENCRYPTION_KEY` / `ENCRYPTION_SALT`：
 
-## 🤝 貢獻指南
+```bash
+npm run secrets:generate
+```
 
-歡迎提交 Issue 和 Pull Request！
+正式 execute 前請先完成：
 
-1. Fork 專案
-2. 創建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 開啟 Pull Request
+- `aes:report`
+- `aes:snapshot`
+- `aes:rehearse`
+- `aes:ready`
+- `restore:rehearse`
 
-## 📄 授權
+## 部署前最低檢查
 
-本專案採用 MIT 授權 - 詳見 [LICENSE](LICENSE) 檔案。
+```bash
+npm run check
+npm test
+npm run test:smoke
+npm run test:real-db
+npm run build
+npm run verify:ops
+```
 
-## 🆘 支援
+再依序確認：
 
-如有問題或需要協助，請：
-- 開啟 GitHub Issue
-- 查看 [文件](docs/) 目錄
-- 參考 API 文件
+- `GET /api/health`
+- `GET /ready`
+- `GET /live`
+- 管理員登入 / 登出 / PIN 更新
+- `/history`、`/settings`、`/employees` 直接開啟不會落錯頁
+- 條碼掃描打卡正常
 
-## 🔄 更新日誌
+完整清單請看 `RELEASE_CHECKLIST.md`。
 
-### v1.0.0 (2025-09-02)
-- 初始版本發布
-- 完整的薪資計算功能
-- 條碼掃描器整合
-- 自動備份系統
-- 歷史記錄管理
+## 文件索引
 
----
+- `docs/INSTALLATION.md`：安裝與部署步驟
+- `docs/CONFIGURATION.md`：環境變數與安全設定
+- `docs/DATABASE_SETUP.md`：PostgreSQL 準備與驗證
+- `docs/OPERATIONS_RUNBOOK.md`：probe、backup、restore、維運
+- `docs/AES_MIGRATION_RUNBOOK.md`：AES 遷移流程
+- `docs/TROUBLESHOOTING.md`：故障排除
+- `docs/SUPPORT.md`：交接與支援資訊
 
-**注意**：本系統包含實際的薪資計算邏輯和員工資料管理功能。請確保在生產環境中妥善保護敏感資料。
+## 目前已知限制
+
+- AES readiness 已完成，但正式 `aes:migrate` 尚未執行
+- 前端仍有部分歷史 debug log 尚待再收斂
+- 部分歷史文件已重寫中，請以本 README 與 `docs/PRODUCTION_EXECUTION_QUEUE.md` 為準

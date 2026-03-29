@@ -14,6 +14,7 @@ import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Button } from '@/components/ui/button';
 import { Lock, Shield, User, UserCheck } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { debugLog, debugWarn } from '@/lib/debug';
 import { getCurrentYearMonth, getMonthName, getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
 
@@ -37,7 +38,7 @@ export default function AttendancePage() {
   
   // 將員工資料記錄到console，便於調試
   useEffect(() => {
-    console.log('調試員工資料:', { 
+    debugLog('調試員工資料:', {
       活躍員工數: activeEmployees?.length || 0,
       員工列表: activeEmployees?.map(e => `${e.name} (ID: ${e.id})`) || []
     });
@@ -56,21 +57,6 @@ export default function AttendancePage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   
-  // 組件掛載時加載員工數據
-  useEffect(() => {
-    console.log('AttendancePage 掛載，確保加載員工數據');
-    // 簡單延遲以確保其他資源已經加載
-    const timer = setTimeout(() => {
-      if (forceRefreshEmployees) {
-        forceRefreshEmployees().then(result => {
-          console.log('員工數據加載結果:', result);
-        });
-      }
-    }, 1000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
   // 過濾特定員工的考勤記錄
   const filteredAttendanceData = (selectedEmployeeId && selectedEmployeeId !== 'all')
     ? attendanceData.filter(record => 
@@ -83,50 +69,17 @@ export default function AttendancePage() {
   
   // 處理員工選擇變更
   const handleEmployeeChange = (employeeId: string) => {
-    console.log('選擇員工ID:', employeeId);
+    debugLog('選擇員工ID:', employeeId);
     setSelectedEmployeeId(employeeId);
     
-    // 處理"全部員工"選項和普通員工選項的不同邏輯
     if (employeeId === 'all') {
-      // 選擇"全部員工"選項時，清空選中的員工
       setSelectedEmployee(null);
-    } else if (employeeId === '1') {
-      // 直接設置陳文山的資料（硬編碼）
-      setSelectedEmployee({
-        id: 1,
-        name: '陳文山',
-        department: '生產部',
-        active: true,
-        isEncrypted: false,
-        idNumber: 'A123456789',
-        joinDate: '2023/01/01',
-        leaveDate: null,
-        position: '員工',
-        hourlyRate: 0,
-        note: ''
-      });
-    } else if (employeeId === '3') {
-      // 直接設置王小文的資料（硬編碼）
-      setSelectedEmployee({
-        id: 3,
-        name: '王小文',
-        department: '行政部',
-        active: true,
-        isEncrypted: false,
-        idNumber: 'K011133456',
-        joinDate: '2023/05/15',
-        leaveDate: null,
-        position: '行政助理',
-        hourlyRate: 0,
-        note: ''
-      });
     } else {
-      // 嘗試從activeEmployees中找到對應的員工資料
       const employee = activeEmployees?.find(emp => emp.id.toString() === employeeId);
       if (employee) {
         setSelectedEmployee(employee);
       } else {
-        console.warn(`找不到ID為 ${employeeId} 的員工資料`);
+        debugWarn(`找不到ID為 ${employeeId} 的員工資料`);
       }
     }
   };
@@ -135,7 +88,7 @@ export default function AttendancePage() {
   useEffect(() => {
     // 訂閱條碼掃描事件
     const unsubscribeScan = eventBus.on(EventNames.BARCODE_SCANNED, (data: any) => {
-      console.log('條碼掃描事件接收成功:', data);
+      debugLog('條碼掃描事件接收成功:', data);
       
       // 設置最近活動信息
       setRecentActivity({
@@ -163,7 +116,7 @@ export default function AttendancePage() {
     
     // 訂閱考勤更新事件
     const unsubscribeUpdate = eventBus.on(EventNames.ATTENDANCE_UPDATED, (data: any) => {
-      console.log('考勤更新事件接收成功:', data);
+      debugLog('考勤更新事件接收成功:', data);
       // 立即刷新考勤數據
       queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
       
@@ -275,8 +228,18 @@ export default function AttendancePage() {
       });
       return;
     }
-    
+
+    if (!selectedEmployee) {
+      toast({
+        title: "請先選擇員工",
+        description: "請在員工選擇器中選擇一位員工，再新增考勤記錄。",
+        variant: "destructive"
+      });
+      return;
+    }
+
     addAttendance({
+      employeeId: selectedEmployee.id,
       date,
       clockIn,
       clockOut,
@@ -368,12 +331,13 @@ export default function AttendancePage() {
           </div>
         </div>
         <div className="mt-4 flex justify-end">
-          <Button 
+          <Button
             onClick={handleAddAttendance}
-            className="bg-primary hover:bg-blue-700 text-white px-6 py-2 rounded-md flex items-center"
+            disabled={!selectedEmployee}
+            className="bg-primary hover:bg-blue-700 text-white px-6 py-2 rounded-md flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="material-icons text-sm mr-1">add</span>
-            新增
+            {selectedEmployee ? '新增' : '請先選擇員工'}
           </Button>
         </div>
       </div>
@@ -406,11 +370,6 @@ export default function AttendancePage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部員工</SelectItem>
-              {/* 強制顯示兩名員工 */}
-              <SelectItem value="1">陳文山 (生產部)</SelectItem>
-              <SelectItem value="3">王小文 (行政部)</SelectItem>
-              
-              {/* 原始顯示方式 - 但條件始終不符合，僅作為備用 */}
               {activeEmployees && activeEmployees.length > 0 && (
                 activeEmployees.map((employee) => (
                   <SelectItem key={employee.id} value={employee.id.toString()}>

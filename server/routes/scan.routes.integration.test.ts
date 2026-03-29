@@ -1,6 +1,7 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { caesarEncrypt } from '@shared/utils/caesarCipher';
+import { encrypt as encryptAes } from '@shared/utils/encryption';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 import { buildEmployeeIdentityLookupCandidates, matchesEmployeeIdentity } from '../utils/employeeIdentity';
 
@@ -85,6 +86,11 @@ let registerScanRoutes: typeof import('./scan.routes').registerScanRoutes;
 
 beforeAll(async () => {
   ({ registerScanRoutes } = await import('./scan.routes'));
+});
+
+afterEach(() => {
+  delete process.env.ENCRYPTION_KEY;
+  delete process.env.USE_AES_ENCRYPTION;
 });
 
 beforeEach(() => {
@@ -287,6 +293,45 @@ describe('scan routes integration', () => {
         },
         body: JSON.stringify({
           idNumber: caesarEncrypt('A123456789')
+        })
+      });
+
+      expect(result.response.status).toBe(200);
+      expect(result.body).toMatchObject({
+        success: true,
+        employeeName: '測試員工',
+        action: 'clock-in'
+      });
+      expect(storageMock.getAllEmployees).not.toHaveBeenCalled();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('supports plaintext scans for AES-encrypted employee ids without route-level full scans', async () => {
+    process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
+    scanState.employees = [
+      {
+        ...scanState.employees[0],
+        idNumber: encryptAes('A123456789'),
+        isEncrypted: true
+      }
+    ];
+
+    const server = await createJsonTestServer(registerScanRoutes);
+
+    try {
+      const result = await jsonRequest<{
+        success: boolean;
+        employeeName: string;
+        action: string;
+      }>(server.baseUrl, '/api/barcode-scan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          idNumber: 'A123456789'
         })
       });
 

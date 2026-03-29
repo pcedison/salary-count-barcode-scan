@@ -1,8 +1,6 @@
-// @ts-nocheck
-import { eq, and, desc, or } from "drizzle-orm";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
+import { eq, and, desc, or, sql as drizzleSql } from "drizzle-orm";
 import { normalizeDateToDash, normalizeDateToSlash } from "../shared/utils/specialLeaveSync";
+import { createLogger } from "./utils/logger";
 import {
   buildEmployeeIdentityLookupCandidates,
   encryptEmployeeIdentityForStorage,
@@ -17,23 +15,14 @@ import {
   settings, type Settings, type InsertSettings,
   salaryRecords, type SalaryRecord, type InsertSalaryRecord,
   holidays, type Holiday, type InsertHoliday,
-  employees, type Employee, type InsertEmployee
+  employees, type Employee, type InsertEmployee,
+  pendingBindings, type PendingBinding, type InsertPendingBinding,
+  oauthStates, type OAuthState, type InsertOAuthState
 } from "@shared/schema";
 
-// Create the database connection using standard PostgreSQL driver
-const sql = postgres(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+import { db } from './db';
 
-// Define the storage interface
-// 將所有類型重新導出，讓其他文件可以引用
-export type {
-  User, InsertUser,
-  Employee, InsertEmployee,
-  TemporaryAttendance, InsertTemporaryAttendance, 
-  Settings, InsertSettings,
-  SalaryRecord, InsertSalaryRecord,
-  Holiday, InsertHoliday
-};
+const log = createLogger('storage');
 
 export interface IStorage {
   // User methods (kept for reference)
@@ -81,6 +70,22 @@ export interface IStorage {
   deleteTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<boolean>;
   deleteTemporaryAttendanceByHolidayId(holidayId: number): Promise<boolean>;
   getAttendanceByHolidayId(holidayId: number): Promise<TemporaryAttendance | undefined>;
+
+  // LINE binding methods
+  getEmployeeByLineUserId(lineUserId: string): Promise<Employee | undefined>;
+  getPendingBindings(): Promise<PendingBinding[]>;
+  getPendingBindingById(id: number): Promise<PendingBinding | undefined>;
+  getPendingBindingByLineUserId(lineUserId: string): Promise<PendingBinding | undefined>;
+  createPendingBinding(binding: InsertPendingBinding): Promise<PendingBinding>;
+  approvePendingBinding(id: number, reviewedBy: string): Promise<PendingBinding | undefined>;
+  rejectPendingBinding(id: number, reviewedBy: string, reason: string): Promise<PendingBinding | undefined>;
+  deletePendingBinding(id: number): Promise<boolean>;
+
+  // OAuth state methods
+  createOAuthState(state: InsertOAuthState): Promise<OAuthState>;
+  getOAuthState(stateValue: string): Promise<OAuthState | undefined>;
+  deleteOAuthState(stateValue: string): Promise<boolean>;
+  cleanupExpiredOAuthStates(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -141,20 +146,23 @@ export class DatabaseStorage implements IStorage {
       processedEmployee.isEncrypted === true
     );
 
-    delete processedEmployee.useEncryption;
+    // Strip the non-schema useEncryption flag before DB insert.
+    // Zod .parse() already strips unknown keys, but this is a safety net.
+    const { useEncryption: _, ...employeeForDb } = processedEmployee as typeof processedEmployee & { useEncryption?: unknown };
 
-    const [newEmployee] = await db.insert(employees).values(processedEmployee).returning();
+    // Cast: Zod infers readonly arrays for JSON columns; Drizzle expects mutable arrays.
+    const [newEmployee] = await db.insert(employees).values(employeeForDb as typeof employees.$inferInsert).returning();
     return newEmployee;
   }
 
   async updateEmployee(id: number, employee: Partial<InsertEmployee>): Promise<Employee | undefined> {
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`更新員工 ID ${id}, 接收到的數據:`, JSON.stringify(employee));
+      log.debug(`更新員工 ID ${id}, 接收到的數據:`, JSON.stringify(employee));
     }
 
     const originalEmployee = await this.getEmployeeById(id);
     if (!originalEmployee) {
-      console.error(`找不到要更新的員工 ID ${id}`);
+      log.error(`找不到要更新的員工 ID ${id}`);
       return undefined;
     }
 
@@ -174,20 +182,18 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (process.env.NODE_ENV !== 'production' && processedEmployee.idNumber !== undefined) {
-      console.log(
+      log.debug(
         `ID處理: ${maskEmployeeIdentityForLog(originalEmployee.idNumber)} -> ${maskEmployeeIdentityForLog(
           processedEmployee.idNumber
         )} (加密=${wantsEncryption})`
       );
     }
 
-    if ('useEncryption' in processedEmployee) {
-      delete processedEmployee.useEncryption;
-    }
+    const { useEncryption: _, ...employeeForDb } = processedEmployee as typeof processedEmployee & { useEncryption?: unknown };
 
     const [updatedEmployee] = await db
       .update(employees)
-      .set(processedEmployee)
+      .set(employeeForDb as typeof employees.$inferInsert)
       .where(eq(employees.id, id))
       .returning();
     return updatedEmployee;
@@ -212,7 +218,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getTemporaryAttendanceByEmployeeAndDate(employeeId: number, date: string): Promise<TemporaryAttendance[]> {
-    console.log(`[數據查詢] 查詢員工ID: ${employeeId}, 日期: ${date} 的考勤記錄`);
+    log.debug(`[數據查詢] 查詢員工ID: ${employeeId}, 日期: ${date} 的考勤記錄`);
     
     try {
       const slashDate = normalizeDateToSlash(date);
@@ -231,14 +237,14 @@ export class DatabaseStorage implements IStorage {
           )
         );
       
-      console.log(`[數據查詢] 找到 ${records.length} 筆考勤記錄`);
+      log.debug(`[數據查詢] 找到 ${records.length} 筆考勤記錄`);
       if (records.length > 0) {
-        console.log(`[數據查詢] 第一筆記錄日期: ${records[0].date}`);
+        log.debug(`[數據查詢] 第一筆記錄日期: ${records[0].date}`);
       }
       
       return records;
     } catch (error) {
-      console.error(`[數據查詢錯誤] 查詢考勤記錄失敗:`, error);
+      log.error(`[數據查詢錯誤] 查詢考勤記錄失敗:`, error);
       return []; // 返回空數組而不是拋出錯誤
     }
   }
@@ -271,26 +277,26 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteTemporaryAttendanceByEmployeeId(employeeId: number): Promise<void> {
-    console.log(`刪除員工ID為 ${employeeId} 的所有考勤記錄`);
+    log.info(`刪除員工ID為 ${employeeId} 的所有考勤記錄`);
     
     await db
       .delete(temporaryAttendance)
       .where(eq(temporaryAttendance.employeeId, employeeId));
     
-    console.log(`成功刪除員工ID為 ${employeeId} 的所有考勤記錄`);
+    log.info(`成功刪除員工ID為 ${employeeId} 的所有考勤記錄`);
   }
   
   async recordBarcodeAttendance(idNumber: string): Promise<TemporaryAttendance | null> {
     try {
       if (process.env.NODE_ENV !== 'production') {
-        console.log(`掃描處理過程: 原始輸入的ID = ${maskEmployeeIdentityForLog(idNumber)}`);
+        log.debug(`掃描處理過程: 原始輸入的ID = ${maskEmployeeIdentityForLog(idNumber)}`);
       }
 
       const employee = await this.getEmployeeByIdNumber(idNumber);
 
       if (!employee) {
         if (process.env.NODE_ENV !== 'production') {
-          console.log(`找不到匹配的員工，ID: ${maskEmployeeIdentityForLog(idNumber)}`);
+          log.debug(`找不到匹配的員工，ID: ${maskEmployeeIdentityForLog(idNumber)}`);
         }
         return null;
       }
@@ -302,51 +308,63 @@ export class DatabaseStorage implements IStorage {
       const holidays = await this.getAllHolidays();
       const isHoliday = holidays.some(holiday => holiday.date === currentDate);
 
-      const attendanceRecords = await db
-        .select()
-        .from(temporaryAttendance)
-        .where(
-          and(
-            eq(temporaryAttendance.date, currentDate),
-            eq(temporaryAttendance.employeeId, employee.id)
-          )
+      // Use a transaction with an advisory lock to prevent duplicate records
+      // from rapid consecutive scans for the same employee.
+      return await db.transaction(async (tx) => {
+        // Advisory lock key: combine a namespace (0xBA5C = "BASC" for barcode-scan)
+        // with the employee ID to serialize per-employee scans.
+        await tx.execute(drizzleSql`SELECT pg_advisory_xact_lock(${0xBA5C}, ${employee.id})`);
+
+        const attendanceRecords = await tx
+          .select()
+          .from(temporaryAttendance)
+          .where(
+            and(
+              eq(temporaryAttendance.date, currentDate),
+              eq(temporaryAttendance.employeeId, employee.id)
+            )
+          );
+
+        log.debug(`[打卡處理] 員工ID ${employee.id}，日期 ${currentDate} 找到 ${attendanceRecords.length} 筆考勤記錄`);
+
+        const incompleteRecords = attendanceRecords.filter(
+          record => !record.clockOut || record.clockOut === ''
         );
-      
-      console.log(`[打卡處理] 員工ID ${employee.id}，日期 ${currentDate} 找到 ${attendanceRecords.length} 筆考勤記錄`);
 
-      const incompleteRecords = attendanceRecords.filter(
-        record => !record.clockOut || record.clockOut === ''
-      );
+        log.debug(`[打卡處理] 其中有 ${incompleteRecords.length} 筆未完成的記錄`);
 
-      console.log(`[打卡處理] 其中有 ${incompleteRecords.length} 筆未完成的記錄`);
+        if (incompleteRecords.length === 0) {
+          log.debug(`[打卡處理] 沒有未完成記錄，建立新的上班打卡`);
+          const [newAttendance] = await tx
+            .insert(temporaryAttendance)
+            .values({
+              employeeId: employee.id,
+              date: currentDate,
+              clockIn: currentTime,
+              clockOut: '',
+              isHoliday: isHoliday,
+              isBarcodeScanned: true
+            })
+            .returning();
+          return newAttendance;
+        } else {
+          const latestIncompleteRecord = incompleteRecords.sort((a, b) => {
+            const timeA = a.clockIn ? a.clockIn.split(':').map(Number) : [0, 0];
+            const timeB = b.clockIn ? b.clockIn.split(':').map(Number) : [0, 0];
+            return (timeB[0] * 60 + timeB[1]) - (timeA[0] * 60 + timeA[1]);
+          })[0];
 
-      if (incompleteRecords.length === 0) {
-        console.log(`[打卡處理] 沒有未完成記錄，建立新的上班打卡`);
-        const newAttendance = await this.createTemporaryAttendance({
-          employeeId: employee.id,
-          date: currentDate,
-          clockIn: currentTime,
-          clockOut: '', // 下班時間暫時為空
-          isHoliday: isHoliday,
-          isBarcodeScanned: true
-        });
-        return newAttendance;
-      } else {
-        const latestIncompleteRecord = incompleteRecords.sort((a, b) => {
-          const timeA = a.clockIn ? a.clockIn.split(':').map(Number) : [0, 0];
-          const timeB = b.clockIn ? b.clockIn.split(':').map(Number) : [0, 0];
-          return (timeB[0] * 60 + timeB[1]) - (timeA[0] * 60 + timeA[1]);
-        })[0];
-        
-        console.log(`[打卡處理] 找到未完成記錄 ID: ${latestIncompleteRecord.id}，更新為下班打卡`);
-        const updatedAttendance = await this.updateTemporaryAttendance(
-          latestIncompleteRecord.id,
-          { clockOut: currentTime }
-        );
-        return updatedAttendance || null;
-      }
+          log.debug(`[打卡處理] 找到未完成記錄 ID: ${latestIncompleteRecord.id}，更新為下班打卡`);
+          const [updatedAttendance] = await tx
+            .update(temporaryAttendance)
+            .set({ clockOut: currentTime })
+            .where(eq(temporaryAttendance.id, latestIncompleteRecord.id))
+            .returning();
+          return updatedAttendance || null;
+        }
+      });
     } catch (error) {
-      console.error('Error recording barcode attendance:', error);
+      log.error('Error recording barcode attendance:', error);
       return null;
     }
   }
@@ -359,18 +377,18 @@ export class DatabaseStorage implements IStorage {
 
   async createOrUpdateSettings(newSettings: InsertSettings): Promise<Settings> {
     const existingSettings = await this.getSettings();
-    
+
     if (existingSettings) {
       const [updatedSettings] = await db
         .update(settings)
-        .set({ ...newSettings, updatedAt: new Date() })
+        .set({ ...newSettings, updatedAt: new Date() } as typeof settings.$inferInsert)
         .where(eq(settings.id, existingSettings.id))
         .returning();
       return updatedSettings;
     } else {
       const [createdSettings] = await db
         .insert(settings)
-        .values(newSettings)
+        .values(newSettings as typeof settings.$inferInsert)
         .returning();
       return createdSettings;
     }
@@ -412,7 +430,7 @@ export class DatabaseStorage implements IStorage {
   async updateSalaryRecord(id: number, record: Partial<InsertSalaryRecord>): Promise<SalaryRecord | undefined> {
     const [updatedRecord] = await db
       .update(salaryRecords)
-      .set(record)
+      .set(record as typeof salaryRecords.$inferInsert)
       .where(eq(salaryRecords.id, id))
       .returning();
     return updatedRecord;
@@ -454,7 +472,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(holidays);
       return true;
     } catch (error) {
-      console.error('Error deleting all holidays:', error);
+      log.error('Error deleting all holidays:', error);
       return false;
     }
   }
@@ -471,7 +489,7 @@ export class DatabaseStorage implements IStorage {
         );
       return true;
     } catch (error) {
-      console.error('Error deleting attendance by employee and date:', error);
+      log.error('Error deleting attendance by employee and date:', error);
       return false;
     }
   }
@@ -483,7 +501,7 @@ export class DatabaseStorage implements IStorage {
         .where(eq(temporaryAttendance.holidayId, holidayId));
       return true;
     } catch (error) {
-      console.error('Error deleting attendance by holiday ID:', error);
+      log.error('Error deleting attendance by holiday ID:', error);
       return false;
     }
   }
@@ -495,21 +513,128 @@ export class DatabaseStorage implements IStorage {
       .where(eq(temporaryAttendance.holidayId, holidayId));
     return record;
   }
-}
 
-import { SupabaseStorage } from './supabase-storage';
-import { isUsingSupabase } from './db-with-supabase';
+  // ── LINE binding methods ──────────────────────────────────────────────────
 
-// 創建存儲實例的工廠函數
-function createStorage(): IStorage {
-  // 根據配置決定使用哪種存儲實現
-  if (isUsingSupabase()) {
-    console.log('Using Supabase storage implementation');
-    return new SupabaseStorage();
-  } else {
-    console.log('Using PostgreSQL storage implementation');
-    return new DatabaseStorage();
+  async getEmployeeByLineUserId(lineUserId: string): Promise<Employee | undefined> {
+    const [employee] = await db
+      .select()
+      .from(employees)
+      .where(eq(employees.lineUserId, lineUserId));
+    return employee;
+  }
+
+  async getPendingBindings(): Promise<PendingBinding[]> {
+    return db
+      .select()
+      .from(pendingBindings)
+      .where(eq(pendingBindings.status, 'pending'))
+      .orderBy(desc(pendingBindings.requestedAt));
+  }
+
+  async getPendingBindingById(id: number): Promise<PendingBinding | undefined> {
+    const [binding] = await db
+      .select()
+      .from(pendingBindings)
+      .where(eq(pendingBindings.id, id));
+    return binding;
+  }
+
+  async getPendingBindingByLineUserId(lineUserId: string): Promise<PendingBinding | undefined> {
+    const [binding] = await db
+      .select()
+      .from(pendingBindings)
+      .where(eq(pendingBindings.lineUserId, lineUserId))
+      .orderBy(desc(pendingBindings.requestedAt));
+    return binding;
+  }
+
+  async createPendingBinding(binding: InsertPendingBinding): Promise<PendingBinding> {
+    const [created] = await db
+      .insert(pendingBindings)
+      .values(binding)
+      .returning();
+    return created;
+  }
+
+  async approvePendingBinding(id: number, reviewedBy: string): Promise<PendingBinding | undefined> {
+    return db.transaction(async (tx) => {
+      const [binding] = await tx
+        .select()
+        .from(pendingBindings)
+        .where(eq(pendingBindings.id, id));
+      if (!binding) return undefined;
+
+      await tx
+        .update(employees)
+        .set({
+          lineUserId: binding.lineUserId,
+          lineDisplayName: binding.lineDisplayName,
+          linePictureUrl: binding.linePictureUrl,
+          lineBindingDate: new Date()
+        })
+        .where(eq(employees.id, binding.employeeId));
+
+      const [updated] = await tx
+        .update(pendingBindings)
+        .set({ status: 'approved', reviewedAt: new Date(), reviewedBy })
+        .where(eq(pendingBindings.id, id))
+        .returning();
+      return updated;
+    });
+  }
+
+  async rejectPendingBinding(id: number, reviewedBy: string, reason: string): Promise<PendingBinding | undefined> {
+    const [updated] = await db
+      .update(pendingBindings)
+      .set({ status: 'rejected', reviewedAt: new Date(), reviewedBy, rejectReason: reason })
+      .where(eq(pendingBindings.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deletePendingBinding(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(pendingBindings)
+      .where(eq(pendingBindings.id, id))
+      .returning();
+    return !!deleted;
+  }
+
+  // ── OAuth state methods ──────────────────────────────────────────────────
+
+  async createOAuthState(state: InsertOAuthState): Promise<OAuthState> {
+    const [created] = await db
+      .insert(oauthStates)
+      .values(state)
+      .returning();
+    return created;
+  }
+
+  async getOAuthState(stateValue: string): Promise<OAuthState | undefined> {
+    const [record] = await db
+      .select()
+      .from(oauthStates)
+      .where(eq(oauthStates.state, stateValue));
+    return record;
+  }
+
+  async deleteOAuthState(stateValue: string): Promise<boolean> {
+    const [deleted] = await db
+      .delete(oauthStates)
+      .where(eq(oauthStates.state, stateValue))
+      .returning();
+    return !!deleted;
+  }
+
+  async cleanupExpiredOAuthStates(): Promise<void> {
+    await db
+      .delete(oauthStates)
+      .where(drizzleSql`${oauthStates.expiresAt} < now()`);
   }
 }
 
-export const storage = createStorage();
+// Production strategy: PostgreSQL is the single supported runtime storage.
+// Supabase storage has been deprecated and removed from the active code path.
+
+export const storage: IStorage = new DatabaseStorage();

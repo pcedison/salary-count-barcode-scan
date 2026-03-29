@@ -9,13 +9,13 @@ import ConfirmationModal from '@/components/ConfirmationModal';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 import EditHistoryRecordModal from '@/components/EditHistoryRecordModal';
 import { CsvImportModal } from '@/components/CsvImportModal';
-// SalaryDataFixButton 已移除，因為現在所有計算都使用標準化方法
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Lock, Shield, Upload, Download, Database, FileSpreadsheet, Archive } from 'lucide-react';
 import JSZip from 'jszip';
+import { debugLog } from '@/lib/debug';
 
 export default function HistoryPage() {
   const { toast } = useToast();
@@ -91,7 +91,7 @@ export default function HistoryPage() {
   
   // CSV下載功能 - 使用正確的exportSalaryRecordAsCsv函數
   const handleDownloadPdf = (record: any) => {
-    console.log('Downloading CSV for record:', record);
+    debugLog('Downloading CSV for record:', record);
     
     // 調用真正的CSV下載功能
     exportSalaryRecordAsCsv(record);

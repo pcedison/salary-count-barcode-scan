@@ -4,6 +4,7 @@
  * 實現管理員權限分級、多因素認證、操作日誌記錄等安全功能
  */
 
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { storage } from './storage';
@@ -12,6 +13,9 @@ import {
   verifyHashedAdminPin,
   verifyStoredAdminPin
 } from './utils/adminPinAuth';
+import { createLogger } from './utils/logger';
+
+const log = createLogger('admin-auth');
 
 // 操作日誌目錄
 const AUDIT_LOG_DIR = path.join(process.cwd(), 'logs');
@@ -70,8 +74,8 @@ const activeOTPs: OTP[] = [];
  * 生成隨機的一次性驗證碼
  */
 export function generateOTP(userId: string, expiresInMinutes = 5): string {
-  // 生成6位數字驗證碼
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  // 生成6位數字驗證碼（使用密碼學安全隨機數）
+  const code = crypto.randomInt(100000, 1000000).toString();
   
   // 設置過期時間
   const expiresAt = Date.now() + (expiresInMinutes * 60 * 1000);
@@ -98,17 +102,25 @@ export function verifyOTP(userId: string, code: string): boolean {
   // 清理過期的OTP
   cleanupExpiredOTPs();
   
-  // 查找並驗證OTP
+  // Find candidate OTP for user, then verify code with timing-safe comparison
+  const now = Date.now();
   const otpIndex = activeOTPs.findIndex(
-    otp => otp.userId === userId && otp.code === code && otp.expiresAt > Date.now()
+    otp => otp.userId === userId && otp.expiresAt > now
   );
-  
-  if (otpIndex !== -1) {
-    // 使用後立即刪除OTP
+
+  if (otpIndex === -1) return false;
+
+  const candidate = activeOTPs[otpIndex];
+  const codeBuf = Buffer.from(code, 'utf8');
+  const storedBuf = Buffer.from(candidate.code, 'utf8');
+  const match = codeBuf.length === storedBuf.length &&
+    crypto.timingSafeEqual(codeBuf, storedBuf);
+
+  if (match) {
     activeOTPs.splice(otpIndex, 1);
     return true;
   }
-  
+
   return false;
 }
 
@@ -145,7 +157,7 @@ export async function verifyAdminPermission(
     
     return isPinValid;
   } catch (error) {
-    console.error('驗證管理員權限失敗：', error);
+    log.error('驗證管理員權限失敗：', error);
     return false;
   }
 }
@@ -168,7 +180,7 @@ export async function verifyMFA(pin: string, otpCode: string): Promise<boolean> 
     
     return verifyOTP(userId, otpCode);
   } catch (error) {
-    console.error('驗證多因素認證失敗：', error);
+    log.error('驗證多因素認證失敗：', error);
     return false;
   }
 }
@@ -188,36 +200,34 @@ export function logOperation(
   }
 ): void {
   const timestamp = Date.now();
-  const log: AuditLog = {
+  const entry: AuditLog = {
     timestamp,
     operation,
     details,
     success: options?.success !== undefined ? options.success : true,
     ...options
   };
-  
+
   // 日誌文件名格式：YYYY-MM-DD.log
   const date = new Date(timestamp);
   const fileName = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}.log`;
   const logPath = path.join(AUDIT_LOG_DIR, fileName);
-  
-  // 寫入日誌
-  try {
-    const logString = JSON.stringify(log) + '\n';
-    fs.appendFileSync(logPath, logString);
-    
-    // 控制台也顯示重要操作
-    if (
-      operation === OperationType.DB_CONFIG ||
-      operation === OperationType.SYSTEM_CONFIG ||
-      operation === OperationType.BACKUP ||
-      operation === OperationType.RESTORE ||
-      !log.success
-    ) {
-      console.log(`[操作日誌] ${new Date(timestamp).toLocaleString()} ${operation}: ${details}${log.success ? '' : ' (失敗)'}`);
-    }
-  } catch (error) {
-    console.error('寫入操作日誌失敗：', error);
+
+  // 非同步寫入日誌，避免阻塞 event loop
+  const logString = JSON.stringify(entry) + '\n';
+  fs.promises.appendFile(logPath, logString).catch((writeError) => {
+    log.error('寫入操作日誌失敗：', writeError);
+  });
+
+  // 控制台顯示重要操作（同步，無 I/O）
+  if (
+    operation === OperationType.DB_CONFIG ||
+    operation === OperationType.SYSTEM_CONFIG ||
+    operation === OperationType.BACKUP ||
+    operation === OperationType.RESTORE ||
+    !entry.success
+  ) {
+    log.info(`[操作日誌] ${new Date(timestamp).toLocaleString()} ${operation}: ${details}${entry.success ? '' : ' (失敗)'}`);
   }
 }
 
@@ -246,7 +256,7 @@ export function getOperationLogs(date?: Date, filterType?: OperationType): Audit
         const log = JSON.parse(line) as AuditLog;
         logs.push(log);
       } catch (err) {
-        console.error('解析日誌行失敗：', line, err);
+        log.error('解析日誌行失敗：', line, err);
       }
     }
     
@@ -260,7 +270,7 @@ export function getOperationLogs(date?: Date, filterType?: OperationType): Audit
     
     return logs;
   } catch (error) {
-    console.error('獲取操作日誌失敗：', error);
+    log.error('獲取操作日誌失敗：', error);
     return [];
   }
 }
@@ -284,7 +294,7 @@ export function getAvailableLogDates(): { date: Date; count: number }[] {
       return { date, count };
     }).sort((a, b) => b.date.getTime() - a.date.getTime());
   } catch (error) {
-    console.error('獲取可用日誌日期失敗：', error);
+    log.error('獲取可用日誌日期失敗：', error);
     return [];
   }
 }

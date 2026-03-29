@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { caesarEncrypt } from '@shared/utils/caesarCipher';
-import { encrypt as encryptAes } from '@shared/utils/encryption';
+import { decrypt as decryptAes, encrypt as encryptAes, isAESEncrypted } from '@shared/utils/encryption';
 
 import {
   buildEmployeeIdentityLookupCandidates,
@@ -106,6 +106,23 @@ describe('employeeIdentity', () => {
       nextIdNumber: 'A123456789',
       shouldEncrypt: true
     })).toBe(aesStoredId);
+  });
+
+  it('re-encrypts changed ids with AES when the feature flag is enabled', () => {
+    process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
+    process.env.USE_AES_ENCRYPTION = 'true';
+
+    const nextStoredId = prepareUpdatedEmployeeIdentityForStorage({
+      currentEmployee: {
+        idNumber: caesarEncrypt('A123456789'),
+        isEncrypted: true
+      },
+      nextIdNumber: 'A123456780',
+      shouldEncrypt: true
+    });
+
+    expect(isAESEncrypted(nextStoredId)).toBe(true);
+    expect(decryptAes(nextStoredId)).toBe('A123456780');
   });
 
   it('falls back to Caesar writes without AES configuration and can decrypt when encryption is disabled', () => {

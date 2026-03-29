@@ -5,8 +5,11 @@ import { removeSpecialLeaveDate } from '@shared/utils/specialLeaveSync';
 
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
+import { createLogger } from '../utils/logger';
 
 import { handleRouteError, parseNumericId } from './route-helpers';
+
+const log = createLogger('holidays');
 
 const HOLIDAY_TYPE_LABELS: Record<string, string> = {
   national_holiday: '國定假日',
@@ -48,7 +51,7 @@ async function ensureHolidayAttendanceRecord(holiday: Holiday) {
   });
 
   const employee = await storage.getEmployeeById(holiday.employeeId);
-  console.log(
+  log.info(
     `為員工 ${employee?.name || holiday.employeeId} 創建${HOLIDAY_TYPE_LABELS[holiday.holidayType] || '假日'}考勤記錄: ${holiday.date}`
   );
 }
@@ -75,14 +78,14 @@ async function syncDeletedSpecialLeaveHoliday(holiday: Holiday) {
       specialLeaveUsedDates: updatedDates
     });
 
-    console.log(`[特別假同步] 從員工 ${employee.name} 的特休日期中移除 ${holiday.date}`);
+    log.info(`從員工 ${employee.name} 的特休日期中移除 ${holiday.date}`);
   } catch (syncErr) {
-    console.error('[特別假同步] 反向同步失敗:', syncErr);
+    log.error('反向同步失敗:', syncErr);
   }
 }
 
 export function registerHolidayRoutes(app: Express): void {
-  app.get('/api/holidays', async (_req, res) => {
+  app.get('/api/holidays', requireAdmin(), async (_req, res) => {
     try {
       const holidays = await storage.getAllHolidays();
       return res.json(holidays);
@@ -117,7 +120,7 @@ export function registerHolidayRoutes(app: Express): void {
       }
 
       await storage.deleteTemporaryAttendanceByHolidayId(id);
-      console.log(`已刪除假日 ID:${id} 對應的考勤記錄`);
+      log.info(`已刪除假日 ID:${id} 對應的考勤記錄`);
 
       await syncDeletedSpecialLeaveHoliday(holiday);
 

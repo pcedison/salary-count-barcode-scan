@@ -2,8 +2,11 @@ import type { Express } from 'express';
 
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 
-import { storage, type Employee, type Holiday, type TemporaryAttendance } from '../storage';
+import type { Employee, Holiday, TemporaryAttendance } from '@shared/schema';
+
+import { storage } from '../storage';
 import { maskEmployeeIdentityForLog, normalizeEmployeeIdentity } from '../utils/employeeIdentity';
+import { createLogger } from '../utils/logger';
 
 import { handleRouteError } from './route-helpers';
 import {
@@ -15,6 +18,8 @@ import {
   getTaiwanDateTimeParts,
   type ScanSuccessResult
 } from './scan-helpers';
+
+const log = createLogger('scan');
 
 const EMPLOYEE_CACHE_TTL_MS = 4 * 60 * 60 * 1000;
 const HOLIDAY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -146,7 +151,7 @@ export function registerScanRoutes(app: Express): void {
       lastScanResult = persistedResult;
       return res.json(persistedResult);
     } catch (err) {
-      console.error('[最後掃描結果] 出錯:', err);
+      log.error('最後掃描結果出錯:', err);
       return handleRouteError(err, res);
     }
   });
@@ -173,7 +178,7 @@ export function registerScanRoutes(app: Express): void {
       const result = await upsertAttendanceScan(employee);
       return res.json(result);
     } catch (err) {
-      console.error('條碼掃描打卡錯誤:', err);
+      log.error('條碼掃描打卡錯誤:', err);
       return res.status(500).json({
         success: false,
         message: err instanceof Error ? err.message : '內部處理錯誤',
@@ -195,7 +200,7 @@ export function registerScanRoutes(app: Express): void {
         });
       }
 
-      console.log(`Received scan from device: ${deviceId}, ID: ${maskEmployeeIdentityForLog(idNumber)}`);
+      log.info(`Received scan from device: ${deviceId}, ID: ${maskEmployeeIdentityForLog(idNumber)}`);
 
       const employee = await findEmployee(idNumber);
       if (!employee) {
@@ -217,7 +222,7 @@ export function registerScanRoutes(app: Express): void {
         isHoliday: result.attendance.isHoliday ?? false
       });
     } catch (err) {
-      console.error('Raspberry Pi 打卡錯誤:', err);
+      log.error('Raspberry Pi 打卡錯誤:', err);
       return res.status(500).json({
         success: false,
         message: err instanceof Error ? err.message : '內部處理錯誤',

@@ -2,6 +2,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
 import { setupAdminSession } from '../session';
+import { hashAdminPin } from '../utils/adminPinAuth';
+
+const TEST_PIN = '123456';
+const hashedTestPin = hashAdminPin(TEST_PIN);
 
 const settingsState = vi.hoisted(() => ({
   settings: {
@@ -13,7 +17,7 @@ const settingsState = vi.hoisted(() => ({
     welfareAllowance: 0,
     deductions: [],
     allowances: [],
-    adminPin: '123456',
+    adminPin: '',
     updatedAt: new Date('2026-03-12T00:00:00.000Z')
   } as Record<string, any>,
   savedSettings: null as null | Record<string, any>
@@ -56,7 +60,7 @@ beforeEach(() => {
     welfareAllowance: 0,
     deductions: [],
     allowances: [],
-    adminPin: '123456',
+    adminPin: hashedTestPin,
     updatedAt: new Date('2026-03-12T00:00:00.000Z')
   };
   settingsState.savedSettings = null;
@@ -85,7 +89,10 @@ describe('admin routes integration', () => {
       expect(loginResult.response.status).toBe(200);
       expect(loginResult.body).toMatchObject({
         success: true,
-        authMode: 'session'
+        authMode: 'session',
+        sessionTimeoutMinutes: 60,
+        sessionTimeoutMs: 60 * 60 * 1000,
+        sessionRefreshIntervalMs: 5 * 60 * 1000
       });
 
       const sessionCookie = loginResult.response.headers.get('set-cookie');
@@ -101,7 +108,10 @@ describe('admin routes integration', () => {
       expect(sessionResult.body).toMatchObject({
         success: true,
         isAdmin: true,
-        authMode: 'session'
+        authMode: 'session',
+        sessionTimeoutMinutes: 60,
+        sessionTimeoutMs: 60 * 60 * 1000,
+        sessionRefreshIntervalMs: 5 * 60 * 1000
       });
 
       const logoutResult = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/admin/logout', {
@@ -166,6 +176,135 @@ describe('admin routes integration', () => {
         success: true
       });
       expect(settingsState.savedSettings?.adminPin).toContain(':');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('exposes the configured admin session timeout policy to the client', async () => {
+    const previousSessionTimeout = process.env.SESSION_TIMEOUT;
+    process.env.SESSION_TIMEOUT = '15';
+
+    const server = await createJsonTestServer(registerAdminRoutes, {
+      setupApp: async (app) => {
+        setupAdminSession(app);
+      }
+    });
+
+    try {
+      const loginResult = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/verify-admin', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          pin: '123456'
+        })
+      });
+
+      expect(loginResult.body).toMatchObject({
+        success: true,
+        sessionTimeoutMinutes: 15,
+        sessionTimeoutMs: 15 * 60 * 1000,
+        sessionRefreshIntervalMs: 225 * 1000
+      });
+    } finally {
+      if (previousSessionTimeout === undefined) {
+        delete process.env.SESSION_TIMEOUT;
+      } else {
+        process.env.SESSION_TIMEOUT = previousSessionTimeout;
+      }
+
+      await server.close();
+    }
+  });
+
+  it('rejects admin pin updates when the current pin is incorrect', async () => {
+    const server = await createJsonTestServer(registerAdminRoutes, {
+      setupApp: async (app) => {
+        setupAdminSession(app);
+      }
+    });
+
+    try {
+      const loginResult = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/verify-admin', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          pin: '123456'
+        })
+      });
+
+      const sessionCookie = loginResult.response.headers.get('set-cookie');
+      const cookieHeader = sessionCookie?.split(';')[0];
+
+      const updateResult = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/update-admin-pin', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader || ''
+        },
+        body: JSON.stringify({
+          oldPin: '000001',
+          newPin: '602947'
+        })
+      });
+
+      expect(updateResult.response.status).toBe(401);
+      expect(updateResult.body).toMatchObject({
+        success: false,
+        message: 'Current PIN is incorrect'
+      });
+      expect(settingsState.savedSettings).toBeNull();
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects weak admin pin updates before writing settings', async () => {
+    const server = await createJsonTestServer(registerAdminRoutes, {
+      setupApp: async (app) => {
+        setupAdminSession(app);
+      }
+    });
+
+    try {
+      const loginResult = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/verify-admin', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          pin: '123456'
+        })
+      });
+
+      const sessionCookie = loginResult.response.headers.get('set-cookie');
+      const cookieHeader = sessionCookie?.split(';')[0];
+
+      const updateResult = await jsonRequest<Record<string, any>>(server.baseUrl, '/api/update-admin-pin', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader || ''
+        },
+        body: JSON.stringify({
+          oldPin: '123456',
+          newPin: '111111'
+        })
+      });
+
+      expect(updateResult.response.status).toBe(400);
+      expect(updateResult.body).toMatchObject({
+        success: false,
+        message: 'New PIN does not meet security requirements'
+      });
+      expect(updateResult.body?.errors).toEqual(
+        expect.arrayContaining(['此 PIN 碼過於簡單或常見', 'PIN 不能為重複數字'])
+      );
+      expect(settingsState.savedSettings).toBeNull();
     } finally {
       await server.close();
     }

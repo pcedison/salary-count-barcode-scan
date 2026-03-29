@@ -1,65 +1,9 @@
-import fs from 'fs';
-import path from 'path';
-
-type BackupPayload = {
-  metadata?: {
-    timestamp?: string;
-    type?: string;
-    version?: string;
-  };
-  employees?: unknown[];
-  holidays?: unknown[];
-  salaryRecords?: unknown[];
-  temporaryAttendance?: unknown[];
-};
-
-type BackupFile = {
-  id: string;
-  timestamp: number;
-  type: 'daily' | 'weekly' | 'monthly' | 'manual';
-  path: string;
-};
-
-function getBackupDirectories() {
-  const backupRoot = path.join(process.cwd(), 'backups');
-
-  return [
-    { type: 'daily' as const, dir: path.join(backupRoot, 'daily') },
-    { type: 'weekly' as const, dir: path.join(backupRoot, 'weekly') },
-    { type: 'monthly' as const, dir: path.join(backupRoot, 'monthly') },
-    { type: 'manual' as const, dir: path.join(backupRoot, 'manual') }
-  ];
-}
-
-function getBackupFiles(): BackupFile[] {
-  const backups: BackupFile[] = [];
-
-  for (const { type, dir } of getBackupDirectories()) {
-    if (!fs.existsSync(dir)) {
-      continue;
-    }
-
-    const files = fs
-      .readdirSync(dir)
-      .filter((file) => file.endsWith('.json'))
-      .map((file) => {
-        const filePath = path.join(dir, file);
-        return {
-          id: file.replace(/\.json$/, ''),
-          timestamp: fs.statSync(filePath).mtime.getTime(),
-          type,
-          path: filePath
-        };
-      });
-
-    backups.push(...files);
-  }
-
-  return backups.sort((left, right) => right.timestamp - left.timestamp);
-}
+import '../test-utils/load-env';
+import { sql } from '../db';
+import { getBackupsList, getLiveDatabaseCounts, inspectBackupFileAtPath } from '../db-monitoring';
 
 async function main() {
-  const backups = getBackupFiles();
+  const backups = getBackupsList();
 
   if (backups.length === 0) {
     console.log('[restore-check] No backup files found. Skipping restore validation.');
@@ -67,27 +11,54 @@ async function main() {
   }
 
   const latestBackup = backups[0];
-  const rawBackup = fs.readFileSync(latestBackup.path, 'utf8');
-  const parsedBackup = JSON.parse(rawBackup) as BackupPayload;
-
-  const summary = {
+  const inspection = inspectBackupFileAtPath(latestBackup.path, {
     backupId: latestBackup.id,
-    type: latestBackup.type,
-    path: latestBackup.path,
-    metadata: parsedBackup.metadata || null,
-    employees: Array.isArray(parsedBackup.employees) ? parsedBackup.employees.length : 0,
-    holidays: Array.isArray(parsedBackup.holidays) ? parsedBackup.holidays.length : 0,
-    salaryRecords: Array.isArray(parsedBackup.salaryRecords) ? parsedBackup.salaryRecords.length : 0,
-    temporaryAttendance: Array.isArray(parsedBackup.temporaryAttendance)
-      ? parsedBackup.temporaryAttendance.length
-      : 0
-  };
+    backupType: latestBackup.type
+  });
+  const liveCounts = await getLiveDatabaseCounts();
 
-  console.log('[restore-check] Latest backup parsed successfully.');
-  console.log(JSON.stringify(summary, null, 2));
+  if (inspection.errors.length > 0) {
+    console.error('[restore-check] Backup failed restore readiness validation.');
+    console.error(
+      JSON.stringify(
+        {
+          backupId: inspection.backupId,
+          path: inspection.path,
+          errors: inspection.errors,
+          warnings: inspection.warnings
+        },
+        null,
+        2
+      )
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log('[restore-check] Latest backup passed restore readiness checks.');
+  console.log(
+    JSON.stringify(
+      {
+        backupId: inspection.backupId,
+        type: inspection.backupType,
+        path: inspection.path,
+        metadata: inspection.metadata,
+        backupCounts: inspection.counts,
+        liveCounts,
+        restoreOrder: inspection.restoreOrder,
+        warnings: inspection.warnings
+      },
+      null,
+      2
+    )
+  );
 }
 
-main().catch((error) => {
-  console.error('[restore-check] Failed:', error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+main()
+  .catch((error) => {
+    console.error('[restore-check] Failed:', error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  })
+  .finally(async () => {
+    await sql.end({ timeout: 1 });
+  });

@@ -5,18 +5,20 @@ import {
   diffSpecialLeaveDates,
   normalizeDateToSlash,
 } from '@shared/utils/specialLeaveSync';
-import type { Employee } from '../storage';
+import type { Employee } from '@shared/schema';
 
-import { PermissionLevel } from '../admin-auth';
-import { requireAdmin, hasAdminAuthorization } from '../middleware/requireAdmin';
+import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
 import {
   getEmployeeDisplayId,
   getEmployeeScanId,
   maskEmployeeIdentityForLog
 } from '../utils/employeeIdentity';
+import { createLogger } from '../utils/logger';
 
 import { handleRouteError, parseNumericId } from './route-helpers';
+
+const log = createLogger('employees');
 
 const employeePatchSchema = insertEmployeeSchema
   .pick({
@@ -43,12 +45,12 @@ function applyCreateEmployeeEncryptionFlag(
   const maskedId = maskEmployeeIdentityForLog(validatedData.idNumber || '');
 
   if (validatedData.idNumber && useEncryption) {
-    console.log(`新增員工，ID加密已啟用 ${maskedId}`);
+    log.info(`新增員工，ID加密已啟用 ${maskedId}`);
     validatedData.isEncrypted = true;
     return;
   }
 
-  console.log(`新增員工，ID加密未啟用 ${maskedId}`);
+  log.info(`新增員工，ID加密未啟用 ${maskedId}`);
   validatedData.isEncrypted = false;
 }
 
@@ -60,13 +62,13 @@ function applyUpdateEmployeeEncryptionFlag(
   const maskedId = maskEmployeeIdentityForLog(validatedData.idNumber || '');
 
   if (validatedData.idNumber && useEncryption) {
-    console.log(`更新員工，ID加密已啟用 ${maskedId}`);
+    log.info(`更新員工，ID加密已啟用 ${maskedId}`);
     validatedData.isEncrypted = true;
     return;
   }
 
   if ('useEncryption' in requestBody) {
-    console.log(`更新員工，ID加密未啟用 ${maskedId}`);
+    log.info(`更新員工，ID加密未啟用 ${maskedId}`);
     validatedData.isEncrypted = false;
   }
 }
@@ -126,9 +128,9 @@ async function syncEmployeeSpecialLeaveDates(
       }
 
       allHolidays.push(holiday);
-      console.log(`[特別假同步] 為員工 ${employeeName} 新增特別休假: ${dateSlash}`);
+      log.info(`為員工 ${employeeName} 新增特別休假: ${dateSlash}`);
     } catch (err) {
-      console.error(`[特別假同步] 新增 ${date} 失敗:`, err);
+      log.error(`新增 ${date} 失敗:`, err);
     }
   }
 
@@ -145,10 +147,10 @@ async function syncEmployeeSpecialLeaveDates(
       for (const holiday of holidaysToRemove) {
         await storage.deleteTemporaryAttendanceByHolidayId(holiday.id);
         await storage.deleteHoliday(holiday.id);
-        console.log(`[特別假同步] 為員工 ${employeeName} 移除特別休假: ${holiday.date}`);
+        log.info(`為員工 ${employeeName} 移除特別休假: ${holiday.date}`);
       }
     } catch (err) {
-      console.error(`[特別假同步] 移除 ${date} 失敗:`, err);
+      log.error(`移除 ${date} 失敗:`, err);
     }
   }
 }
@@ -182,12 +184,6 @@ function toAdminEmployeeProfile(employee: Employee) {
   };
 }
 
-async function hasSensitiveEmployeeReadAccess(req: {
-  session?: Request['session'];
-}) {
-  return hasAdminAuthorization({ session: req.session }, PermissionLevel.ADMIN);
-}
-
 export function registerEmployeeRoutes(app: Express): void {
   app.get('/api/employees', async (_req, res) => {
     try {
@@ -207,7 +203,7 @@ export function registerEmployeeRoutes(app: Express): void {
     }
   });
 
-  app.get('/api/employees/:id', async (req, res) => {
+  app.get('/api/employees/:id', requireAdmin(), async (req, res) => {
     try {
       const id = parseNumericId(req.params.id);
       if (id === null) {
@@ -219,8 +215,7 @@ export function registerEmployeeRoutes(app: Express): void {
         return res.status(404).json({ message: '找不到員工' });
       }
 
-      const includeSensitiveFields = await hasSensitiveEmployeeReadAccess(req);
-      return res.json(includeSensitiveFields ? toAdminEmployeeProfile(employee) : toEmployeeOperationalProfile(employee));
+      return res.json(toAdminEmployeeProfile(employee));
     } catch (err) {
       return handleRouteError(err, res);
     }

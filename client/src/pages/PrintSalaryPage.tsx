@@ -7,7 +7,9 @@ import { Printer, ArrowLeft, Lock, Shield } from 'lucide-react';
 import { useHistoryData } from '@/hooks/useHistoryData';
 import { useAdmin } from '@/hooks/useAdmin';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
+import { debugLog } from '@/lib/debug';
 import { calculateOvertime, calculateDailyOvertimePay } from '@/lib/salaryCalculations';
+import { parseSalaryRecordId } from '@/lib/printSalary';
 
 export default function PrintSalaryPage() {
   const [, setLocation] = useLocation();
@@ -18,19 +20,12 @@ export default function PrintSalaryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
   
-  // 從URL獲取記錄ID - 改善錯誤處理
-  const getRecordIdFromUrl = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const idParam = urlParams.get('id');
-    return idParam ? parseInt(idParam, 10) : null;
-  };
-  
-  const recordId = getRecordIdFromUrl();
+  const recordId = parseSalaryRecordId(window.location.search);
   
   useEffect(() => {
     // 如果沒有有效的ID，靜默返回歷史頁面而不顯示錯誤訊息
     if (!recordId || isNaN(recordId)) {
-      console.log('No valid record ID found, redirecting to history page');
+      debugLog('No valid record ID found, redirecting to history page');
       setLocation('/history');
       return;
     }

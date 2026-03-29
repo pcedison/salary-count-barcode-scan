@@ -26,7 +26,8 @@ describe('validateEnv', () => {
     const validated = validateEnv();
 
     expect(validated.NODE_ENV).toBe('test');
-    expect(warnSpy).toHaveBeenCalledTimes(2);
+    // 3 warnings: SESSION_SECRET、ENCRYPTION_KEY、LINE 未設定
+    expect(warnSpy).toHaveBeenCalledTimes(3);
   });
 
   it('rejects AES write mode when ENCRYPTION_KEY is missing', () => {

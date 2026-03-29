@@ -59,7 +59,7 @@ export default function SettingsPage() {
   const [newHolidayDescription, setNewHolidayDescription] = useState<string>('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave'>('national_holiday');
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing' | 'migrating'>('testing');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing'>('testing');
   
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -470,10 +470,7 @@ export default function SettingsPage() {
     newHolidayDescription,
     selectedEmployeeId,
     holidayType,
-    supabaseUrl: '',
-    supabaseAnonKey: '',
     connectionStatus,
-    isSupabaseActive: false,
     isAdmin,
     onBaseHourlyRateChange: setBaseHourlyRate,
     onBaseMonthSalaryChange: setBaseMonthSalary,
@@ -491,13 +488,9 @@ export default function SettingsPage() {
     onHolidayTypeChange: setHolidayType,
     onAddHoliday: handleAddHoliday,
     onDeleteHoliday: handleDeleteHoliday,
-    onSupabaseUrlChange: () => undefined,
-    onSupabaseAnonKeyChange: () => undefined,
     onTestConnection: () => {
       void refreshDatabaseStatus(true);
     },
-    onMigrateData: () => undefined,
-    onToggleDatabase: () => undefined,
   };
 
   return (

@@ -20,6 +20,10 @@ export default defineConfig({
       'client/src/**/*.test.ts',
       'shared/**/*.test.ts',
       'server/**/*.test.ts'
+    ],
+    exclude: [
+      'node_modules',
+      'server/**/*.real-db.test.ts'
     ]
   }
 });

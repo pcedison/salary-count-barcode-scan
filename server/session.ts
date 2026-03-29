@@ -3,10 +3,16 @@ import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import { Pool } from 'pg';
 
+import {
+  createAdminSessionPolicy,
+  parseAdminSessionTimeoutMinutes
+} from '@shared/utils/adminSessionPolicy';
 import { PermissionLevel } from './admin-auth';
+import { createLogger } from './utils/logger';
+
+const log = createLogger('session');
 
 const DEFAULT_SESSION_SECRET = 'development-session-secret-do-not-use';
-const DEFAULT_SESSION_TIMEOUT_MINUTES = 60;
 
 export const ADMIN_SESSION_COOKIE_NAME = 'employee_salary_admin.sid';
 
@@ -20,6 +26,12 @@ export interface AdminSessionState {
 declare module 'express-session' {
   interface SessionData {
     adminAuth?: AdminSessionState;
+    // LINE OAuth 暫存資料（callback 後存入，ClockInPage 一次性取出即清除）
+    lineTemp?: {
+      lineUserId: string;
+      lineDisplayName: string;
+      linePictureUrl?: string;
+    };
   }
 }
 
@@ -33,20 +45,16 @@ function resolveSessionSecret(): string {
   }
 
   if (process.env.NODE_ENV !== 'test') {
-    console.warn('SESSION_SECRET 未設定，使用開發用暫時 session secret');
+    log.warn('SESSION_SECRET 未設定，使用開發用暫時 session secret');
   }
 
   return DEFAULT_SESSION_SECRET;
 }
 
-function getSessionTimeoutMs(): number {
-  const timeoutMinutes = Number.parseInt(process.env.SESSION_TIMEOUT || '', 10);
-  const safeMinutes =
-    Number.isFinite(timeoutMinutes) && timeoutMinutes > 0
-      ? timeoutMinutes
-      : DEFAULT_SESSION_TIMEOUT_MINUTES;
-
-  return safeMinutes * 60 * 1000;
+export function getAdminSessionPolicy() {
+  return createAdminSessionPolicy(
+    parseAdminSessionTimeoutMinutes(process.env.SESSION_TIMEOUT)
+  );
 }
 
 function getCookieSameSite(): 'lax' | 'strict' | 'none' {
@@ -102,6 +110,8 @@ function getBaseCookieOptions() {
 }
 
 export function setupAdminSession(app: Express): void {
+  const sessionPolicy = getAdminSessionPolicy();
+
   app.use(
     session({
       name: ADMIN_SESSION_COOKIE_NAME,
@@ -113,7 +123,7 @@ export function setupAdminSession(app: Express): void {
       store: createSessionStore(),
       cookie: {
         ...getBaseCookieOptions(),
-        maxAge: getSessionTimeoutMs()
+        maxAge: sessionPolicy.timeoutMs
       }
     })
   );

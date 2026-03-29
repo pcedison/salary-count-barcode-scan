@@ -16,10 +16,7 @@ interface SettingsFormProps {
   newHolidayDescription: string;
   selectedEmployeeId: number | null;
   holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave';
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  connectionStatus: 'connected' | 'disconnected' | 'testing' | 'migrating';
-  isSupabaseActive: boolean;
+  connectionStatus: 'connected' | 'disconnected' | 'testing';
   isAdmin?: boolean;
   section?: 'salary' | 'holiday' | 'system';
   
@@ -39,11 +36,7 @@ interface SettingsFormProps {
   onHolidayTypeChange: (value: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave') => void;
   onAddHoliday: () => void;
   onDeleteHoliday: (id: number) => void;
-  onSupabaseUrlChange: (value: string) => void;
-  onSupabaseAnonKeyChange: (value: string) => void;
   onTestConnection: () => void;
-  onMigrateData: () => void;
-  onToggleDatabase?: (enableSupabase: boolean) => void;
 }
 
 export default function SettingsForm({
@@ -59,10 +52,7 @@ export default function SettingsForm({
   newHolidayDescription,
   selectedEmployeeId,
   holidayType,
-  supabaseUrl,
-  supabaseAnonKey,
   connectionStatus,
-  isSupabaseActive = false,
   isAdmin = false,
   section,
   onBaseHourlyRateChange,
@@ -81,11 +71,7 @@ export default function SettingsForm({
   onHolidayTypeChange,
   onAddHoliday,
   onDeleteHoliday,
-  onSupabaseUrlChange,
-  onSupabaseAnonKeyChange,
-  onTestConnection,
-  onMigrateData,
-  onToggleDatabase
+  onTestConnection
 }: SettingsFormProps) {
   const handleNumericChange = (setter: (value: number) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseFloat(e.target.value);
@@ -483,16 +469,10 @@ export default function SettingsForm({
                       <span className="text-warning">檢查中...</span>
                     </>
                   )}
-                  {connectionStatus === 'migrating' && (
-                    <>
-                      <span className="material-icons text-warning text-sm mr-1 animate-spin">sync</span>
-                      <span className="text-warning">檢查中...</span>
-                    </>
-                  )}
                 </div>
                 <Button
                   onClick={onTestConnection}
-                  disabled={connectionStatus === 'testing' || connectionStatus === 'migrating'}
+                  disabled={connectionStatus === 'testing'}
                   className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md"
                 >
                   重新檢查

@@ -29,6 +29,11 @@ export const employees = pgTable("employees", {
   email: text("email"),
   phone: text("phone"),
   active: boolean("active").default(true), // 員工是否在職
+  // LINE 打卡綁定欄位
+  lineUserId: text("line_user_id"),
+  lineDisplayName: text("line_display_name"),
+  linePictureUrl: text("line_picture_url"),
+  lineBindingDate: timestamp("line_binding_date", { withTimezone: true }),
   // 特別假相關欄位
   specialLeaveDays: integer("special_leave_days").default(0), // 特別假未放天數
   specialLeaveWorkDateRange: text("special_leave_work_date_range"), // 工作日計算範圍 (例如: "2025/01/01-2026/01/01")
@@ -75,7 +80,7 @@ export const settings = pgTable("settings", {
   welfareAllowance: doublePrecision("welfare_allowance").notNull().default(0),
   deductions: json("deductions").$type<{ name: string; amount: number; description: string }[]>().default([]),
   allowances: json("allowances").$type<{ name: string; amount: number; description: string }[]>().default([]),
-  adminPin: text("admin_pin").notNull().default("123456"),
+  adminPin: text("admin_pin").notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -152,6 +157,39 @@ export const holidayTypeOptions = [
 
 export type InsertHoliday = z.infer<typeof insertHolidaySchema>;
 export type Holiday = typeof holidays.$inferSelect;
+
+export const pendingBindings = pgTable("pending_bindings", {
+  id: serial("id").primaryKey(),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  lineUserId: text("line_user_id").notNull(),
+  lineDisplayName: text("line_display_name"),
+  linePictureUrl: text("line_picture_url"),
+  status: text("status").notNull(),
+  requestedAt: timestamp("requested_at"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewedBy: text("reviewed_by"),
+  rejectReason: text("reject_reason"),
+});
+
+export const insertPendingBindingSchema = createInsertSchema(pendingBindings)
+  .omit({ id: true });
+
+export type InsertPendingBinding = z.infer<typeof insertPendingBindingSchema>;
+export type PendingBinding = typeof pendingBindings.$inferSelect;
+
+// LINE OAuth state table（CSRF 防護用，DB 儲存取代 in-memory）
+export const oauthStates = pgTable("oauth_states", {
+  id: serial("id").primaryKey(),
+  state: text("state").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+export const insertOAuthStateSchema = createInsertSchema(oauthStates)
+  .omit({ id: true, createdAt: true });
+
+export type InsertOAuthState = z.infer<typeof insertOAuthStateSchema>;
+export type OAuthState = typeof oauthStates.$inferSelect;
 
 // 特殊薪資計算規則
 export const calculationRules = pgTable("calculation_rules", {

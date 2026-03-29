@@ -15,6 +15,10 @@ import {
   DailyOvertimeRecord
 } from '../../shared/calculationModel';
 
+import { createLogger } from './logger';
+
+const log = createLogger('salary-calc');
+
 // 在伺服器端定義所有需要的類型，避免依賴導入問題
 /**
  * 加班時數結構
@@ -117,9 +121,9 @@ export async function loadSpecialRulesFromDB(db: any): Promise<void> {
     }
     
     specialRulesLoaded = true;
-    console.log(`從數據庫載入了 ${dbRules.length} 條特殊計算規則`);
+    log.info(`從數據庫載入了 ${dbRules.length} 條特殊計算規則`);
   } catch (err) {
-    console.error('載入特殊計算規則時出錯:', err);
+    log.error('載入特殊計算規則時出錯:', err);
     // 如果數據庫操作失敗，註冊硬編碼的規則以確保系統仍然可以運作
     registerDefaultRules();
   }
@@ -133,7 +137,7 @@ function registerDefaultRules(): void {
   const rule: SpecialCaseRule = {
     year: 2025,
     month: 4,
-    employeeId: 1, // 陳文山
+    employeeId: 2, // 陳文山 (DB中的實際ID)
     totalOT1Hours: 40,
     totalOT2Hours: 15,
     baseSalary: 28590,
@@ -149,7 +153,7 @@ function registerDefaultRules(): void {
   registerSpecialRule(rule);
   
   specialRulesLoaded = true;
-  console.log('已註冊默認特殊計算規則');
+  log.info('已註冊默認特殊計算規則');
 }
 
 /**
@@ -216,9 +220,9 @@ export async function saveSpecialRuleToDB(db: any, rule: SpecialCaseRule): Promi
     };
     registerSpecialRule(validRule);
     
-    console.log(`特殊計算規則 ${ruleKey} 已保存到數據庫`);
+    log.info(`特殊計算規則 ${ruleKey} 已保存到數據庫`);
   } catch (err) {
-    console.error('保存特殊計算規則時出錯:', err);
+    log.error('保存特殊計算規則時出錯:', err);
     throw err;
   }
 }
@@ -460,7 +464,7 @@ export function calculateSalary(
   holidayPay: number = 0,
   welfareAllowance?: number,
   housingAllowance: number = 0,
-  employeeId: number = 1 // 添加員工ID參數
+  employeeId: number = 0
 ): SalaryCalculationResult {
   // 使用共享計算模型
   return sharedCalculateSalary(
@@ -563,7 +567,7 @@ export function validateSalaryRecord(
     housingAllowance?: number;
   },
   settings?: CalculationSettings,
-  employeeId: number = 1 // 添加員工ID參數
+  employeeId: number = 0
 ): boolean {
   if (!settings) return false;
   
@@ -629,7 +633,7 @@ export function validateSalaryRecordByDaily(
   },
   dailyRecords: DailyOvertimeRecord[],
   settings?: CalculationSettings,
-  employeeId: number = 1,
+  employeeId: number = 0,
   holidayPay: number = 0,
   totalDeductions: number = 0
 ): boolean {

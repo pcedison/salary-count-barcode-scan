@@ -2,18 +2,30 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { setupAutomaticBackups, startMonitoring } from './db-monitoring';
+import {
+  setupAutomaticBackups,
+  startMonitoring,
+  stopAutomaticBackups,
+  stopMonitoring
+} from './db-monitoring';
 import { logOperation, OperationType } from './admin-auth';
+import { loadCalculationRulesFromDb } from './services/calculationRulesLoader';
 import { validateEnv } from './config/envValidator';
 import { setupSecurity, setupTrustProxy } from './middleware/security';
 import { setupAdminSession } from './session';
+import { buildApiRequestLog, getApiRequestLogLevel } from './utils/httpLogging';
+import { createLogger } from './utils/logger';
 
 validateEnv();
 
 const app = express();
+const requestLog = createLogger('http');
+const appLog = createLogger('server');
 setupTrustProxy(app);
 setupSecurity(app);
 setupAdminSession(app);
+// LINE webhook 需要 raw body 做 HMAC-SHA256 簽章驗證，必須在 express.json() 之前設定
+app.use('/api/line/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -31,16 +43,15 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      const logLine = buildApiRequestLog(
+        req.method,
+        path,
+        res.statusCode,
+        duration,
+        capturedJsonResponse
+      );
+      const level = getApiRequestLogLevel(res.statusCode);
+      requestLog[level](logLine);
     }
   });
 
@@ -54,8 +65,17 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    console.error(`Error: ${err.message || 'Unknown error'}`);
-    res.status(status).json({ message });
+    appLog.error('Unhandled request error', {
+      status,
+      method: _req.method,
+      path: _req.path,
+      message
+    });
+
+    // In production, do not expose internal error details to clients
+    const isProduction = process.env.NODE_ENV === 'production';
+    const clientMessage = isProduction && status >= 500 ? 'Internal Server Error' : message;
+    res.status(status).json({ message: clientMessage });
     // 不再重新拋出錯誤，避免造成未捕獲的異常
   });
 
@@ -68,22 +88,36 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = Number(process.env.PORT) || 5000;
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
-    
-    // 啟動數據庫監控
-    startMonitoring(60000); // 每分鐘檢查一次
-    
-    // 設置自動備份
-    setupAutomaticBackups();
+
+    void loadCalculationRulesFromDb();
+    const monitoringHandle = startMonitoring(60000); // 每分鐘檢查一次
+    const backupHandle = setupAutomaticBackups();
+
+    // LINE OAuth state 定時清理（每小時）
+    if (process.env.LINE_LOGIN_CHANNEL_ID) {
+      import('./storage').then(({ storage: store }) => {
+        const lineCleanupHandle = setInterval(async () => {
+          try {
+            await store.cleanupExpiredOAuthStates();
+          } catch (e) {
+            appLog.warn('LINE OAuth state cleanup 失敗:', e);
+          }
+        }, 60 * 60 * 1000);
+        server.once('close', () => clearInterval(lineCleanupHandle));
+      });
+    }
+
+    server.once('close', () => {
+      stopMonitoring(monitoringHandle);
+      stopAutomaticBackups(backupHandle);
+    });
     
     // 記錄系統啟動日誌
     logOperation(

@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 export const ADMIN_SESSION_INVALIDATED_EVENT = "admin-session-invalidated";
+const shouldLogQueryDebug = import.meta.env.DEV;
 
 // 最大重試次數
 const MAX_RETRIES = 3;
@@ -41,6 +42,12 @@ export function getAuthHeaders(): Record<string, string> {
   return {};
 }
 
+function debugLog(...args: unknown[]) {
+  if (shouldLogQueryDebug) {
+    console.log(...args);
+  }
+}
+
 /**
  * 具有自動重試功能的API請求
  */
@@ -57,7 +64,7 @@ export async function apiRequest(
   const authHeaders = getAuthHeaders();
   const customHeaders = options?.headers || {};
   
-  console.log(`API Request: ${method} ${fullUrl}`);
+  debugLog(`API Request: ${method} ${fullUrl}`);
   
   try {
     const res = await fetch(fullUrl, {
@@ -79,7 +86,7 @@ export async function apiRequest(
     // 檢查是否可以重試
     if (retryCount < MAX_RETRIES && !navigator.onLine) {
       const delayMs = RETRY_DELAY_BASE * Math.pow(2, retryCount);
-      console.log(`Retrying in ${delayMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+      debugLog(`Retrying in ${delayMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
       
       // 延遲後重試
       await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -104,7 +111,7 @@ export const getQueryFn: <T>(options: {
     const fullUrl = buildFullUrl(path);
     const authHeaders = getAuthHeaders();
     
-    console.log(`Query: GET ${fullUrl}`);
+    debugLog(`Query: GET ${fullUrl}`);
     
     let retryCount = 0;
     
@@ -132,7 +139,7 @@ export const getQueryFn: <T>(options: {
         
         // 計算延遲並等待
         const delayMs = RETRY_DELAY_BASE * Math.pow(2, retryCount);
-        console.log(`Retrying query in ${delayMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+        debugLog(`Retrying query in ${delayMs}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
         await new Promise(resolve => setTimeout(resolve, delayMs));
         
         // 增加重試計數

@@ -10,8 +10,10 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, BadgeAlert, Lock, Copy } from 'lucide-react';
+import { Plus, Pencil, Trash2, BadgeAlert, Lock, Copy, CheckCircle, XCircle, QrCode } from 'lucide-react';
+import { useLocation } from 'wouter';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
+import { debugLog } from '@/lib/debug';
 
 interface Employee {
   id: number;
@@ -100,11 +102,11 @@ export default function EmployeesPage() {
   // 更新員工
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number, data: EmployeeFormData }) => {
-      console.log('提交更新資料:', JSON.stringify(data));
+      debugLog('提交更新資料:', JSON.stringify(data));
       
       const response = await apiRequest('PUT', `/api/employees/${id}`, data);
       const result = await response.json();
-      console.log('更新結果:', JSON.stringify(result));
+      debugLog('更新結果:', JSON.stringify(result));
       return result;
     },
     onSuccess: () => {
@@ -537,11 +539,144 @@ export default function EmployeesPage() {
       </Dialog>
       
       {/* 管理員登入對話框 */}
-      <AdminLoginDialog 
+      <AdminLoginDialog
         isOpen={isAdminDialogOpen}
         onClose={() => setIsAdminDialogOpen(false)}
         onSuccess={handleAdminLoginSuccess}
       />
+
+      {/* LINE 綁定審核區塊 */}
+      {isAdmin && <LineBindingAdmin />}
     </div>
+  );
+}
+
+// ── LINE 綁定審核元件 ─────────────────────────────────────────────────────────
+
+interface PendingBinding {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  lineUserId: string;
+  lineDisplayName?: string;
+  linePictureUrl?: string;
+  status: string;
+  requestedAt?: string;
+}
+
+function LineBindingAdmin() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
+
+  const { data: bindings = [], isLoading } = useQuery<PendingBinding[]>({
+    queryKey: ['/api/line/pending-bindings'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/line/pending-bindings');
+      return res.json();
+    },
+    refetchInterval: 30000
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (id: number) => apiRequest('POST', `/api/line/pending-bindings/${id}/approve`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/line/pending-bindings'] });
+      toast({ title: '已核准 LINE 綁定' });
+    }
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: number) => apiRequest('POST', `/api/line/pending-bindings/${id}/reject`, { reason: '申請未通過審核' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/line/pending-bindings'] });
+      toast({ title: '已拒絕 LINE 綁定' });
+    }
+  });
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <span className="text-green-600">LINE</span> 綁定審核
+            {bindings.length > 0 && (
+              <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                {bindings.length}
+              </span>
+            )}
+          </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1 text-green-700 border-green-300 hover:bg-green-50"
+            onClick={() => setLocation('/qrcode')}
+          >
+            <QrCode className="h-4 w-4" />
+            打卡 QR Code
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="text-gray-400 text-sm text-center py-4">載入中...</p>
+        ) : bindings.length === 0 ? (
+          <p className="text-gray-400 text-sm text-center py-4">目前沒有待審核的 LINE 綁定申請</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>員工</TableHead>
+                <TableHead>LINE 帳號</TableHead>
+                <TableHead>申請時間</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {bindings.map(b => (
+                <TableRow key={b.id}>
+                  <TableCell className="font-medium">{b.employeeName}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {b.linePictureUrl && (
+                        <img src={b.linePictureUrl} alt="" className="w-7 h-7 rounded-full" />
+                      )}
+                      <span className="text-sm">{b.lineDisplayName ?? b.lineUserId}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-500">
+                    {b.requestedAt ? new Date(b.requestedAt).toLocaleDateString('zh-TW') : '-'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-green-700 border-green-300 hover:bg-green-50"
+                        onClick={() => approveMutation.mutate(b.id)}
+                        disabled={approveMutation.isPending}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        核准
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-red-600 border-red-300 hover:bg-red-50"
+                        onClick={() => rejectMutation.mutate(b.id)}
+                        disabled={rejectMutation.isPending}
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                        拒絕
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -91,37 +91,9 @@ export interface CalculationModel {
   description: string;
 }
 
-// 特殊規則存儲
-const specialRules: SpecialCaseRule[] = [
-  // 陳文山2025年3月特殊規則 - 使用正確的值
-  {
-    year: 2025,
-    month: 3,
-    employeeId: 1,
-    totalOT1Hours: 40,
-    totalOT2Hours: 21,
-    baseSalary: 28590,
-    welfareAllowance: 2500,
-    housingAllowance: 0,
-    totalOvertimePay: 10559, // 正確的加班費（從10551修正為10559）
-    grossSalary: 41649,   // 正確的總薪資（28590 + 10559 + 2500 = 41649）
-    netSalary: 36248     // 正確的淨薪資（41649 - 5401 = 36248）
-  },
-  // 陳文山2025年4月特殊規則 - 使用正確的9365值
-  {
-    year: 2025,
-    month: 4,
-    employeeId: 1,
-    totalOT1Hours: 40,
-    totalOT2Hours: 15,
-    baseSalary: 28590,
-    welfareAllowance: 2500,
-    housingAllowance: 0,
-    totalOvertimePay: 9365, // 更正為匯出表格中的9365 (而非9359)
-    grossSalary: 40455,   // 更正為28590 + 9365 + 2500 = 40455 (而非40449)
-    netSalary: 35054     // 更正為40455 - 5401 = 35054 (而非35048)
-  }
-];
+// 特殊規則存儲 — 初始為空；伺服器啟動時由 server/services/calculationRulesLoader.ts
+// 從 calculation_rules 資料表載入並透過 registerSpecialRule() 注入。
+const specialRules: SpecialCaseRule[] = [];
 
 /**
  * 單日加班記錄界面

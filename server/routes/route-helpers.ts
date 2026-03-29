@@ -2,8 +2,12 @@ import type { Response } from 'express';
 import { ZodError } from 'zod';
 import { fromZodError } from 'zod-validation-error';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('api');
+
 export function handleRouteError(err: unknown, res: Response) {
-  console.error('API Error:', err);
+  log.error('API Error:', err);
 
   if (err instanceof ZodError) {
     const validationError = fromZodError(err);

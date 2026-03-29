@@ -4,20 +4,23 @@ import { insertTemporaryAttendanceSchema } from '@shared/schema';
 
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
+import { createLogger } from '../utils/logger';
 
 import { filterAttendanceRecordsByDate, getTodayDateKey } from './attendance-helpers';
 import { handleRouteError, parseNumericId } from './route-helpers';
 
+const log = createLogger('attendance');
+
 export function registerAttendanceRoutes(app: Express): void {
-  app.get('/api/attendance', async (_req, res) => {
+  app.get('/api/attendance', requireAdmin(), async (_req, res) => {
     try {
-      console.log('[數據查詢] 獲取所有考勤記錄');
+      log.debug('獲取所有考勤記錄');
       const attendanceRecords = await storage.getTemporaryAttendance();
 
-      console.log(`[查詢考勤] 成功從儲存層獲取考勤記錄，數量: ${attendanceRecords.length}`);
+      log.debug(`成功從儲存層獲取考勤記錄，數量: ${attendanceRecords.length}`);
       return res.json(attendanceRecords);
     } catch (err) {
-      console.error('[查詢考勤] 獲取考勤記錄失敗:', err);
+      log.error('獲取考勤記錄失敗:', err);
       return handleRouteError(err, res);
     }
   });
@@ -27,19 +30,19 @@ export function registerAttendanceRoutes(app: Express): void {
       const startTime = Date.now();
       const todayDateKey = getTodayDateKey();
 
-      console.log('[查詢考勤] 獲取今日考勤記錄');
+      log.debug('獲取今日考勤記錄');
 
       const allAttendanceRecords = await storage.getTemporaryAttendance();
       const todayRecords = filterAttendanceRecordsByDate(allAttendanceRecords, todayDateKey);
 
       const endTime = Date.now();
-      console.log(
-        `[查詢考勤] 今日考勤API響應時間: ${endTime - startTime}ms，找到 ${todayRecords.length} 筆記錄`
+      log.debug(
+        `今日考勤API響應時間: ${endTime - startTime}ms，找到 ${todayRecords.length} 筆記錄`
       );
 
       return res.json(todayRecords);
     } catch (err) {
-      console.error('[查詢考勤] 獲取今日考勤記錄失敗:', err);
+      log.error('獲取今日考勤記錄失敗:', err);
       return handleRouteError(err, res);
     }
   });

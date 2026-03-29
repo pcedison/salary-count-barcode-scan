@@ -139,20 +139,6 @@ export function isEncrypted(text: string): boolean {
   // 先將文本轉換為大寫，確保可以處理小寫輸入
   const upperText = text.toUpperCase();
   
-  // 創建一個特殊的自訂 ID 列表，用於標記這些 ID 為「未加密」
-  // 這些可能是系統中已存在的特殊格式 ID
-  // 這裡是為了處理前端已經修改保存的特殊 ID 格式
-  const specialUnencryptedIds = [
-    'E01839502' // 陳文山的 ID
-  ];
-  
-  // 如果是特殊的未加密 ID，直接返回未加密
-  if (specialUnencryptedIds.includes(upperText)) {
-    if (DEBUG) console.log(`檢測到特殊未加密ID: ${upperText}`);
-    encryptStatusCache.set(text, false);
-    return false;
-  }
-  
   // 判斷是否符合台灣身份證/居留證的基本模式
   // 身份證格式：一個字母後跟9個數字
   const idPattern = /^[A-Z][0-9]{9}$/;
@@ -166,34 +152,16 @@ export function isEncrypted(text: string): boolean {
     // 第二碼（性別碼）應為1或2
     const secondChar = upperText.charAt(1);
     
-    // **特殊處理：已知的加密數據**
-    // 這些是我們系統中已知的加密後ID格式，直接視為加密數據
-    const knownEncryptedPatterns = [
-      // 張小文的加密ID
-      'K011133456',
-      // 陳文山的加密ID
-      'N90728491'
-    ];
-    
-    // 如果是已知的加密ID，直接返回true
-    if (knownEncryptedPatterns.includes(upperText)) {
-      if (DEBUG) console.log(`檢測到已知的加密ID: ${upperText}`);
-      encryptStatusCache.set(text, true);
-      return true;
-    }
-    
     // 判斷是否為標準台灣身分證 (第二碼為1或2)
-    const isStandardTwId = 
-      validFirstLetters.includes(firstChar) && 
+    const isStandardTwId =
+      validFirstLetters.includes(firstChar) &&
       (secondChar === '1' || secondChar === '2');
-    
-    // 外國人居留證號判斷邏輯修改 - 除了已知的加密ID外，其他才可能是居留證
-    // 外國人居留證號碼第二碼必須是數字，但不包括已知的加密數據
-    const isForeignIdFormat = 
-      !knownEncryptedPatterns.includes(upperText) &&
-      validFirstLetters.includes(firstChar) && 
-      !isNaN(parseInt(secondChar)) && 
-      parseInt(secondChar) >= 0 && 
+
+    // 外國人居留證號碼第二碼必須是數字
+    const isForeignIdFormat =
+      validFirstLetters.includes(firstChar) &&
+      !isNaN(parseInt(secondChar)) &&
+      parseInt(secondChar) >= 0 &&
       parseInt(secondChar) <= 9;
     
     // 如果符合標準台灣身分證或外國人居留證格式，則視為未加密

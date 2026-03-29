@@ -6,11 +6,13 @@ import { Request, Response } from 'express';
 import { PermissionLevel, logOperation, OperationType, getOperationLogs, getAvailableLogDates } from './admin-auth';
 import {
   checkDatabaseConnection, createDatabaseBackup, BackupType,
-  getBackupsList, restoreFromBackup, deleteBackup, getConnectionHistory, syncDatabases
+  getBackupsList, restoreFromBackup, deleteBackup, getConnectionHistory
 } from './db-monitoring';
-import { synchronizeDatabases, checkDataConsistency } from './data-sync';
 import { Express } from 'express';
 import { requireAdmin } from './middleware/requireAdmin';
+import { createLogger } from './utils/logger';
+
+const log = createLogger('dashboard');
 
 export function registerDashboardRoutes(app: Express) {
   const requireSuperAdmin = requireAdmin(PermissionLevel.SUPER);
@@ -25,7 +27,7 @@ export function registerDashboardRoutes(app: Express) {
         data: history
       });
     } catch (error) {
-      console.error('獲取連接歷史失敗：', error);
+      log.error('獲取連接歷史失敗：', error);
       res.status(500).json({
         success: false,
         message: `獲取連接歷史失敗：${error instanceof Error ? error.message : '未知錯誤'}`
@@ -78,7 +80,7 @@ export function registerDashboardRoutes(app: Express) {
         backupType: type
       });
     } catch (error) {
-      console.error('創建備份失敗：', error);
+      log.error('創建備份失敗：', error);
       
       // 記錄操作日誌
       logOperation(
@@ -130,7 +132,7 @@ export function registerDashboardRoutes(app: Express) {
         backupType: typeParam || 'all'
       });
     } catch (error) {
-      console.error('獲取備份列表失敗：', error);
+      log.error('獲取備份列表失敗：', error);
       res.status(500).json({
         success: false,
         message: `獲取備份列表失敗：${error instanceof Error ? error.message : '未知錯誤'}`
@@ -178,7 +180,9 @@ export function registerDashboardRoutes(app: Express) {
       );
       
       // 嘗試從指定類型的備份中恢復
-      const result = await restoreFromBackup(backupId, backupType);
+      const result = await restoreFromBackup(backupId, backupType, {
+        skipPreRestoreBackup: true
+      });
       
       // 記錄操作日誌
       logOperation(
@@ -197,7 +201,7 @@ export function registerDashboardRoutes(app: Express) {
         }
       });
     } catch (error) {
-      console.error('從備份恢復失敗：', error);
+      log.error('從備份恢復失敗：', error);
       
       // 記錄操作日誌
       logOperation(
@@ -240,7 +244,7 @@ export function registerDashboardRoutes(app: Express) {
         data: logs
       });
     } catch (error) {
-      console.error('獲取操作日誌失敗：', error);
+      log.error('獲取操作日誌失敗：', error);
       res.status(500).json({
         success: false,
         message: `獲取操作日誌失敗：${error instanceof Error ? error.message : '未知錯誤'}`
@@ -258,7 +262,7 @@ export function registerDashboardRoutes(app: Express) {
         data: dates
       });
     } catch (error) {
-      console.error('獲取日誌日期列表失敗：', error);
+      log.error('獲取日誌日期列表失敗：', error);
       res.status(500).json({
         success: false,
         message: `獲取日誌日期列表失敗：${error instanceof Error ? error.message : '未知錯誤'}`
@@ -266,93 +270,22 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
   
-  // 同步數據庫
-  app.post('/api/dashboard/sync', requireSuperAdmin, async (req: Request, res: Response) => {
-    try {
-      // 從請求體獲取源數據庫類型
-      const { source = 'postgres' } = req.body;
-      
-      // 創建同步前備份
-      const backupId = await createDatabaseBackup(
-        BackupType.MANUAL, 
-        `同步數據庫前自動備份 ${source} -> ${source === 'postgres' ? 'supabase' : 'postgres'}`
-      );
-      
-      // 執行同步
-      const result = await synchronizeDatabases(source);
-      
-      // 記錄操作日誌
-      logOperation(
-        OperationType.SYSTEM_CONFIG,
-        `同步數據庫 ${source} -> ${source === 'postgres' ? 'supabase' : 'postgres'}`,
-        { 
-          success: result.success,
-          errorMessage: result.errors.join(', ')
-        }
-      );
-      
-      res.json({
-        success: result.success,
-        message: result.success ? "數據庫同步成功" : "數據庫同步部分失敗",
-        tables: result.tables,
-        errors: result.errors,
-        backupId
-      });
-    } catch (error) {
-      console.error('同步數據庫失敗：', error);
-      
-      // 記錄操作日誌
-      logOperation(
-        OperationType.SYSTEM_CONFIG,
-        `嘗試同步數據庫失敗`,
-        { 
-          success: false,
-          errorMessage: error instanceof Error ? error.message : '未知錯誤'
-        }
-      );
-      
-      res.status(500).json({
-        success: false,
-        message: `同步數據庫失敗：${error instanceof Error ? error.message : '未知錯誤'}`
-      });
-    }
+  // 同步數據庫（已停用 — 系統為 PostgreSQL-only）
+  app.post('/api/dashboard/sync', requireSuperAdmin, async (_req: Request, res: Response) => {
+    return res.status(409).json({
+      success: false,
+      message: '系統已收斂為 PostgreSQL-only，資料庫同步已停用',
+      disabled: true
+    });
   });
-  
-  // 檢查數據一致性
+
+  // 檢查數據一致性（已停用 — 系統為 PostgreSQL-only）
   app.get('/api/dashboard/consistency', requireSuperAdmin, async (_req: Request, res: Response) => {
-    try {
-      const result = await checkDataConsistency();
-      
-      // 記錄操作日誌
-      logOperation(
-        OperationType.SYSTEM_CONFIG,
-        `檢查數據一致性`,
-        { success: true }
-      );
-      
-      res.json({
-        success: true,
-        consistent: result.consistent,
-        differences: result.differences
-      });
-    } catch (error) {
-      console.error('檢查數據一致性失敗：', error);
-      
-      // 記錄操作日誌
-      logOperation(
-        OperationType.SYSTEM_CONFIG,
-        `嘗試檢查數據一致性失敗`,
-        { 
-          success: false,
-          errorMessage: error instanceof Error ? error.message : '未知錯誤'
-        }
-      );
-      
-      res.status(500).json({
-        success: false,
-        message: `檢查數據一致性失敗：${error instanceof Error ? error.message : '未知錯誤'}`
-      });
-    }
+    return res.status(409).json({
+      success: false,
+      message: '系統已收斂為 PostgreSQL-only，一致性檢查已停用',
+      disabled: true
+    });
   });
   
   // 刪除備份
@@ -403,7 +336,7 @@ export function registerDashboardRoutes(app: Express) {
         message: `已成功刪除備份 ${backupId}`
       });
     } catch (error) {
-      console.error('刪除備份失敗：', error);
+      log.error('刪除備份失敗：', error);
       
       // 記錄操作日誌
       logOperation(
@@ -432,7 +365,7 @@ export function registerDashboardRoutes(app: Express) {
         status
       });
     } catch (error) {
-      console.error('檢查數據庫連接失敗：', error);
+      log.error('檢查數據庫連接失敗：', error);
       res.status(500).json({
         success: false,
         message: `檢查數據庫連接失敗：${error instanceof Error ? error.message : '未知錯誤'}`

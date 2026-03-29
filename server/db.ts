@@ -8,6 +8,10 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Use standard PostgreSQL driver for Supabase connection
-export const sql = postgres(process.env.DATABASE_URL!);
+// Supabase/hosted PostgreSQL uses an intermediate CA not in Node.js default trust store.
+// SSL is still enforced (connection is encrypted); certificate chain verification is skipped
+// because the hosted provider's CA bundle is not bundled with Node.js.
+export const sql = postgres(process.env.DATABASE_URL!, {
+  ssl: { rejectUnauthorized: false },
+});
 export const db = drizzle(sql, { schema });

@@ -1,6 +1,7 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { caesarEncrypt } from '@shared/utils/caesarCipher';
+import { encrypt as encryptAes } from '@shared/utils/encryption';
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
 import { TEST_ADMIN_HEADER, setupTestAdminSession } from '../test-utils/admin-test-session';
 
@@ -117,6 +118,11 @@ beforeAll(async () => {
   ({ registerEmployeeRoutes } = await import('./employees.routes'));
 });
 
+afterEach(() => {
+  delete process.env.ENCRYPTION_KEY;
+  delete process.env.USE_AES_ENCRYPTION;
+});
+
 beforeEach(() => {
   employeeState.employee = {
     id: 5,
@@ -220,7 +226,66 @@ describe('employee routes integration', () => {
     }
   });
 
-  it('returns redacted single-employee data publicly but includes scan-safe identifiers for admin sessions', async () => {
+  it('returns display ids and scan ids for AES-encrypted employees in admin flows', async () => {
+    process.env.ENCRYPTION_KEY = '12345678901234567890123456789012';
+    employeeState.employee = {
+      ...employeeState.employee,
+      idNumber: encryptAes('A123456789'),
+      isEncrypted: true
+    };
+
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
+
+    try {
+      const adminList = await jsonRequest<Array<Record<string, unknown>>>(
+        server.baseUrl,
+        '/api/employees/admin',
+        {
+          headers: {
+            [TEST_ADMIN_HEADER]: 'true'
+          }
+        }
+      );
+
+      expect(adminList.response.status).toBe(200);
+      expect(adminList.body).toEqual([
+        expect.objectContaining({
+          id: 5,
+          idNumber: 'A123456789',
+          scanIdNumber: caesarEncrypt('A123456789'),
+          isEncrypted: true
+        })
+      ]);
+
+      const single = await jsonRequest<Record<string, unknown>>(
+        server.baseUrl,
+        '/api/employees/5',
+        {
+          headers: {
+            [TEST_ADMIN_HEADER]: 'true'
+          }
+        }
+      );
+
+      expect(single.response.status).toBe(200);
+      expect(single.body).toEqual(
+        expect.objectContaining({
+          id: 5,
+          idNumber: 'A123456789',
+          scanIdNumber: caesarEncrypt('A123456789'),
+          isEncrypted: true
+        })
+      );
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects unauthenticated single-employee reads and returns full profile for admin sessions', async () => {
     employeeState.employee = {
       ...employeeState.employee,
       idNumber: caesarEncrypt('A123456789'),
@@ -239,16 +304,7 @@ describe('employee routes integration', () => {
         '/api/employees/5'
       );
 
-      expect(publicResult.response.status).toBe(200);
-      expect(publicResult.body).toEqual(
-        expect.objectContaining({
-          id: 5,
-          idNumber: '',
-          email: '',
-          phone: '',
-          isEncrypted: false
-        })
-      );
+      expect(publicResult.response.status).toBe(401);
 
       const adminResult = await jsonRequest<Record<string, unknown>>(
         server.baseUrl,

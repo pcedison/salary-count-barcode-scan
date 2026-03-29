@@ -2,6 +2,10 @@ import cors from 'cors';
 import type { Express } from 'express';
 import helmet from 'helmet';
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('security');
+
 function getAllowedOrigins(): string[] {
   return process.env.ALLOWED_ORIGINS?.split(',')
     .map(origin => origin.trim())
@@ -10,6 +14,14 @@ function getAllowedOrigins(): string[] {
 
 export function setupSecurity(app: Express): void {
   const allowedOrigins = getAllowedOrigins();
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  if (isProduction && allowedOrigins.length === 0) {
+    log.warn(
+      'ALLOWED_ORIGINS is not set in production — cross-origin requests will be blocked. ' +
+      'Set ALLOWED_ORIGINS to a comma-separated list of allowed origins.'
+    );
+  }
 
   app.use(
     helmet({
@@ -21,12 +33,20 @@ export function setupSecurity(app: Express): void {
   app.use(
     cors({
       origin: (origin, callback) => {
+        // Same-origin / server-to-server requests don't send an Origin header
         if (!origin) {
           callback(null, true);
           return;
         }
 
-        if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        // In development with no allowlist configured, allow all origins
+        if (!isProduction && allowedOrigins.length === 0) {
+          callback(null, true);
+          return;
+        }
+
+        // Check against explicit allowlist
+        if (allowedOrigins.includes(origin)) {
           callback(null, true);
           return;
         }
@@ -38,7 +58,8 @@ export function setupSecurity(app: Express): void {
       allowedHeaders: [
         'Content-Type',
         'Authorization',
-        'X-Requested-With'
+        'X-Requested-With',
+        'X-Force-Update'
       ]
     })
   );

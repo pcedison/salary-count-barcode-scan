@@ -4,7 +4,10 @@ import { insertSalaryRecordSchema, type InsertSalaryRecord, type Settings } from
 
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
+import { createLogger } from '../utils/logger';
 import type { OvertimeHours } from '../utils/salaryCalculator';
+
+const log = createLogger('salary');
 
 import {
   deriveHolidayPayBase,
@@ -44,12 +47,12 @@ function logHolidayAdjustmentSummary(
     return;
   }
 
-  console.log(
-    `員工 ${employeeId || 'unknown'} ${salaryYear}年${salaryMonth}月 請假扣款: ` +
-      `病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元) ` +
-      `事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元) ` +
-      `颱風假${holidayAdjustments.typhoonLeaveDays}天(${holidayAdjustments.typhoonLeaveDeduction}元) ` +
-      `假日出勤加給${holidayAdjustments.workedHolidayDays}天(${holidayAdjustments.workedHolidayPay}元)`
+  log.info(
+    `員工 ${employeeId || 'unknown'} ${salaryYear}年${salaryMonth}月 請假扣款:`,
+    `病假${holidayAdjustments.sickLeaveDays}天(${holidayAdjustments.sickLeaveDeduction}元)`,
+    `事假${holidayAdjustments.personalLeaveDays}天(${holidayAdjustments.personalLeaveDeduction}元)`,
+    `颱風假${holidayAdjustments.typhoonLeaveDays}天(${holidayAdjustments.typhoonLeaveDeduction}元)`,
+    `假日出勤加給${holidayAdjustments.workedHolidayDays}天(${holidayAdjustments.workedHolidayPay}元)`
   );
 }
 
@@ -133,7 +136,7 @@ async function buildCalculatedSalaryRecord(
     totalHolidayPay,
     draft.welfareAllowance ?? undefined,
     draft.housingAllowance || 0,
-    draft.employeeId || 1
+    draft.employeeId || 0
   );
 
   logHolidayAdjustmentSummary(draft.employeeId, draft.salaryYear, draft.salaryMonth, holidayAdjustments);

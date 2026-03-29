@@ -38,20 +38,7 @@ vi.mock('./db-monitoring', () => ({
   getBackupsList: vi.fn(() => []),
   restoreFromBackup: vi.fn(async () => ({ success: true })),
   deleteBackup: vi.fn(async () => true),
-  getConnectionHistory: vi.fn(() => []),
-  syncDatabases: vi.fn(async () => ({ success: true }))
-}));
-
-vi.mock('./data-sync', () => ({
-  synchronizeDatabases: vi.fn(async () => ({
-    success: true,
-    tables: [],
-    errors: []
-  })),
-  checkDataConsistency: vi.fn(async () => ({
-    consistent: true,
-    differences: []
-  }))
+  getConnectionHistory: vi.fn(() => [])
 }));
 
 vi.mock('./middleware/requireAdmin', () => ({

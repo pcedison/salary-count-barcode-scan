@@ -236,7 +236,7 @@ export function calculateSalary(
   holidayPay: number = 0,
   welfareAllowance?: number,
   housingAllowance: number = 0,
-  employeeId: number = 1 // 默認員工ID
+  employeeId: number = 0
 ): SalaryCalculationResult {
   // 委託給共享計算模型
   return sharedCalculateSalary(
@@ -273,7 +273,7 @@ export function validateSalaryRecord(
   },
   totalDeductions: number,
   settings?: CalculationSettings,
-  employeeId: number = 1 // 默認員工ID
+  employeeId: number = 0
 ): boolean {
   // 委託給共享的驗證函數
   return sharedValidateSalaryRecord(

@@ -1,6 +1,6 @@
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 
-import type { Employee, TemporaryAttendance } from '../storage';
+import type { Employee, TemporaryAttendance } from '@shared/schema';
 import {
   getEmployeeDisplayId,
   matchesEmployeeIdentity,

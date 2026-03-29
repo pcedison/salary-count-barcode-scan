@@ -1,6 +1,7 @@
+import crypto from 'crypto';
 import type { Express } from 'express';
 
-import { insertSettingsSchema } from '@shared/schema';
+import { insertSettingsSchema, type InsertSettings } from '@shared/schema';
 
 import { PermissionLevel } from '../admin-auth';
 import { db } from '../db';
@@ -8,15 +9,18 @@ import { strictLimiter } from '../middleware/rateLimiter';
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
 import { hashAdminPin, isHashedPin } from '../utils/adminPinAuth';
+import { createLogger } from '../utils/logger';
 
 import { handleRouteError } from './route-helpers';
+
+const log = createLogger('settings');
 
 function sanitizeSettingsResponse(settings: Record<string, any>) {
   const { adminPin, ...settingsToReturn } = settings;
   return settingsToReturn;
 }
 
-function normalizeAdminPinForStorage(settings: Record<string, any>) {
+function normalizeAdminPinForStorage<T extends InsertSettings>(settings: T): T {
   if (!settings.adminPin || isHashedPin(settings.adminPin)) {
     return settings;
   }
@@ -33,13 +37,15 @@ export function registerSettingsRoutes(app: Express): void {
       let settings = await storage.getSettings();
 
       if (!settings) {
+        const defaultPin = process.env.DEFAULT_ADMIN_PIN || crypto.randomBytes(3).toString('hex');
+        log.warn(`系統初始化：使用${process.env.DEFAULT_ADMIN_PIN ? '環境變數' : '隨機生成'}的管理員 PIN。請登入後立即更改。`);
         settings = await storage.createOrUpdateSettings(normalizeAdminPinForStorage({
           baseHourlyRate: 119,
           ot1Multiplier: 1.34,
           ot2Multiplier: 1.67,
           baseMonthSalary: 28590,
           welfareAllowance: 0,
-          adminPin: '123456',
+          adminPin: defaultPin,
           deductions: [
             { name: '勞保費', amount: 525, description: '勞工保險費用' },
             { name: '健保費', amount: 372, description: '全民健康保險費用' }
@@ -73,7 +79,7 @@ export function registerSettingsRoutes(app: Express): void {
         await db.execute('SELECT 1');
         postgresConnection = true;
       } catch (error) {
-        console.error('PostgreSQL 連接測試失敗:', error);
+        log.error('PostgreSQL 連接測試失敗:', error);
       }
 
       return res.json({
@@ -132,7 +138,7 @@ export function registerSettingsRoutes(app: Express): void {
         await db.execute('SELECT 1');
         isConnected = true;
       } catch (error) {
-        console.error('PostgreSQL 連接測試失敗:', error);
+        log.error('PostgreSQL 連接測試失敗:', error);
       }
 
       return res.json({

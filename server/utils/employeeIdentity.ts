@@ -1,6 +1,10 @@
 import { caesarDecrypt, caesarEncrypt, isEncrypted as isCaesarEncrypted } from '@shared/utils/caesarCipher';
 import { decrypt as decryptAes, encrypt as encryptAes, isAESEncrypted } from '@shared/utils/encryption';
 
+import { createLogger } from './logger';
+
+const log = createLogger('identity');
+
 type EmployeeIdentityLike = {
   idNumber: string;
   isEncrypted?: boolean | null;
@@ -57,7 +61,7 @@ function maybeDecryptInputIdentity(rawIdNumber: string): string {
       return normalizeEmployeeIdentity(caesarDecrypt(normalizedId));
     }
   } catch (error) {
-    console.error('掃碼身分證號碼解密失敗:', error);
+    log.error('掃碼身分證號碼解密失敗:', error);
   }
 
   return normalizedId;
@@ -79,7 +83,7 @@ function decryptProtectedIdentity(idNumber: string, isEncryptedHint = false): st
       return normalizeEmployeeIdentity(caesarDecrypt(normalizedId));
     }
   } catch (error) {
-    console.error('身分證號碼解密失敗:', error);
+    log.error('身分證號碼解密失敗:', error);
   }
 
   return normalizedId;

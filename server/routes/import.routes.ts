@@ -3,6 +3,7 @@ import type { Express } from 'express';
 import { strictLimiter } from '../middleware/rateLimiter';
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
+import { createLogger } from '../utils/logger';
 
 import {
   parseAttendanceImportCsv,
@@ -10,6 +11,8 @@ import {
   toImportedHistoryAttendanceData
 } from './import-helpers';
 import { handleRouteError } from './route-helpers';
+
+const log = createLogger('import');
 
 export function registerImportRoutes(app: Express): void {
   app.post('/api/admin/import/attendance', strictLimiter, requireAdmin(), async (req, res) => {
@@ -30,7 +33,7 @@ export function registerImportRoutes(app: Express): void {
         ...result
       });
     } catch (err) {
-      console.error('匯入考勤記錄時出錯:', err);
+      log.error('匯入考勤記錄時出錯:', err);
       return handleRouteError(err, res);
     }
   });
@@ -69,7 +72,7 @@ export function registerImportRoutes(app: Express): void {
         record: createdRecord
       });
     } catch (err) {
-      console.error('匯入薪資記錄時出錯:', err);
+      log.error('匯入薪資記錄時出錯:', err);
       return handleRouteError(err, res);
     }
   });

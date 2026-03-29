@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -26,37 +26,28 @@ interface Settings {
   allowances: Allowance[];
 }
 
+const defaultSettings: Settings = {
+  baseHourlyRate: constants.BASE_HOURLY_RATE,
+  ot1Multiplier: constants.OT1_MULTIPLIER,
+  ot2Multiplier: constants.OT2_MULTIPLIER,
+  baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_HOURS * constants.STANDARD_WORK_DAYS,
+  welfareAllowance: constants.DEFAULT_WELFARE_ALLOWANCE,
+  deductions: [],
+  allowances: []
+};
+
 export function useSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
-  // Local settings state
-  const [localSettings, setLocalSettings] = useState<Settings>({
-    baseHourlyRate: constants.BASE_HOURLY_RATE,
-    ot1Multiplier: constants.OT1_MULTIPLIER,
-    ot2Multiplier: constants.OT2_MULTIPLIER,
-    baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_HOURS * constants.STANDARD_WORK_DAYS,
-    welfareAllowance: constants.DEFAULT_WELFARE_ALLOWANCE,
-    deductions: [],
-    allowances: []
-  });
-  
+
   // Fetch settings from API
-  const { 
-    data: settings, 
+  const {
+    data: settings,
     isLoading,
-    error,
-    refetch
+    error
   } = useQuery<Settings>({
     queryKey: ['/api/settings']
   });
-  
-  // Update local settings when data changes
-  useEffect(() => {
-    if (settings) {
-      setLocalSettings(settings);
-    }
-  }, [settings]);
   
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -136,7 +127,7 @@ export function useSettings() {
     }
   });
   
-  // Initialize settings if there was an error in fetching
+  // Show toast on settings fetch error
   useEffect(() => {
     if (error) {
       console.error("Error fetching settings:", error);
@@ -144,17 +135,6 @@ export function useSettings() {
         title: "設定載入失敗",
         description: "無法取得系統設定，使用預設值。",
         variant: "destructive"
-      });
-      
-      // Use default settings from constants
-      setLocalSettings({
-        baseHourlyRate: constants.BASE_HOURLY_RATE,
-        ot1Multiplier: constants.OT1_MULTIPLIER,
-        ot2Multiplier: constants.OT2_MULTIPLIER,
-        baseMonthSalary: constants.BASE_HOURLY_RATE * constants.STANDARD_WORK_HOURS * constants.STANDARD_WORK_DAYS,
-        welfareAllowance: constants.DEFAULT_WELFARE_ALLOWANCE,
-        deductions: [],
-        allowances: []
       });
     }
   }, [error, toast]);
@@ -196,7 +176,7 @@ export function useSettings() {
   };
   
   return {
-    settings: settings || localSettings,
+    settings: settings ?? defaultSettings,
     isLoading,
     updateSettings,
     holidays,

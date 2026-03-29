@@ -5,6 +5,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
 import { useEmployees } from '@/hooks/useEmployees';
 import { constants } from '@/lib/constants';
+import { debugLog } from '@/lib/debug';
 import { 
   calculateOvertime, 
   getDeductionAmount, 
@@ -119,7 +120,7 @@ export function useAttendanceData() {
   }, [attendanceData, isLoading, error]);
   
   // 從useEmployees中獲取員工資料，用於關聯考勤記錄
-  const { employees, activeEmployees } = useEmployees();
+  const { employees } = useEmployees();
   
   // 取得員工特別假資訊（過濾指定月份的使用日期）
   const getSpecialLeaveInfoForMonth = (employeeId: number, year: number, month: number) => {
@@ -163,7 +164,7 @@ export function useAttendanceData() {
   // 注意：假日記錄現在直接存儲在 temporary_attendance 表中，不再需要虛擬記錄
   const enhancedAttendanceData = useMemo(() => {
     const attData = Array.isArray(attendanceData) ? attendanceData : [];
-    console.log('處理考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attData.length);
+    debugLog('處理考勤數據，員工數:', employees?.length || 0, '考勤記錄數:', attData.length);
     
     // 假日類型標籤對照表
     const holidayTypeLabels: Record<string, string> = {
@@ -435,11 +436,13 @@ export function useAttendanceData() {
       }
       
       // 獲取員工資訊以添加到結果中
-      const employeeInfo = sortedData.length > 0 && sortedData[0].employeeId ? 
-        {
-          employeeId: sortedData[0].employeeId,
-          employeeName: sortedData[0]._employeeName || '未知員工'
-        } : { employeeId: 1, employeeName: '預設員工' }; // 確保始終有員工ID
+      const firstWithEmployee = sortedData.find(r => r.employeeId);
+      const employeeInfo = firstWithEmployee
+        ? {
+            employeeId: firstWithEmployee.employeeId!,
+            employeeName: firstWithEmployee._employeeName || '未知員工'
+          }
+        : { employeeId: 0, employeeName: '未知員工' };
       
       // 使用員工ID
       const employeeId = employeeInfo.employeeId as number;
@@ -507,11 +510,11 @@ export function useAttendanceData() {
       });
       
       // 將計算詳情輸出到控制台，方便調試
-      console.log('每日加班費計算詳情:', dailyOvertimeDetails);
-      console.log('加班費總計:', totalOvertimePay);
+      debugLog('每日加班費計算詳情:', dailyOvertimeDetails);
+      debugLog('加班費總計:', totalOvertimePay);
       
       // 調試：輸出假日記錄的詳細資訊
-      console.log('假日記錄詳情:', holidayDays.map(day => ({
+      debugLog('假日記錄詳情:', holidayDays.map(day => ({
         date: day.date,
         clockIn: day.clockIn,
         clockOut: day.clockOut,
@@ -525,7 +528,7 @@ export function useAttendanceData() {
         !h.employeeId || h.employeeId === employeeId
       ) : [];
       
-      console.log('員工假日設定:', employeeHolidays.map((h: any) => ({ date: h.date, name: h.name })));
+      debugLog('員工假日設定:', employeeHolidays.map((h: any) => ({ date: h.date, name: h.name })));
       
       // 2. 判斷每一筆考勤記錄是否為假日加班
       const actualHolidayWork = sortedData.filter(day => {
@@ -567,8 +570,8 @@ export function useAttendanceData() {
         return !hasAttendanceRecord; // 沒有打卡記錄的假日視為有薪特休
       });
       
-      console.log('有薪特休:', paidLeave.length, '天');
-      console.log('假日加班:', actualHolidayWork.length, '天', actualHolidayWork.map(d => d.date));
+      debugLog('有薪特休:', paidLeave.length, '天');
+      debugLog('假日加班:', actualHolidayWork.length, '天', actualHolidayWork.map(d => d.date));
       
       // 假日加班費只計算真正有工作的假日
       const holidayDailySalary = Math.ceil(baseMonthSalary / 30); // Daily rate based on monthly salary (使用無條件進位)
@@ -620,7 +623,7 @@ export function useAttendanceData() {
         }
       });
       
-      console.log('請假扣款:', leaveDeductions);
+      debugLog('請假扣款:', leaveDeductions);
       
       // 合併系統扣款和請假扣款
       const allDeductions = [...deductions, ...leaveDeductions];
@@ -714,10 +717,10 @@ export function useAttendanceData() {
           );
           if (specialLeaveInfo) {
             singleRecord.specialLeaveInfo = specialLeaveInfo;
-            console.log(`員工特別假資訊: ${specialLeaveInfo.usedDays}天使用, ${specialLeaveInfo.cashDays}天折抵`);
+            debugLog(`員工特別假資訊: ${specialLeaveInfo.usedDays}天使用, ${specialLeaveInfo.cashDays}天折抵`);
           }
           
-          console.log(`保存單一員工薪資記錄: ${singleRecord.employeeName} (ID: ${singleRecord.employeeId})`);
+          debugLog(`保存單一員工薪資記錄: ${singleRecord.employeeName} (ID: ${singleRecord.employeeId})`);
         
           // 保存薪資記錄
           await createSalaryRecordMutation.mutateAsync(singleRecord);
@@ -725,7 +728,7 @@ export function useAttendanceData() {
           // 只刪除處理過的員工的考勤記錄，保留其他員工的記錄
           if (singleRecord.employeeId) {
             await deleteFilteredAttendanceMutation.mutateAsync({ employeeId: singleRecord.employeeId });
-            console.log(`已刪除員工 ${singleRecord.employeeName} (ID: ${singleRecord.employeeId}) 的考勤記錄`);
+            debugLog(`已刪除員工 ${singleRecord.employeeName} (ID: ${singleRecord.employeeId}) 的考勤記錄`);
           }
         } else {
           await createSalaryRecordMutation.mutateAsync(singleRecord);
@@ -758,7 +761,7 @@ export function useAttendanceData() {
           return false;
         }
         
-        console.log(`處理 ${employeeIds.length} 位員工的薪資結算...`);
+        debugLog(`處理 ${employeeIds.length} 位員工的薪資結算...`);
         
         // 依次計算每位員工的薪資並保存
         for (const employeeId of employeeIds) {
@@ -783,10 +786,10 @@ export function useAttendanceData() {
             );
             if (specialLeaveInfo) {
               recordToSave.specialLeaveInfo = specialLeaveInfo;
-              console.log(`員工特別假資訊: ${specialLeaveInfo.usedDays}天使用, ${specialLeaveInfo.cashDays}天折抵`);
+              debugLog(`員工特別假資訊: ${specialLeaveInfo.usedDays}天使用, ${specialLeaveInfo.cashDays}天折抵`);
             }
             
-            console.log(`保存員工薪資記錄: ${recordToSave.employeeName} (ID: ${recordToSave.employeeId})`);
+            debugLog(`保存員工薪資記錄: ${recordToSave.employeeName} (ID: ${recordToSave.employeeId})`);
             
             // 保存薪資記錄
             await createSalaryRecordMutation.mutateAsync(recordToSave);
@@ -795,14 +798,14 @@ export function useAttendanceData() {
         
         // 全部員工模式下，清除所有處理過的考勤記錄
         await deleteFilteredAttendanceMutation.mutateAsync({});
-        console.log('所有臨時考勤記錄已清除');
+        debugLog('所有臨時考勤記錄已清除');
       }
       
       // 清空假日設定（但不影響歷史記錄中的假日）
       try {
         const response = await apiRequest('DELETE', '/api/holidays');
         if (response.ok) {
-          console.log('假日設定已清空，以便下次考勤週期使用');
+          debugLog('假日設定已清空，以便下次考勤週期使用');
           // 刷新假日查詢
           queryClient.invalidateQueries({ queryKey: ['/api/holidays'] });
         }

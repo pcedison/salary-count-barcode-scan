@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Loader2 } from 'lucide-react';
+import { debugLog } from '@/lib/debug';
 import { apiRequest, getQueryFn } from '@/lib/queryClient';
 import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
@@ -76,7 +77,7 @@ function createProcessingScanResult(): ScanResult {
       }
     }
     
-    console.log('已清除所有可能包含考勤記錄的本地儲存項目');
+    debugLog('已清除所有可能包含考勤記錄的本地儲存項目');
   } catch (e) {
     console.error('清理本地儲存時出錯:', e);
   }
@@ -129,7 +130,7 @@ function useTodayIncompleteRecords() {
       });
   }, [attendanceRecords, employees, todayDate]);
   
-  console.log(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${todayDate}`);
+  debugLog(`找到 ${incompleteRecords.length} 筆今日未完成打卡記錄，日期: ${todayDate}`);
   return incompleteRecords;
 }
 
@@ -175,7 +176,7 @@ function useTodayAttendanceRecords() {
       });
   }, [attendanceRecords, employees, todayDate]);
   
-  console.log(`找到 ${todayRecords.length} 筆今日打卡記錄，日期: ${todayDate}`);
+  debugLog(`找到 ${todayRecords.length} 筆今日打卡記錄，日期: ${todayDate}`);
   return todayRecords;
 }
 
@@ -252,7 +253,7 @@ export default function BarcodeScanPage() {
   useEffect(() => {
     // 訂閱 eventBus 上的掃描成功事件
     const handleBarcodeSuccess = (data: any) => {
-      console.log('打卡成功事件:', data);
+      debugLog('打卡成功事件:', data);
       
       // 如果有設置待處理狀態，清除它
       if (isPending) {
@@ -277,7 +278,7 @@ export default function BarcodeScanPage() {
     
     // 訂閱打卡開始事件
     const handleBarcodePending = (data: { employeeName: string }) => {
-      console.log('打卡處理中:', data);
+      debugLog('打卡處理中:', data);
       setIsPending(true);
       setPendingEmployee(data.employeeName || '');
     };
@@ -316,7 +317,7 @@ export default function BarcodeScanPage() {
       
       // 設置新的計時器，自動清除掃描狀態
       statusClearTimerRef.current = setTimeout(() => {
-        console.log('自動清除打卡狀態提示');
+        debugLog('自動清除打卡狀態提示');
         setLastScan(null);
       }, STATUS_AUTO_CLEAR_DELAY);
     }
@@ -353,7 +354,7 @@ export default function BarcodeScanPage() {
       if (response.ok) {
         // 直接使用 API 返回的結果，無需額外請求
         const scanResult = await response.json();
-        console.log('掃描結果:', scanResult);
+        debugLog('掃描結果:', scanResult);
         
         // 【效能優化】移除異步等待邏輯，後端已改為同步處理
         // inProgress 狀態已廢棄，直接處理成功結果
@@ -378,7 +379,7 @@ export default function BarcodeScanPage() {
           }
           
           // 輸出調試信息
-          console.log(`伺服器返回的打卡信息:`, {
+          debugLog(`伺服器返回的打卡信息:`, {
             employeeName: scanResult.employeeName,
             isClockIn: scanResult.isClockIn,
             action: scanResult.action,
@@ -387,11 +388,11 @@ export default function BarcodeScanPage() {
           });
           
           // 確認最終使用的值
-          console.log(`使用的打卡方向: ${isClockIn ? '上班' : '下班'}, actionType: ${actionType}`);
+          debugLog(`使用的打卡方向: ${isClockIn ? '上班' : '下班'}, actionType: ${actionType}`);
           
           // 使用伺服器原始訊息或自行構建訊息
           const statusMessage = scanResult.message || `${scanResult.employeeName} ${actionText}打卡成功`;
-          console.log(`最終顯示訊息: ${statusMessage}`);
+          debugLog(`最終顯示訊息: ${statusMessage}`);
           
           // 使用服務器提供的時間，或者（如果有的話）使用實際打卡時間
           const clockTime = scanResult.clockTime || 
@@ -399,7 +400,7 @@ export default function BarcodeScanPage() {
                            scanResult.attendance.clockIn : scanResult.attendance.clockOut) || 
                          new Date().toLocaleTimeString().slice(0, 5);
           
-          console.log(`顯示的打卡時間: ${clockTime}, 來源: ${scanResult.clockTime ? '服務器指定' : '考勤記錄'}`);
+          debugLog(`顯示的打卡時間: ${clockTime}, 來源: ${scanResult.clockTime ? '服務器指定' : '考勤記錄'}`);
           
           // 更新狀態顯示，確保所有顯示與實際打卡類型和時間一致
           setLastScan({
@@ -444,7 +445,7 @@ export default function BarcodeScanPage() {
         } else if (scanResult && scanResult.message) {
           // 服務器返回了訊息但尚未包含員工資料
           // 可能是正在處理中或暫時狀態
-          console.log('服務器返回訊息但無完整資料:', scanResult.message);
+          debugLog('服務器返回訊息但無完整資料:', scanResult.message);
           // 創建一個完整的處理中結果對象
           setLastScan({
             timestamp: scanResult.timestamp || new Date().toISOString(),

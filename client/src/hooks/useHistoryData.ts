@@ -4,6 +4,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { debugLog } from '@/lib/debug';
 import { 
   calculateSalary, 
   validateSalaryRecord,
@@ -53,8 +54,7 @@ interface SalaryRecord {
 function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: any): SalaryRecord {
   if (!record || !settings) return record;
   
-  // 確保有員工ID，如果沒有則使用預設值
-  const employeeId = record.employeeId || 1;
+  const employeeId = record.employeeId || 0;
   
   // 創建計算設置物件（與後端格式一致）
   const calculationSettings = {
@@ -107,7 +107,7 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
   );
   
   // 輸出日誌以供檢查 - 包含員工ID資訊
-  console.log(`修正員工ID:${employeeId} ${record.employeeName || ''} ${record.salaryYear}年${record.salaryMonth}月薪資數據:`, salaryResult);
+  debugLog(`修正員工ID:${employeeId} ${record.employeeName || ''} ${record.salaryYear}年${record.salaryMonth}月薪資數據:`, salaryResult);
   
   // 返回修正後的記錄
   return {
@@ -185,7 +185,7 @@ export function useHistoryData() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/salary-records'] });
-      console.log("薪資紀錄更新成功");
+      debugLog("薪資紀錄更新成功");
     },
     onError: (error) => {
       console.error('Error updating salary record:', error);
@@ -231,7 +231,7 @@ export function useHistoryData() {
         }, 
         record.totalDeductions,
         settings,
-        record.employeeId || 1
+        record.employeeId || 0
       );
       
       // 如果記錄已經是有效的，則跳過
@@ -251,7 +251,7 @@ export function useHistoryData() {
         record.totalHolidayPay,
         record.welfareAllowance,
         record.housingAllowance,
-        record.employeeId || 1 // 提供員工ID以支持特殊規則
+        record.employeeId || 0 // 提供員工ID以支持特殊規則
       );
       
       // 創建更新數據對象
@@ -263,12 +263,12 @@ export function useHistoryData() {
         netSalary: salaryResult.netSalary
       };
       
-      console.log(`需要更新${record.salaryYear}年${record.salaryMonth}月薪資記錄到數據庫:`, updatedValues);
+      debugLog(`需要更新${record.salaryYear}年${record.salaryMonth}月薪資記錄到數據庫:`, updatedValues);
       
       try {
-        console.log(`正在更新數據庫中${record.salaryYear}年${record.salaryMonth}月的薪資記錄...`);
+        debugLog(`正在更新數據庫中${record.salaryYear}年${record.salaryMonth}月的薪資記錄...`);
         await updateSalaryRecord(record.id, updatedValues);
-        console.log(`成功更新${record.salaryYear}年${record.salaryMonth}月的薪資記錄`);
+        debugLog(`成功更新${record.salaryYear}年${record.salaryMonth}月的薪資記錄`);
         
         // 計數已修正的月份
         fixedCount++;
@@ -291,7 +291,7 @@ export function useHistoryData() {
     // 不再顯示完成通知，避免干擾用戶界面
     // 注釋掉通知代碼，僅保留記錄功能
     if (fixedCount > 0) {
-      console.log(`薪資數據標準化完成：已修正 ${fixedCount} 筆薪資記錄`);
+      debugLog(`薪資數據標準化完成：已修正 ${fixedCount} 筆薪資記錄`);
       /*
       toast({
         title: "薪資數據標準化完成",
@@ -331,7 +331,7 @@ export function useHistoryData() {
       const record = await response.json() as SalaryRecord;
       
       // 直接返回原始資料庫記錄，避免計算錯誤
-      console.log('獲取薪資記錄ID:', id, '實發金額:', record.netSalary);
+      debugLog('獲取薪資記錄ID:', id, '實發金額:', record.netSalary);
       return record;
     } catch (error) {
       console.error('Error fetching salary record:', error);
@@ -373,7 +373,7 @@ export function useHistoryData() {
       };
       
       // 調試記錄實發金額
-      console.log('CSV 下載 - 檢查實發金額:', {
+      debugLog('CSV 下載 - 檢查實發金額:', {
         netSalary: record.netSalary,
         safeNetSalary: safeNumber(record.netSalary),
         grossSalary: record.grossSalary,

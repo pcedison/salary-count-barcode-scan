@@ -6,6 +6,9 @@
 
 這份 backlog 的定位不是功能願望清單，而是正式施工與驗收依據。
 
+最新施工順序與波次安排請同步參考：
+`docs/PRODUCTION_EXECUTION_QUEUE.md`
+
 ## 2. 當前基線
 
 - 主體版本：`V3`
@@ -23,35 +26,58 @@
   - `cp5d-session-only-admin-auth`
   - `cp5e-identity-read-compat`
   - `cp5f-storage-write-compat`
-- 當前驗證基線：`npm run verify:ops` 綠燈
+  - `cp5g-ops-probes`
+  - `cp5h-identity-log-redaction`
+- 2026-03-15 已驗證：
+  - `npm test`
+  - `npm run test:smoke`
+  - `npm run test:real-db`
+  - `npm run check`
+  - `npm run build`
+  - `npm run verify:ops`
+  - `npm run restore:rehearse`
+  - `npm run aes:inspect`
+  - `ENCRYPTION_KEY=*** npm run aes:report`
+  - `ENCRYPTION_KEY=*** npm run aes:snapshot`
+  - `ENCRYPTION_KEY=*** npm run aes:rehearse`
+  - `ENCRYPTION_KEY=*** npm run aes:status`
+  - `ENCRYPTION_KEY=*** npm run aes:ready`
+- 目前 production-ready 完成度估算：`97%`
 
 ## 3. 當前主要缺口
 
 ### 3.1 安全缺口
 
-- 管理員授權已切到 session/cookie，下一步要持續補齊 session timeout、cookie policy 與 restore drill 文件
-- AES 上線前仍需完成 storage read/write compatibility 與 migration guard，避免前端再次承擔敏感資料解密責任
+- Admin PIN 已改為 PBKDF2 hash，但參數強度與 rotation / reset 流程仍未到最終 production baseline
+- AES 上線前仍需完成正式 migration report、rollback drill 與 release gate
 
 ### 3.2 架構缺口
 
-- `server/routes.ts` 已收斂為 route registration，但 `server/storage.ts` 仍有 `@ts-nocheck`
+- `server/routes.ts` 已收斂為 route registration，主要 runtime 路徑已不再依賴 `@ts-nocheck`
 - 掃碼、儲存層與前端載入策略仍有進一步瘦身與型別化空間
-- PostgreSQL-only 與 Supabase 切換殘留邏輯並存
-- 監控與備份啟動流程存在重複啟動風險
+- PostgreSQL-only 主線已成立，前端主路徑的假 Supabase / dashboard 語意也已清掉；剩餘主要是文件、logger 與歷史殘留瘦身
+- `server/db-monitoring.ts` 已補 singleton scheduler、transaction-safe restore core、`pending_bindings` restore path 與 non-destructive restore rehearsal
 
 ### 3.3 資料與加密缺口
 
-- 身分證資料仍以 Caesar cipher 為主
-- 尚未導入 AES 相容層與正式遷移機制
-- 管理員員工頁已收斂為 server-side 提供 display ID / scan ID，但 AES 寫入切換前仍需完成 storage read-compat
-- 尚未完成資料 restore drill
+- 身分證資料已具備 `plaintext + Caesar + AES` 相容讀寫基礎，但正式遷移 checkpoint `cp6/cp7` 尚未落地
+- `scripts/migrate-to-aes.mjs`、`scripts/inspect-employees.mjs` 已收斂到共用 audit helper，且已補齊 `aes:snapshot` / `aes:rehearse`
+- `scripts/aes-migration-status.mjs` 與 `scripts/lib/aes-migration-readiness.mjs` 已提供 live analysis + artifact verification 的 readiness gate
+- 2026-03-15 最新 dry-run / rehearsal 顯示 live DB 目前為 `2 plaintext / 0 caesar / 0 aes / 0 empty / 0 flag mismatch / 2 migration candidates / 0 skipped`
+- backup / restore 現在已把 `pending_bindings` 一起納入，避免 `pending_bindings.employee_id -> employees.id` FK 在 restore 時卡死
+- 備份內的 timestamp 欄位現在會在 restore 前轉成 restore-ready 型別，不再讓 JSON 字串直接打爆 Drizzle timestamp insert
+- 管理員員工頁已收斂為 server-side 提供 display ID / scan ID
+- `restore:check` 已升級為 backup/live counts + restore order + readiness validation，且 `restore:rehearse` 已可實際跑完整 restore path 後回滾
+- `aes:report` / `aes:snapshot` / `aes:rehearse` / `aes:status` / `aes:ready` / `aes:migrate` 仍要求執行環境提供 `ENCRYPTION_KEY`
+- operator hardening 後，`aes:ready` 另外要求 `USE_AES_ENCRYPTION=true`；正式 execute 則還必須顯式提供 `ENCRYPTION_SALT`、remote approval 與 operator identity
+- 目前本機 `.env` 指向遠端 Supabase PostgreSQL，且仍缺少 `ENCRYPTION_KEY` / `ENCRYPTION_SALT`，因此 `cp7` 仍卡在 operator window
 
 ### 3.4 品質與維運缺口
 
-- 已有 route integration / smoke 基線，但管理員登入/PIN 更新、restore 與列印流程仍缺少更完整的端對端保護
-- 已有標準 `/api/health`、`/ready`、`/live`，下一步是把 restore drill 與部署 runbook 補齊到正式 release gate
-- README 與實際架構不一致
-- 專案存在歷史殘留檔、JS/TS 雙軌與暫存檔
+- route integration / smoke / real-db 基線已涵蓋 AES storage / admin / scan，列印頁 query parsing、歷史薪資編修、PIN 更新拒絕流程也已有回歸保護
+- 已有標準 `/api/health`、`/ready`、`/live`，restore drill 與 AES migration runbook 也已固定化；下一步主軸是 repo slimming 與 release 文檔收尾
+- README / 安裝 / 設定 / database / troubleshooting / support / maintenance 文件已與主線對齊
+- 主路徑 client debug log 已收斂為 dev-only；剩餘主要是 operator 類資料切換工作與少量策略對齊
 
 ## 4. Production Release Gate
 
@@ -264,7 +290,7 @@
 
 ### TASK-P0-DATA-01 導入 AES 相容讀寫層
 
-- 狀態：`In Progress`
+- 狀態：`Done`
 - Size：L
 - 依賴：`TASK-P0-ARCH-03`
 - 目標：實作 `plaintext + Caesar + AES` 相容，舊資料先不強制遷移
@@ -281,7 +307,7 @@
 
 ### TASK-P0-DATA-02 執行 AES 遷移與 restore drill
 
-- 狀態：`Backlog`
+- 狀態：`In Progress`
 - Size：L
 - 依賴：`TASK-P0-DATA-01`
 - 目標：完成 dry-run、正式遷移、restore 驗證
@@ -290,6 +316,16 @@
   - 有遷移前資料快照
   - 有 restore 演練記錄
   - 身分證比對與條碼打卡正常
+- 已完成：
+  - `aes:report`
+  - `aes:snapshot`
+  - `aes:rehearse`
+  - `restore:rehearse`
+  - `aes:status`
+  - `aes:ready`
+  - 正式 migration checklist / operator runbook
+- 尚未完成：
+  - 正式 AES execute / rollback 作業收尾
 - Checkpoint：`cp7-aes-migrated`
 - 回滾：restore `cp6` 前備份後，切回 `cp6-aes-compatible`
 
@@ -331,37 +367,49 @@
 
 ### TASK-P1-CODE-01 移除主要 runtime `@ts-nocheck`
 
-- 狀態：`Backlog`
+- 狀態：`Done`
 - Size：XL
 - 依賴：`TASK-P0-ARCH-03`
-- 目標：至少清掉：
-  - `server/storage.ts`
-  - `server/supabase-storage.ts` 或其替代路徑
+- 目標：至少清掉主要 runtime 路徑中的 `@ts-nocheck`
 - 驗收：
   - 型別錯誤被顯性化並修復
   - 後續 refactor 不依賴關閉型別檢查
 
 ### TASK-P1-CODE-02 瘦身與死碼清理
 
-- 狀態：`Ready`
+- 狀態：`Done (core) (2026-03-15)`
 - Size：M
 - 依賴：`TASK-P0-PLAT-01`
 - 目標：移除誤導性、重複性或暫存性檔案
 - 候選清單：
-  - `client/src/hooks/useEmployees.js`
-  - `client/src/pages/BarcodeScanPage.tsx.tmp`
-  - 已淘汰的 Supabase 切換假流程
+  - `client/src/components/ui/dashboard.tsx`
+  - `client/src/components/ErrorBoundary.jsx`
+  - 殘留的 Supabase / 雙庫假流程與假文案
   - 不再使用的 mock / temp helper
+- 已完成：
+  - `client/src/components/ui/dashboard.tsx` 已刪除
+  - `client/src/components/SalaryDataFixButton.tsx` 已刪除
+  - `client/src/components/ErrorBoundary.jsx` 已刪除
+  - `client/src/lib/queryClient.ts` 的 request / retry debug log 已限縮到 dev
+  - `client/src/utils/dataCache.ts` 已刪除
+  - `client/src/types/employee.ts` 已建立，移除舊 cache 模組的型別耦合
+  - `client/src/utils/employeeCache.ts` 已改成型別化 cache entry
+  - `client/src/lib/debug.ts` 已建立，主要頁面與 hooks 的高頻 debug log 已改成 dev-only
 - 驗收：
   - repo 結構更單純
   - 不影響既有功能
 
 ### TASK-P1-OBS-01 日誌收斂與結構化
 
-- 狀態：`Backlog`
+- 狀態：`Done (2026-03-15)`
 - Size：M
 - 依賴：`TASK-P0-ARCH-03`
 - 目標：將大量 `console.log` 收斂到可控 logger
+- 已完成：
+  - `server/index.ts` 的 API request log 已改成依 status code 決定 `debug / warn / error`
+  - 2xx request 不再把整個 response body 打到 production log
+  - `server/utils/httpLogging.ts` 已固定化 response summary 規則
+  - `server/utils/logger.ts` 已補 Error serialization 與 production warn routing
 - 驗收：
   - production 預設不輸出敏感資料
   - 噪音大幅下降
@@ -379,26 +427,33 @@
 
 ### TASK-P1-FE-01 前端 bundle 與載入策略優化
 
-- 狀態：`Backlog`
+- 狀態：`In Progress`
 - Size：M
 - 依賴：`TASK-P1-CODE-02`
 - 目標：去除不合理的打包警告與冗餘載入
-- 內容：
-  - 修正 `SettingsPage` 對 `supabase` 模組的靜態/動態雙重引用
-  - 做必要 code-splitting
-  - 降低主 bundle 警告
+- 已完成：
+  - 修正 `App.tsx` 路由與 tab state 不一致問題
+  - `client/src/lib/appNavigation.ts` 已收斂主頁 tab/path 對應，避免 route 與 tab state 再次分叉
+  - 下掉殘留的假 dashboard / Supabase 狀態載入
+- 尚未完成：
+  - 持續做必要 code-splitting 與 bundle trimming
 - 驗收：
   - build 不再出現主要 chunk 過大警告
   - 首頁載入沒有明顯退化
 
 ### TASK-P1-FE-02 統一前端資料抓取模式
 
-- 狀態：`Backlog`
+- 狀態：`In Progress`
 - Size：M
 - 依賴：`TASK-P0-ARCH-03`
 - 目標：逐步把手工 `fetch + cache + interval` 收斂到 React Query
 - 優先模組：
   - `useEmployees`
+  - `useSettings`
+  - `useAttendanceData`
+- 已完成：
+  - `useEmployees` 已從手工 `fetch + cache + interval` 收斂到 React Query
+- 尚未完成：
   - `useSettings`
   - `useAttendanceData`
 - 驗收：
@@ -407,7 +462,7 @@
 
 ### TASK-P1-DOC-01 文件與 runbook 重寫
 
-- 狀態：`Ready`
+- 狀態：`Done (2026-03-15)`
 - Size：M
 - 依賴：`TASK-P0-OPS-01`
 - 目標：讓 README、部署、回滾、restore、維護文件與實際架構一致
@@ -418,7 +473,7 @@
 
 ### TASK-P1-REL-01 建立 release checklist
 
-- 狀態：`Backlog`
+- 狀態：`Done (2026-03-15)`
 - Size：S
 - 依賴：
   - `TASK-P0-OPS-01`
@@ -612,11 +667,11 @@
   - server 已導入 `express-session` + secure cookie 管理員會話
   - `verify-admin` 現在會建立 session，並新增 `/api/admin/session`、`/api/admin/logout`
   - `requireAdmin` 已切為 session-only 驗證，runtime 不再接受 `x-admin-pin`
-  - `useAdmin` 已改為透過 session 狀態恢復、server logout、admin-only cache 清理
-  - `admin.routes.integration.test.ts` 已覆蓋 cookie session 的登入、恢復、登出與 PIN 更新
+  - `useAdmin` 已改為透過 session 狀態恢復、server logout、admin-only cache 清理，且前端閒置自動登出與 heartbeat 會對齊 `SESSION_TIMEOUT`
+  - `admin.routes.integration.test.ts` 已覆蓋 cookie session 的登入、恢復、登出、PIN 更新與 session policy 輸出
   - `employees.routes.integration.test.ts` 已補上 admin 單筆/列表敏感資料讀取的 session-only 回歸
+  - `client/src/lib/adminSession.test.ts` 與 `shared/utils/adminSessionPolicy.test.ts` 已補 timeout policy / heartbeat regression
   - `settings` 路由已停止回傳 `adminPin`，並於預設/更新時先雜湊後儲存
 - 下一個優先施工：
-  - `TASK-P0-DATA-01`
-  - `TASK-P0-DATA-02`
-  - `TASK-P1-CODE-01`
+  - `TASK-P1-CODE-02`
+  - `正式 AES execute / operator close-out`

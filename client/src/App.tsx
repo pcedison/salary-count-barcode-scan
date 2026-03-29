@@ -1,22 +1,40 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
-import { useState } from "react";
+import { lazy, Suspense, type ComponentType, type LazyExoticComponent, type ReactNode } from "react";
 import { AdminProvider } from "@/hooks/useAdmin";
+import { MAIN_NAV_ITEMS, getMainTabForPath, getPathForMainTab, type MainTab } from "@/lib/appNavigation";
 
-// Import pages
-import AttendancePage from "@/pages/AttendancePage";
-import HistoryPage from "@/pages/HistoryPage";
-import SettingsPage from "@/pages/SettingsPage";
-import PrintSalaryPage from "@/pages/PrintSalaryPage";
-import BarcodeScanPage from "@/pages/BarcodeScanPage";
-import EmployeesPage from "@/pages/EmployeesPage";
-import NotFound from "@/pages/not-found";
+// Lazy-loaded page components for route-level code-splitting
+const AttendancePage = lazy(() => import("@/pages/AttendancePage"));
+const HistoryPage = lazy(() => import("@/pages/HistoryPage"));
+const SettingsPage = lazy(() => import("@/pages/SettingsPage"));
+const PrintSalaryPage = lazy(() => import("@/pages/PrintSalaryPage"));
+const BarcodeScanPage = lazy(() => import("@/pages/BarcodeScanPage"));
+const EmployeesPage = lazy(() => import("@/pages/EmployeesPage"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const ClockInPage = lazy(() => import("@/pages/ClockInPage"));
+const QRCodePage = lazy(() => import("@/pages/QRCodePage"));
 
-function MainLayout({ children }: { children: React.ReactNode }) {
-  const [activeTab, setActiveTab] = useState<'attendance' | 'history' | 'settings' | 'barcode' | 'employees'>('attendance');
-  
+const MAIN_TAB_COMPONENTS: Record<MainTab, LazyExoticComponent<ComponentType>> = {
+  attendance: AttendancePage,
+  barcode: BarcodeScanPage,
+  employees: EmployeesPage,
+  history: HistoryPage,
+  settings: SettingsPage
+};
+
+function MainLayout({
+  activeTab,
+  children
+}: {
+  activeTab: MainTab;
+  children: ReactNode;
+}) {
+  const [location, setLocation] = useLocation();
+  const resolvedActiveTab = getMainTabForPath(location) ?? activeTab;
+
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
       <div className="max-w-7xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
@@ -28,46 +46,32 @@ function MainLayout({ children }: { children: React.ReactNode }) {
           
           {/* Tab Navigation */}
           <div className="px-6 flex border-b border-gray-200 overflow-x-auto">
-            <button 
-              className={`px-6 py-3 whitespace-nowrap ${activeTab === 'attendance' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setActiveTab('attendance')}
-            >
-              考勤登記
-            </button>
-            <button 
-              className={`px-6 py-3 whitespace-nowrap ${activeTab === 'barcode' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setActiveTab('barcode')}
-            >
-              條碼掃描打卡
-            </button>
-            <button 
-              className={`px-6 py-3 whitespace-nowrap ${activeTab === 'employees' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setActiveTab('employees')}
-            >
-              員工管理
-            </button>
-            <button 
-              className={`px-6 py-3 whitespace-nowrap ${activeTab === 'history' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setActiveTab('history')}
-            >
-              歷史紀錄
-            </button>
-            <button 
-              className={`px-6 py-3 whitespace-nowrap ${activeTab === 'settings' ? 'border-b-2 border-primary text-primary font-medium' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setActiveTab('settings')}
-            >
-              系統設定
-            </button>
+            {MAIN_NAV_ITEMS.map((item) => (
+              <button
+                key={item.tab}
+                type="button"
+                className={`px-6 py-3 whitespace-nowrap ${
+                  resolvedActiveTab === item.tab
+                    ? 'border-b-2 border-primary text-primary font-medium'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+                onClick={() => {
+                  if (resolvedActiveTab !== item.tab) {
+                    setLocation(getPathForMainTab(item.tab));
+                  }
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Content Area */}
         <div className="p-6">
-          {activeTab === 'attendance' && <AttendancePage />}
-          {activeTab === 'barcode' && <BarcodeScanPage />}
-          {activeTab === 'employees' && <EmployeesPage />}
-          {activeTab === 'history' && <HistoryPage />}
-          {activeTab === 'settings' && <SettingsPage />}
+          <Suspense fallback={<div className="flex justify-center py-12 text-gray-400">載入中…</div>}>
+            {children}
+          </Suspense>
         </div>
         
         {/* Footer */}
@@ -79,17 +83,33 @@ function MainLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function MainRoute({ tab }: { tab: MainTab }) {
+  const Page = MAIN_TAB_COMPONENTS[tab];
+
+  return (
+    <MainLayout activeTab={tab}>
+      <Page />
+    </MainLayout>
+  );
+}
+
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={() => <MainLayout><AttendancePage /></MainLayout>} />
-      <Route path="/barcode" component={() => <MainLayout><BarcodeScanPage /></MainLayout>} />
-      <Route path="/employees" component={() => <MainLayout><EmployeesPage /></MainLayout>} />
-      <Route path="/history" component={() => <MainLayout><HistoryPage /></MainLayout>} />
-      <Route path="/settings" component={() => <MainLayout><SettingsPage /></MainLayout>} />
-      <Route path="/print-salary" component={PrintSalaryPage} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen text-gray-400">載入中…</div>}>
+      <Switch>
+        {MAIN_NAV_ITEMS.map((item) => (
+          <Route
+            key={item.path}
+            path={item.path}
+            component={() => <MainRoute tab={item.tab} />}
+          />
+        ))}
+        <Route path="/print-salary" component={PrintSalaryPage} />
+        <Route path="/clock-in" component={ClockInPage} />
+        <Route path="/qrcode" component={QRCodePage} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 
