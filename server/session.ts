@@ -90,7 +90,8 @@ function createSessionStore() {
 
   const PgStore = connectPgSimple(session);
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
   });
 
   return new PgStore({
