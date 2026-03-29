@@ -12,6 +12,7 @@ async function buildSecurityTestServer(
 
   const server = await createJsonTestServer((app) => {
     setupSecurity(app);
+    app.get('/api/test', (_req, res) => res.json({ ok: true }));
     app.get('/test', (_req, res) => res.json({ ok: true }));
   });
 
@@ -27,7 +28,7 @@ describe('security middleware', () => {
     it('allows requests without an Origin header (same-origin / server-to-server)', async () => {
       const server = await buildSecurityTestServer('production', 'https://example.com');
       try {
-        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/test');
+        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/api/test');
         expect(result.response.status).toBe(200);
         expect(result.body?.ok).toBe(true);
       } finally {
@@ -38,7 +39,7 @@ describe('security middleware', () => {
     it('allows requests from an explicitly whitelisted origin', async () => {
       const server = await buildSecurityTestServer('production', 'https://allowed.example.com');
       try {
-        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/test', {
+        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/api/test', {
           headers: { Origin: 'https://allowed.example.com' }
         });
         expect(result.response.status).toBe(200);
@@ -50,7 +51,7 @@ describe('security middleware', () => {
     it('blocks cross-origin requests from non-whitelisted origins in production', async () => {
       const server = await buildSecurityTestServer('production', 'https://allowed.example.com');
       try {
-        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/test', {
+        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/api/test', {
           headers: { Origin: 'https://evil.example.com' }
         });
         // CORS error from cors() results in a network-level rejection or 500
@@ -63,8 +64,20 @@ describe('security middleware', () => {
     it('allows all origins in development when ALLOWED_ORIGINS is unset', async () => {
       const server = await buildSecurityTestServer('development', '');
       try {
-        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/test', {
+        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/api/test', {
           headers: { Origin: 'http://localhost:3000' }
+        });
+        expect(result.response.status).toBe(200);
+      } finally {
+        await server.close();
+      }
+    });
+
+    it('allows cross-origin requests to static assets (non-api routes)', async () => {
+      const server = await buildSecurityTestServer('production', 'https://allowed.example.com');
+      try {
+        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/test', {
+          headers: { Origin: 'https://salary-scan.zeabur.app' }
         });
         expect(result.response.status).toBe(200);
       } finally {

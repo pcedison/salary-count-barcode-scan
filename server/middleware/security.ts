@@ -30,7 +30,9 @@ export function setupSecurity(app: Express): void {
     })
   );
 
+  // CORS only applies to API routes — static assets are same-origin and do not need CORS
   app.use(
+    '/api',
     cors({
       origin: (origin, callback) => {
         // Same-origin / server-to-server requests don't send an Origin header
