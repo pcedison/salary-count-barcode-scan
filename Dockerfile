@@ -3,7 +3,8 @@ FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci \
+    && npm install --no-save @rollup/rollup-linux-x64-gnu@4.60.0
 
 COPY . .
 RUN npm run build
