@@ -9,7 +9,7 @@
  */
 import 'dotenv/config';
 import crypto from 'crypto';
-import postgres from 'postgres';
+import { createPostgresClient } from './lib/postgres-client.mjs';
 
 const CURRENT_ITERATIONS = 600_000;
 
@@ -54,7 +54,7 @@ function verifyHashedPin(storedHash, pin) {
 async function main() {
   const isExecute = process.argv[2] === '--execute';
 
-  const sql = postgres(process.env.DATABASE_URL, { ssl: { rejectUnauthorized: false } });
+  const sql = createPostgresClient(process.env.DATABASE_URL);
 
   try {
     const [settings] = await sql`SELECT id, admin_pin FROM settings LIMIT 1`;

@@ -26,8 +26,6 @@ import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 
-import postgres from 'postgres';
-
 import {
   analyzeEmployeesForAesMigration,
   maskIdentifier,
@@ -39,6 +37,7 @@ import {
   resolveAesMigrationOperator,
   validateAesMutationRequest
 } from './lib/aes-migration-guard.mjs';
+import { createPostgresClient } from './lib/postgres-client.mjs';
 const BACKUP_DIR = path.join(process.cwd(), 'backups', 'aes-migration');
 const REPORT_DIR = path.join(BACKUP_DIR, 'reports');
 
@@ -361,7 +360,7 @@ async function main() {
     );
   }
 
-  const sql = postgres(process.env.DATABASE_URL, { ssl: { rejectUnauthorized: false } });
+  const sql = createPostgresClient(process.env.DATABASE_URL);
 
   try {
     if (isRollback) {

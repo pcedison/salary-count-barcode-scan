@@ -2,8 +2,6 @@ import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 
-import postgres from 'postgres';
-
 import { aesDecrypt, aesEncrypt, deriveKey } from './lib/aes-crypto.mjs';
 import {
   analyzeEmployeesForAesMigration,
@@ -13,6 +11,7 @@ import {
   buildAesMigrationReadiness,
   loadAesMigrationArtifacts
 } from './lib/aes-migration-readiness.mjs';
+import { createPostgresClient } from './lib/postgres-client.mjs';
 
 const REPORT_DIR = path.join(process.cwd(), 'backups', 'aes-migration', 'reports');
 
@@ -59,7 +58,7 @@ async function main() {
     process.exit(1);
   }
 
-  const sql = postgres(process.env.DATABASE_URL, { ssl: { rejectUnauthorized: false } });
+  const sql = createPostgresClient(process.env.DATABASE_URL);
   const aesKey = deriveKey(encryptionKey);
 
   try {

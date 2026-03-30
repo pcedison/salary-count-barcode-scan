@@ -5,7 +5,7 @@
 | 變數 | 必填 | 說明 |
 |---|---|---|
 | `NODE_ENV` | 否 | `development` / `production` / `test` |
-| `PORT` | 否 | 預設 `5000` |
+| `PORT` | 否 | 預設 `5000`；Zeabur 這類平台請改讀平台自動注入的 `PORT`，不要手動覆寫 |
 | `DATABASE_URL` | 是 | PostgreSQL 連線字串 |
 | `SESSION_SECRET` | production 必填 | 至少 32 字元 |
 | `DEFAULT_ADMIN_PIN` | 建議 | 首次建立 settings 時使用；未提供則隨機產生 |
@@ -29,6 +29,16 @@
 ```bash
 npm run secrets:generate
 ```
+
+## LINE 打卡環境變數
+
+以下 5 個變數屬於全有或全無；只要設定其中任一個，其他 4 個也必須同時設定：
+
+- `LINE_LOGIN_CHANNEL_ID`
+- `LINE_LOGIN_CHANNEL_SECRET`
+- `LINE_LOGIN_CALLBACK_URL`
+- `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`
+- `LINE_MESSAGING_CHANNEL_SECRET`
 
 ## Session / Cookie 規則
 
@@ -55,7 +65,7 @@ LOG_LEVEL=debug
 USE_AES_ENCRYPTION=false
 ```
 
-### 生產環境
+### 一般生產環境
 
 ```env
 NODE_ENV=production
@@ -80,6 +90,15 @@ ENCRYPTION_KEY=replace-with-at-least-32-characters
 ENCRYPTION_SALT=replace-with-explicit-salt
 ```
 
+## Zeabur / Supabase 注意事項
+
+- Zeabur 正式部署以 repo 根目錄的 `Dockerfile` 為主，不再依賴 Node.js 自動偵測 builder。
+- Zeabur Variables 請保留 `NODE_ENV=production`、`TRUST_PROXY=true`、`SESSION_SECURE=true`。
+- Zeabur 不要手動設定 `PORT`；平台會自動注入，手動值會覆蓋平台 special variable。
+- `PASSWORD` 不是本系統使用的環境變數，請不要在 Zeabur 中保留。
+- 若使用 Supabase，後端優先採用 session mode `:5432` 連線。
+- 若使用 Supabase transaction pooler `:6543`，runtime 與 AES/維運腳本會自動停用 prepared statements 以維持相容性。
+
 ## 設定驗證
 
 啟動時會自動做：
@@ -88,6 +107,7 @@ ENCRYPTION_SALT=replace-with-explicit-salt
 - production `SESSION_SECRET` 檢查
 - `SESSION_SAME_SITE=none` / `SESSION_SECURE=true` 相依檢查
 - `USE_AES_ENCRYPTION=true` / `ENCRYPTION_KEY` 相依檢查
+- LINE 五個變數的一致性檢查
 
 ## 目前不再支援的配置
 

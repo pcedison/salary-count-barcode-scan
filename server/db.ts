@@ -1,6 +1,7 @@
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "@shared/schema";
+import { shouldDisablePreparedStatements } from "./config/databaseUrl";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -8,10 +9,15 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
+const databaseUrl = process.env.DATABASE_URL;
+
 // Supabase/hosted PostgreSQL uses an intermediate CA not in Node.js default trust store.
 // SSL is still enforced (connection is encrypted); certificate chain verification is skipped
 // because the hosted provider's CA bundle is not bundled with Node.js.
-export const sql = postgres(process.env.DATABASE_URL!, {
+const postgresOptions = {
   ssl: { rejectUnauthorized: false },
-});
+  ...(shouldDisablePreparedStatements(databaseUrl) ? { prepare: false as const } : {}),
+};
+
+export const sql = postgres(databaseUrl, postgresOptions);
 export const db = drizzle(sql, { schema });

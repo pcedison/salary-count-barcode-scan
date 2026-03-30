@@ -51,7 +51,7 @@
 
 ### 需求
 
-- Node.js 18+
+- Node.js 20.x
 - PostgreSQL
 - 可用的 `DATABASE_URL`
 
@@ -113,6 +113,13 @@ npm run dev
 ```
 
 預設網址：`http://localhost:5000`
+
+### Zeabur / Docker 部署
+
+- 正式部署主線改為 `Dockerfile`；Zeabur 偵測到 `Dockerfile` 後會直接走 Docker build，不再依賴 Node.js 自動偵測 builder。
+- Zeabur 上保留 `NODE_ENV=production`、`TRUST_PROXY=true`、`SESSION_SECURE=true`；不要手動設定 `PORT`，也不要保留未使用的 `PASSWORD` 變數。
+- 若 PostgreSQL 由 Supabase 提供，後端優先使用 session mode `:5432`；若使用 transaction pooler `:6543`，本 repo 的 runtime 與 AES/維運腳本會自動停用 prepared statements。
+- 第一次正式上線前，請先對目標資料庫執行一次 `npm run db:push`；不要把 schema 初始化綁在每次容器啟動。
 
 ## 驗證命令
 

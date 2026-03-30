@@ -1,10 +1,10 @@
 import 'dotenv/config';
-import postgres from 'postgres';
 import {
   detectSourceFormat,
   isFlagMismatch,
   maskIdentifier
 } from './lib/aes-migration-audit.mjs';
+import { createPostgresClient } from './lib/postgres-client.mjs';
 
 const HASH_SEPARATOR = ':';
 
@@ -22,7 +22,7 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const sql = postgres(process.env.DATABASE_URL, { ssl: { rejectUnauthorized: false } });
+const sql = createPostgresClient(process.env.DATABASE_URL);
 
 try {
   const employees = await sql`SELECT id, name, id_number, is_encrypted FROM employees ORDER BY id`;
