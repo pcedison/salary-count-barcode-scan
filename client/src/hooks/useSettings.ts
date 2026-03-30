@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useAdmin } from '@/hooks/useAdmin';
 import { apiRequest } from '@/lib/queryClient';
 import { constants } from '@/lib/constants';
 
@@ -39,6 +40,7 @@ const defaultSettings: Settings = {
 export function useSettings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAdmin();
 
   // Fetch settings from API
   const {
@@ -72,7 +74,8 @@ export function useSettings() {
     data: holidays = [], 
     isLoading: isHolidaysLoading 
   } = useQuery({
-    queryKey: ['/api/holidays']
+    queryKey: ['/api/holidays'],
+    enabled: isAdmin
   });
   
   // Add holiday mutation

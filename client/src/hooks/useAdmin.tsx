@@ -38,6 +38,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const clearAdminQueries = useCallback(() => {
     const adminQueryPrefixes = [
+      '/api/attendance',
+      '/api/holidays',
       '/api/employees/admin',
       '/api/salary-records',
       '/api/db-status'

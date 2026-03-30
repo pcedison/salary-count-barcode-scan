@@ -96,7 +96,7 @@ function useTodayIncompleteRecords() {
   
   // 使用常規考勤記錄 API，但降低請求頻率以減少服務器負載
   const { data: attendanceRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
+    queryKey: ['/api/attendance/today'],
     refetchInterval: 30000, // 從5秒增加到30秒，減少85%的請求數量
     refetchOnWindowFocus: false, // 避免窗口聚焦時額外請求
     staleTime: 25000, // 數據25秒內不會被視為過期，大幅減少請求
@@ -147,7 +147,7 @@ function useTodayAttendanceRecords() {
   
   // 使用常規考勤記錄 API，優化查詢參數以減少請求
   const { data: attendanceRecords = [] } = useQuery<any[]>({
-    queryKey: ['/api/attendance'],
+    queryKey: ['/api/attendance/today'],
     refetchInterval: 30000, // 從5秒增加到30秒，顯著減少請求次數
     staleTime: 25000, // 延長緩存有效期，減少請求頻率
     refetchOnWindowFocus: false, // 避免切換窗口時重新請求
@@ -273,7 +273,7 @@ export default function BarcodeScanPage() {
       }, clearTimeout);
       
       // 刷新 API 數據
-      queryClient.invalidateQueries({ queryKey: ['/api/attendance'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/attendance/today'] });
     };
     
     // 訂閱打卡開始事件
@@ -423,7 +423,7 @@ export default function BarcodeScanPage() {
           
           // 刷新考勤資料
           queryClient.invalidateQueries({
-            queryKey: ['/api/attendance'],
+            queryKey: ['/api/attendance/today'],
             refetchType: 'all'
           });
           
@@ -465,7 +465,7 @@ export default function BarcodeScanPage() {
           // 5秒後刷新資料
           setTimeout(() => {
             queryClient.invalidateQueries({
-              queryKey: ['/api/attendance'],
+              queryKey: ['/api/attendance/today'],
               refetchType: 'all'
             });
           }, 3000);

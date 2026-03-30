@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAdmin } from '@/hooks/useAdmin';
 import { apiRequest } from '@/lib/queryClient';
 import { useSettings } from '@/hooks/useSettings';
 import { useEmployees } from '@/hooks/useEmployees';
@@ -70,6 +71,7 @@ interface SalaryResult {
 export function useAttendanceData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAdmin } = useAdmin();
   const { settings, holidays } = useSettings();
   
   const [salaryResult, setSalaryResult] = useState<SalaryResult | null>(null);
@@ -85,6 +87,7 @@ export function useAttendanceData() {
     error
   } = useQuery<AttendanceRecord[]>({ 
     queryKey: ['/api/attendance'],
+    enabled: isAdmin,
     refetchInterval: 30000, // 降低重新獲取間隔至30秒，減輕服務器負擔
     staleTime: 15000, // 延長緩存有效時間至15秒
     refetchIntervalInBackground: false, // 不在後台重複獲取
@@ -94,7 +97,7 @@ export function useAttendanceData() {
   
   // Check for errors in data fetching
   useEffect(() => {
-    if (error) {
+    if (isAdmin && error) {
       toast({
         title: "資料載入失敗",
         description: "無法取得考勤資料，請檢查網路連線後重試。",
@@ -102,7 +105,7 @@ export function useAttendanceData() {
       });
       console.error("Error fetching attendance data:", error);
     }
-  }, [error, toast]);
+  }, [error, isAdmin, toast]);
   
   // Update sync status when data changes
   useEffect(() => {
