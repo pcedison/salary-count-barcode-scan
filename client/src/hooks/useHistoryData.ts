@@ -123,8 +123,8 @@ function recalculateSalaryWithAccountingMethod(record: SalaryRecord, settings: a
 export function useHistoryData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { settings } = useSettings();
   const { isAdmin } = useAdmin();
+  const { settings } = useSettings({ requireAdminSettings: isAdmin });
   
   // Fetch all salary records
   const { 

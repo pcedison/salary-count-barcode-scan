@@ -72,7 +72,7 @@ export function useAttendanceData() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin } = useAdmin();
-  const { settings, holidays } = useSettings();
+  const { settings, holidays } = useSettings({ requireAdminSettings: isAdmin });
   
   const [salaryResult, setSalaryResult] = useState<SalaryResult | null>(null);
   const [syncStatus, setSyncStatus] = useState<{ synced: boolean; lastSynced: string | null }>({

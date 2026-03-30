@@ -33,7 +33,7 @@ export default function AttendancePage() {
     finalizeAndSave
   } = useAttendanceData();
   
-  const { settings } = useSettings();
+  const { settings } = useSettings({ requireAdminSettings: isAdmin });
   const { activeEmployees, isLoading: isLoadingEmployees, forceRefreshEmployees } = useEmployees();
   
   // 將員工資料記錄到console，便於調試

@@ -72,7 +72,10 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       "/api/holidays",
       "/api/employees/admin",
       "/api/salary-records",
+      "/api/settings/admin",
       "/api/db-status",
+      "/api/supabase-config",
+      "/api/supabase-connection",
       "/api/line/pending-bindings",
     ];
 

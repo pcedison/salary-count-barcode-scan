@@ -43,8 +43,8 @@ interface AllowanceItem {
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings();
   const { isAdmin, isSuperAdmin, updatePin, logout } = useAdmin();
+  const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings({ requireAdminSettings: isAdmin });
   const { employees } = useEmployees();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
