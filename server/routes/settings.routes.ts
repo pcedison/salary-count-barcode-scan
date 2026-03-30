@@ -99,7 +99,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/db-status", requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
+  app.get("/api/db-status", requireAdmin(PermissionLevel.ADMIN), async (_req, res) => {
     try {
       setNoStore(res);
       const databaseProvider = getDatabaseProviderInfo(process.env.DATABASE_URL);
@@ -137,7 +137,7 @@ export function registerSettingsRoutes(app: Express): void {
     }
   });
 
-  app.get("/api/supabase-config", requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
+  app.get("/api/supabase-config", requireAdmin(PermissionLevel.ADMIN), async (_req, res) => {
     try {
       setNoStore(res);
       const databaseProvider = getDatabaseProviderInfo(process.env.DATABASE_URL);
@@ -177,7 +177,7 @@ export function registerSettingsRoutes(app: Express): void {
     },
   );
 
-  app.get("/api/supabase-connection", requireAdmin(PermissionLevel.SUPER), async (_req, res) => {
+  app.get("/api/supabase-connection", requireAdmin(PermissionLevel.ADMIN), async (_req, res) => {
     try {
       setNoStore(res);
       const databaseProvider = getDatabaseProviderInfo(process.env.DATABASE_URL);

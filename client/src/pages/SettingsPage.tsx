@@ -140,6 +140,26 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Database status refresh failed:', error);
+
+      const isAuthorizationError =
+        error instanceof Error &&
+        (error.message.startsWith('401') || error.message.startsWith('403'));
+
+      if (isAuthorizationError) {
+        setConnectionStatus('testing');
+        setDatabaseConnectionHint('管理員工作階段可能已過期，請重新登入後再檢查資料庫狀態。');
+
+        if (showToast) {
+          toast({
+            title: '需要重新驗證管理員',
+            description: '資料庫診斷需要有效的管理員工作階段，請重新登入後再試。',
+            variant: 'destructive'
+          });
+        }
+
+        return;
+      }
+
       setConnectionStatus('disconnected');
 
       if (showToast) {
