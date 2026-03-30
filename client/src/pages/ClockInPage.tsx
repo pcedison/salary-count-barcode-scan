@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, CheckCircle2, XCircle, LogIn, UserCheck } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
+import liff from '@line/liff';
 
 type PageState =
   | 'loading'
@@ -29,6 +30,8 @@ interface ClockInResult {
   department?: string;
 }
 
+const LIFF_ID = (import.meta as any).env?.VITE_LIFF_ID as string | undefined;
+
 export default function ClockInPage() {
   const [state, setState] = useState<PageState>('loading');
   const [lineData, setLineData] = useState<LineTempData | null>(null);
@@ -37,81 +40,12 @@ export default function ClockInPage() {
   const [clockResult, setClockResult] = useState<ClockInResult | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // 初始化：檢查 LINE 是否設定、取出 session 暫存資料
-  useEffect(() => {
-    (async () => {
-      try {
-        // 1. 確認後端 LINE 功能是否啟用
-        const configRes = await fetch('/api/line/config');
-        const config = await configRes.json();
-        if (!config.configured) {
-          setState('line_not_configured');
-          return;
-        }
-
-        // 2. 嘗試從 session 取出 LINE 暫存資料（OAuth callback 後存入）
-        const tempRes = await fetch('/api/line/temp-data');
-        if (tempRes.ok) {
-          const temp: LineTempData = await tempRes.json();
-          setLineData(temp);
-
-          // 3. 查詢此 LINE userId 的綁定狀態
-          const statusRes = await fetch(`/api/line/binding-status/${encodeURIComponent(temp.lineUserId)}`);
-          const status = await statusRes.json();
-
-          if (status.status === 'bound') {
-            setEmployeeName(status.employeeName);
-            setState('ready');
-          } else if (status.status === 'pending') {
-            setState('pending');
-          } else {
-            setState('bind');
-          }
-        } else {
-          // 沒有 session 資料，需要先 LINE 登入
-          setState('login');
-        }
-      } catch {
-        setState('login');
-      }
-    })();
-  }, []);
-
-  const handleBind = useCallback(async () => {
-    if (!lineData || !idNumber.trim()) return;
-    setState('loading');
-
-    try {
-      const res = await apiRequest('POST', '/api/line/bind', {
-        lineUserId: lineData.lineUserId,
-        lineDisplayName: lineData.lineDisplayName,
-        linePictureUrl: lineData.linePictureUrl,
-        idNumber: idNumber.trim()
-      });
-      const data = await res.json();
-
-      if (data.status === 'pending') {
-        setState('pending');
-      } else {
-        setErrorMessage(data.error ?? '綁定失敗，請再試一次');
-        setState('error');
-      }
-    } catch (err: any) {
-      setErrorMessage(err?.message ?? '綁定失敗，請再試一次');
-      setState('error');
-    }
-  }, [lineData, idNumber]);
-
-  const handleClockIn = useCallback(async () => {
-    if (!lineData) return;
+  // 共用打卡邏輯（LIFF 自動觸發與手動按鈕都走這裡）
+  const performClockIn = useCallback(async (userId: string) => {
     setState('clocking');
-
     try {
-      const res = await apiRequest('POST', '/api/line/clock-in', {
-        lineUserId: lineData.lineUserId
-      });
+      const res = await apiRequest('POST', '/api/line/clock-in', { lineUserId: userId });
       const data = await res.json();
-
       if (data.success) {
         setClockResult({
           action: data.action,
@@ -128,7 +62,124 @@ export default function ClockInPage() {
       setErrorMessage(err?.message ?? '打卡失敗，請再試一次');
       setState('error');
     }
-  }, [lineData]);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // 1. 確認後端 LINE 功能是否啟用
+        const configRes = await fetch('/api/line/config');
+        const config = await configRes.json();
+        if (!config.configured) {
+          setState('line_not_configured');
+          return;
+        }
+
+        // 2. LIFF 流程（掃 QR code 開啟時）
+        if (LIFF_ID) {
+          try {
+            await liff.init({ liffId: LIFF_ID });
+
+            if (!liff.isLoggedIn()) {
+              liff.login({ redirectUri: window.location.href });
+              return;
+            }
+
+            const accessToken = liff.getAccessToken();
+            if (accessToken) {
+              const authRes = await apiRequest('POST', '/api/line/liff-auth', { accessToken });
+              const authData = await authRes.json();
+
+              if (authData.success) {
+                const temp: LineTempData = {
+                  lineUserId: authData.lineUserId,
+                  lineDisplayName: authData.lineDisplayName,
+                  linePictureUrl: authData.linePictureUrl
+                };
+                setLineData(temp);
+
+                const statusRes = await fetch(
+                  `/api/line/binding-status/${encodeURIComponent(temp.lineUserId)}`
+                );
+                const status = await statusRes.json();
+
+                if (status.status === 'bound') {
+                  setEmployeeName(status.employeeName);
+                  if (liff.isInClient()) {
+                    // 在 LINE app 內掃碼開啟 → 直接自動打卡
+                    await performClockIn(temp.lineUserId);
+                  } else {
+                    // 在外部瀏覽器開啟 LIFF → 顯示打卡按鈕（測試用）
+                    setState('ready');
+                  }
+                } else if (status.status === 'pending') {
+                  setState('pending');
+                } else {
+                  setState('bind');
+                }
+                return;
+              }
+            }
+          } catch {
+            // LIFF 初始化失敗，降回 OAuth 流程
+          }
+        }
+
+        // 3. OAuth 流程（原有邏輯，相容舊版）
+        const tempRes = await fetch('/api/line/temp-data');
+        if (tempRes.ok) {
+          const temp: LineTempData = await tempRes.json();
+          setLineData(temp);
+
+          const statusRes = await fetch(
+            `/api/line/binding-status/${encodeURIComponent(temp.lineUserId)}`
+          );
+          const status = await statusRes.json();
+
+          if (status.status === 'bound') {
+            setEmployeeName(status.employeeName);
+            setState('ready');
+          } else if (status.status === 'pending') {
+            setState('pending');
+          } else {
+            setState('bind');
+          }
+        } else {
+          setState('login');
+        }
+      } catch {
+        setState('login');
+      }
+    })();
+  }, [performClockIn]);
+
+  const handleBind = useCallback(async () => {
+    if (!lineData || !idNumber.trim()) return;
+    setState('loading');
+    try {
+      const res = await apiRequest('POST', '/api/line/bind', {
+        lineUserId: lineData.lineUserId,
+        lineDisplayName: lineData.lineDisplayName,
+        linePictureUrl: lineData.linePictureUrl,
+        idNumber: idNumber.trim()
+      });
+      const data = await res.json();
+      if (data.status === 'pending') {
+        setState('pending');
+      } else {
+        setErrorMessage(data.error ?? '綁定失敗，請再試一次');
+        setState('error');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message ?? '綁定失敗，請再試一次');
+      setState('error');
+    }
+  }, [lineData, idNumber]);
+
+  const handleClockIn = useCallback(async () => {
+    if (!lineData) return;
+    await performClockIn(lineData.lineUserId);
+  }, [lineData, performClockIn]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center p-4">
@@ -139,7 +190,7 @@ export default function ClockInPage() {
         </CardHeader>
         <CardContent className="space-y-4">
 
-          {/* Loading */}
+          {/* Loading / 打卡處理中 */}
           {(state === 'loading' || state === 'clocking') && (
             <div className="flex flex-col items-center gap-3 py-8">
               <Loader2 className="h-10 w-10 text-green-600 animate-spin" />
@@ -157,7 +208,7 @@ export default function ClockInPage() {
             </div>
           )}
 
-          {/* 登入 */}
+          {/* 登入（OAuth 降回流程） */}
           {state === 'login' && (
             <div className="flex flex-col items-center gap-4 py-4">
               <p className="text-gray-600 text-sm text-center">請用您的 LINE 帳號登入打卡</p>
@@ -170,7 +221,7 @@ export default function ClockInPage() {
             </div>
           )}
 
-          {/* 綁定 */}
+          {/* 綁定員工 ID */}
           {state === 'bind' && lineData && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
@@ -226,7 +277,7 @@ export default function ClockInPage() {
             </div>
           )}
 
-          {/* 準備打卡 */}
+          {/* 準備打卡（外部瀏覽器測試用） */}
           {state === 'ready' && lineData && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
@@ -255,7 +306,7 @@ export default function ClockInPage() {
             </div>
           )}
 
-          {/* 成功 */}
+          {/* 打卡成功 */}
           {state === 'success' && clockResult && (
             <div className="flex flex-col items-center gap-3 py-4">
               <CheckCircle2 className="h-16 w-16 text-green-500" />

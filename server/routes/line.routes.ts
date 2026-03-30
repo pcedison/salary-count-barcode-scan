@@ -15,6 +15,7 @@ import {
   isLineConfigured,
   pushMessage,
   sendClockInNotification,
+  verifyLiffAccessToken,
   verifyWebhookSignature
 } from '../services/line.service';
 import { handleRouteError, parseNumericId } from './route-helpers';
@@ -211,6 +212,54 @@ export function registerLineRoutes(app: Express): void {
     }
 
     res.json(lineSession);
+  });
+
+  app.post('/api/line/liff-auth', lineSessionLimiter, async (req, res) => {
+    if (!ensureConfigured(res)) return;
+
+    const { accessToken } = req.body as { accessToken?: string };
+    if (!accessToken || typeof accessToken !== 'string') {
+      return res.status(400).json({
+        success: false,
+        code: 'MISSING_TOKEN',
+        error: 'LIFF access token required.'
+      });
+    }
+
+    try {
+      const profile = await verifyLiffAccessToken(accessToken);
+      if (!profile) {
+        return res.status(401).json({
+          success: false,
+          code: 'INVALID_TOKEN',
+          error: 'Invalid or expired LIFF access token.'
+        });
+      }
+
+      req.session.lineAuth = {
+        lineUserId: profile.userId,
+        lineDisplayName: profile.displayName,
+        linePictureUrl: profile.pictureUrl,
+        authenticatedAt: Date.now()
+      };
+      req.session.lineTemp = {
+        lineUserId: profile.userId,
+        lineDisplayName: profile.displayName,
+        linePictureUrl: profile.pictureUrl
+      };
+      await saveSession(req);
+
+      log.info(`LIFF auth successful for ${maskLineUserId(profile.userId)}`);
+      return res.json({
+        success: true,
+        lineUserId: profile.userId,
+        lineDisplayName: profile.displayName,
+        linePictureUrl: profile.pictureUrl
+      });
+    } catch (err) {
+      log.error('LIFF auth failed', err);
+      return handleRouteError(err, res);
+    }
   });
 
   app.post('/api/line/bind', lineBindLimiter, async (req, res) => {
