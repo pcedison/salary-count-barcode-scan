@@ -2,8 +2,8 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json .npmrc ./
-RUN npm ci \
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev \
     && npm install --no-save @rollup/rollup-linux-x64-gnu@4.60.0
 
 COPY . .

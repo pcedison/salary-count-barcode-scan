@@ -3,9 +3,11 @@
 .vscode
 .idea
 node_modules
+dist
 coverage
 backups
 logs
+.github
 
 .env
 .env.local

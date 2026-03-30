@@ -30,6 +30,7 @@
     "secrets:generate": "node scripts/generate-secrets.mjs",
     "verify:ops": "npm run verify:core && npm run restore:check",
     "verify:baseline": "npm run check && npm run build",
+    "verify:ci": "npm run check && npm test && npm run build",
     "verify:core": "npm test && npm run verify:baseline",
     "db:push": "drizzle-kit push"
   },
