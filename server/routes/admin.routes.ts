@@ -69,6 +69,7 @@ export function registerAdminRoutes(app: Express): void {
       return res.json({
         success: true,
         authMode: 'session',
+        permissionLevel: PermissionLevel.SUPER,
         ...buildAdminSessionPolicyPayload()
       });
     } catch (err) {

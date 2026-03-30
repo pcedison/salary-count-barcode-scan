@@ -18,6 +18,7 @@ interface SettingsFormProps {
   holidayType: 'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave';
   connectionStatus: 'connected' | 'disconnected' | 'testing';
   isAdmin?: boolean;
+  canManageSystem?: boolean;
   section?: 'salary' | 'holiday' | 'system';
   
   onBaseHourlyRateChange: (value: number) => void;
@@ -54,6 +55,7 @@ export default function SettingsForm({
   holidayType,
   connectionStatus,
   isAdmin = false,
+  canManageSystem = false,
   section,
   onBaseHourlyRateChange,
   onBaseMonthSalaryChange,
@@ -428,7 +430,7 @@ export default function SettingsForm({
         </div>
       )}
       
-      {showSystem && isAdmin && (
+      {showSystem && isAdmin && canManageSystem && (
         <div className="bg-white p-6 rounded-lg shadow-sm">
           <h3 className="text-lg font-medium mb-4">資料庫與部署狀態</h3>
 
@@ -482,6 +484,15 @@ export default function SettingsForm({
                 實際連線由伺服器端 `DATABASE_URL` 管理，不接受前端 UI 直接切換。
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSystem && isAdmin && !canManageSystem && (
+        <div className="bg-white p-6 rounded-lg shadow-sm">
+          <h3 className="text-lg font-medium mb-4">系統診斷</h3>
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            系統診斷與部署檢查只開放給 super admin，這樣可以避免一般管理員誤觸敏感維運功能。
           </div>
         </div>
       )}

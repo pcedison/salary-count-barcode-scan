@@ -1,33 +1,63 @@
-import { createContext, useState, useContext, ReactNode, useEffect, useRef, useCallback } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { toast } from "@/hooks/use-toast";
-import { ADMIN_SESSION_INVALIDATED_EVENT, apiRequest } from "@/lib/queryClient";
+import {
+  AdminPermissionLevel,
+  hasPermissionLevel,
+  resolvePermissionLevel,
+} from "@/lib/adminPermissions";
 import {
   isAdminSessionIdleExpired,
   resolveAdminSessionPolicy,
   shouldRefreshAdminSession,
 } from "@/lib/adminSession";
-import { useQueryClient } from "@tanstack/react-query";
-import { DEFAULT_ADMIN_SESSION_POLICY, type AdminSessionPolicy } from "@shared/utils/adminSessionPolicy";
+import {
+  ADMIN_SESSION_INVALIDATED_EVENT,
+  apiRequest,
+} from "@/lib/queryClient";
+import {
+  DEFAULT_ADMIN_SESSION_POLICY,
+  type AdminSessionPolicy,
+} from "@shared/utils/adminSessionPolicy";
 
 type AdminContextType = {
   isAdmin: boolean;
+  permissionLevel: AdminPermissionLevel | null;
+  isSuperAdmin: boolean;
+  hasPermission: (requiredLevel: AdminPermissionLevel) => boolean;
   verifyPin: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updatePin: (oldPin: string, newPin: string) => Promise<boolean>;
   resetIdleTimer: () => void;
 };
 
+type ClearAdminStateOptions = {
+  showToast?: boolean;
+  title?: string;
+  description?: string;
+};
+
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
+function getPermissionLevelFromPayload(payload: unknown): AdminPermissionLevel | null {
+  if (typeof payload !== "object" || payload === null) {
+    return null;
+  }
+
+  return resolvePermissionLevel((payload as { permissionLevel?: unknown }).permissionLevel);
+}
+
 export function AdminProvider({ children }: { children: ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [permissionLevel, setPermissionLevel] = useState<AdminPermissionLevel | null>(null);
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   const heartbeatTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const lastSessionRefreshRef = useRef<number>(0);
-  const isAdminRef = useRef<boolean>(false);
+  const isAdminRef = useRef(false);
   const sessionPolicyRef = useRef<AdminSessionPolicy>(DEFAULT_ADMIN_SESSION_POLICY);
-  const sessionRefreshInFlightRef = useRef<boolean>(false);
+  const sessionRefreshInFlightRef = useRef(false);
   const queryClient = useQueryClient();
 
   const clearLegacyAdminStorage = useCallback(() => {
@@ -38,31 +68,33 @@ export function AdminProvider({ children }: { children: ReactNode }) {
 
   const clearAdminQueries = useCallback(() => {
     const adminQueryPrefixes = [
-      '/api/attendance',
-      '/api/holidays',
-      '/api/employees/admin',
-      '/api/salary-records',
-      '/api/db-status'
+      "/api/attendance",
+      "/api/holidays",
+      "/api/employees/admin",
+      "/api/salary-records",
+      "/api/db-status",
+      "/api/line/pending-bindings",
     ];
 
     queryClient.removeQueries({
       predicate: (query) => {
         const key = query.queryKey[0];
         return (
-          typeof key === 'string' &&
-          adminQueryPrefixes.some(prefix => key.startsWith(prefix))
+          typeof key === "string" &&
+          adminQueryPrefixes.some((prefix) => key.startsWith(prefix))
         );
-      }
+      },
     });
   }, [queryClient]);
 
-  const clearAdminState = useCallback((options?: {
-    showToast?: boolean;
-    title?: string;
-    description?: string;
-  }) => {
-    setIsAdmin(false);
-    isAdminRef.current = false;
+  const syncAuthorizationState = useCallback((authenticated: boolean, payload?: unknown) => {
+    setIsAdmin(authenticated);
+    setPermissionLevel(authenticated ? getPermissionLevelFromPayload(payload) : null);
+    isAdminRef.current = authenticated;
+  }, []);
+
+  const clearAdminState = useCallback((options?: ClearAdminStateOptions) => {
+    syncAuthorizationState(false);
     clearLegacyAdminStorage();
     clearAdminQueries();
 
@@ -76,16 +108,17 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       heartbeatTimerRef.current = null;
     }
 
+    sessionPolicyRef.current = DEFAULT_ADMIN_SESSION_POLICY;
     lastSessionRefreshRef.current = 0;
     sessionRefreshInFlightRef.current = false;
 
     if (options?.showToast) {
       toast({
-        title: options.title || "登出成功",
-        description: options.description || "您已登出管理員模式",
+        title: options.title || "已登出管理員模式",
+        description: options.description || "管理員工作階段已結束，相關保護資料也已清除。",
       });
     }
-  }, [clearAdminQueries, clearLegacyAdminStorage]);
+  }, [clearAdminQueries, clearLegacyAdminStorage, syncAuthorizationState]);
 
   const applySessionPolicy = useCallback((payload: unknown) => {
     const nextPolicy = resolveAdminSessionPolicy(payload);
@@ -110,8 +143,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       applySessionPolicy(result);
       const authenticated = result?.isAdmin === true;
 
-      setIsAdmin(authenticated);
-      isAdminRef.current = authenticated;
+      syncAuthorizationState(authenticated, result);
 
       if (authenticated) {
         const now = Date.now();
@@ -127,13 +159,9 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       clearAdminState();
       return false;
     }
-  }, [applySessionPolicy, clearAdminState, clearLegacyAdminStorage]);
+  }, [applySessionPolicy, clearAdminState, clearLegacyAdminStorage, syncAuthorizationState]);
 
-  const logout = useCallback(async (options?: {
-    showToast?: boolean;
-    title?: string;
-    description?: string;
-  }) => {
+  const logout = useCallback(async (options?: ClearAdminStateOptions) => {
     try {
       await fetch("/api/admin/logout", {
         method: "POST",
@@ -167,14 +195,15 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       applySessionPolicy(result);
 
       if (result?.isAdmin === true) {
+        syncAuthorizationState(true, result);
         lastSessionRefreshRef.current = Date.now();
         return true;
       }
 
       clearAdminState({
         showToast: true,
-        title: "管理員會話失效",
-        description: "管理員會話已過期，請重新登入。"
+        title: "管理員權限已失效",
+        description: "管理員工作階段已過期，請重新登入後再繼續操作。",
       });
       return false;
     } catch (error) {
@@ -183,7 +212,7 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     } finally {
       sessionRefreshInFlightRef.current = false;
     }
-  }, [applySessionPolicy, clearAdminState]);
+  }, [applySessionPolicy, clearAdminState, syncAuthorizationState]);
 
   const resetIdleTimer = useCallback(() => {
     if (!isAdminRef.current) {
@@ -208,8 +237,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       ) {
         void logout({
           showToast: true,
-          title: "自動登出",
-          description: `因為閒置時間超過${timeoutMinutes}分鐘，您已被自動登出管理員模式`,
+          title: "管理員已自動登出",
+          description: `超過 ${timeoutMinutes} 分鐘未操作，系統已自動結束管理員工作階段。`,
         });
       }
     }, timeoutMs);
@@ -276,7 +305,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     };
   }, [isAdmin, refreshActiveSession]);
 
-  // Restore admin session from the server-side cookie
   useEffect(() => {
     void syncAdminSession();
   }, [syncAdminSession]);
@@ -290,8 +318,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       if (isAdminRef.current) {
         clearAdminState({
           showToast: true,
-          title: "管理員會話失效",
-          description: "管理員會話已過期，請重新登入。"
+          title: "管理員權限已失效",
+          description: "管理員工作階段已過期，請重新登入後再繼續操作。",
         });
         return;
       }
@@ -309,66 +337,82 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     try {
       const response = await apiRequest("POST", "/api/verify-admin", { pin });
       const result = await response.json();
-      
+
       if (result.success) {
         applySessionPolicy(result);
-        setIsAdmin(true);
-        isAdminRef.current = true;
+        syncAuthorizationState(true, result);
         const now = Date.now();
         lastActivityRef.current = now;
         lastSessionRefreshRef.current = now;
         return true;
-      } else {
-        toast({
-          title: "驗證失敗",
-          description: "管理員密碼不正確",
-          variant: "destructive",
-        });
-        return false;
       }
+
+      toast({
+        title: "驗證失敗",
+        description: "管理員 PIN 不正確。",
+        variant: "destructive",
+      });
+      return false;
     } catch (error) {
       console.error("Admin verification error:", error);
       toast({
-        title: "驗證錯誤",
-        description: "無法驗證管理員密碼，請稍後再試",
+        title: "驗證發生錯誤",
+        description: "無法驗證管理員 PIN，請稍後再試。",
         variant: "destructive",
       });
       return false;
     }
-  }, [applySessionPolicy]);
+  }, [applySessionPolicy, syncAuthorizationState]);
 
   const updatePin = async (oldPin: string, newPin: string): Promise<boolean> => {
     try {
       const response = await apiRequest("POST", "/api/update-admin-pin", { oldPin, newPin });
       const result = await response.json();
-      
+
       if (result.success) {
         toast({
-          title: "更新成功",
-          description: "管理員密碼已成功更新",
+          title: "PIN 已更新",
+          description: "管理員 PIN 已成功變更。",
         });
         return true;
-      } else {
-        toast({
-          title: "更新失敗",
-          description: result.message || "無法更新管理員密碼",
-          variant: "destructive",
-        });
-        return false;
       }
+
+      toast({
+        title: "更新 PIN 失敗",
+        description: result.message || "無法更新管理員 PIN。",
+        variant: "destructive",
+      });
+      return false;
     } catch (error) {
       console.error("Admin pin update error:", error);
       toast({
-        title: "更新錯誤",
-        description: "無法更新管理員密碼，請稍後再試",
+        title: "更新 PIN 發生錯誤",
+        description: "請稍後再試一次。",
         variant: "destructive",
       });
       return false;
     }
   };
 
+  const hasPermission = useCallback((requiredLevel: AdminPermissionLevel) => {
+    return hasPermissionLevel(permissionLevel, requiredLevel);
+  }, [permissionLevel]);
+
+  const isSuperAdmin = hasPermission(AdminPermissionLevel.SUPER);
+
   return (
-    <AdminContext.Provider value={{ isAdmin, verifyPin, logout, updatePin, resetIdleTimer }}>
+    <AdminContext.Provider
+      value={{
+        isAdmin,
+        permissionLevel,
+        isSuperAdmin,
+        hasPermission,
+        verifyPin,
+        logout,
+        updatePin,
+        resetIdleTimer,
+      }}
+    >
       {children}
     </AdminContext.Provider>
   );

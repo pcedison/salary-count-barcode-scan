@@ -44,7 +44,7 @@ interface AllowanceItem {
 export default function SettingsPage() {
   const { toast } = useToast();
   const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings();
-  const { isAdmin, verifyPin, updatePin, logout } = useAdmin();
+  const { isAdmin, isSuperAdmin, updatePin, logout } = useAdmin();
   const { employees } = useEmployees();
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
@@ -102,6 +102,11 @@ export default function SettingsPage() {
   }, [baseHourlyRate, baseMonthSalary, ot1Multiplier, ot2Multiplier, deductions, allowances, settings, isLoading]);
   
   const refreshDatabaseStatus = async (showToast = false) => {
+    if (!isSuperAdmin) {
+      setConnectionStatus('testing');
+      return;
+    }
+
     setConnectionStatus('testing');
     
     try {
@@ -134,13 +139,13 @@ export default function SettingsPage() {
     }
   };
   useEffect(() => {
-    if (!isAdmin) {
+    if (!isSuperAdmin) {
       setConnectionStatus('testing');
       return;
     }
 
     void refreshDatabaseStatus();
-  }, [isAdmin]);
+  }, [isSuperAdmin]);
   
   const handleSaveSettings = async () => {
     if (!isAdmin) return;
@@ -472,6 +477,7 @@ export default function SettingsPage() {
     holidayType,
     connectionStatus,
     isAdmin,
+    canManageSystem: isSuperAdmin,
     onBaseHourlyRateChange: setBaseHourlyRate,
     onBaseMonthSalaryChange: setBaseMonthSalary,
     onOt1MultiplierChange: setOt1Multiplier,

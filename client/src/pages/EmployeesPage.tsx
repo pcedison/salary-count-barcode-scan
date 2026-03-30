@@ -566,6 +566,7 @@ interface PendingBinding {
 
 function LineBindingAdmin() {
   const { toast } = useToast();
+  const { isAdmin } = useAdmin();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
@@ -575,6 +576,7 @@ function LineBindingAdmin() {
       const res = await apiRequest('GET', '/api/line/pending-bindings');
       return res.json();
     },
+    enabled: isAdmin,
     refetchInterval: 30000
   });
 

@@ -345,14 +345,17 @@ export function useHistoryData() {
   }, [isAdmin, toast]);
   
   // Check for errors in data fetching
-  if (error && isAdmin) {
+  useEffect(() => {
+    if (!error || !isAdmin) {
+      return;
+    }
     console.error("Error fetching salary records:", error);
     toast({
       title: "資料載入失敗",
       description: "無法取得歷史薪資紀錄，請稍後再試。",
       variant: "destructive"
     });
-  }
+  }, [error, isAdmin, toast]);
   
   // 增強版 CSV 匯出功能 - 匯出詳細考勤記錄
   // 注意：此功能已經淘汰，僅保留作為參考。使用者應使用批量下載 ZIP 功能代替

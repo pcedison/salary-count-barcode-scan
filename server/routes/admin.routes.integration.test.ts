@@ -90,6 +90,7 @@ describe('admin routes integration', () => {
       expect(loginResult.body).toMatchObject({
         success: true,
         authMode: 'session',
+        permissionLevel: 4,
         sessionTimeoutMinutes: 60,
         sessionTimeoutMs: 60 * 60 * 1000,
         sessionRefreshIntervalMs: 5 * 60 * 1000
@@ -109,6 +110,7 @@ describe('admin routes integration', () => {
         success: true,
         isAdmin: true,
         authMode: 'session',
+        permissionLevel: 4,
         sessionTimeoutMinutes: 60,
         sessionTimeoutMs: 60 * 60 * 1000,
         sessionRefreshIntervalMs: 5 * 60 * 1000
@@ -204,6 +206,7 @@ describe('admin routes integration', () => {
 
       expect(loginResult.body).toMatchObject({
         success: true,
+        permissionLevel: 4,
         sessionTimeoutMinutes: 15,
         sessionTimeoutMs: 15 * 60 * 1000,
         sessionRefreshIntervalMs: 225 * 1000
