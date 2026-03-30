@@ -60,6 +60,9 @@ export default function SettingsPage() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [holidayType, setHolidayType] = useState<'worked' | 'sick_leave' | 'personal_leave' | 'national_holiday' | 'typhoon_leave' | 'special_leave'>('national_holiday');
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'testing'>('testing');
+  const [databaseModeLabel, setDatabaseModeLabel] = useState<string>('外部 PostgreSQL');
+  const [databaseModeDescription, setDatabaseModeDescription] = useState<string>('資料庫由伺服器端 DATABASE_URL 指向，與 Zeabur 應用容器生命週期分離。');
+  const [databaseConnectionHint, setDatabaseConnectionHint] = useState<string>('實際連線目標由伺服器端 DATABASE_URL 管理，前端不提供資料源切換。');
   
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -113,8 +116,18 @@ export default function SettingsPage() {
       const response = await apiRequest('GET', '/api/db-status');
       const data = await response.json();
       const postgresConnected = Boolean(data.connections?.postgres);
+      const provider = data.databaseProvider;
 
       setConnectionStatus(postgresConnected ? 'connected' : 'disconnected');
+      setDatabaseModeLabel(provider?.label || '外部 PostgreSQL');
+      setDatabaseModeDescription(
+        provider?.description || '資料庫由伺服器端 DATABASE_URL 指向，與 Zeabur 應用容器生命週期分離。'
+      );
+      setDatabaseConnectionHint(
+        provider?.isExternal
+          ? '正式資料儲存在外部資料庫，不會因為 Zeabur 應用重建而遺失。'
+          : '目前資料庫與部署環境綁定，若要做資料隔離請改用外部 DATABASE_URL。'
+      );
 
       if (showToast) {
         toast({
@@ -582,7 +595,69 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="system">
-          <SettingsForm {...commonFormProps} section="system" />
+          <div className="bg-white p-6 rounded-lg shadow-sm">
+            <h3 className="text-lg font-medium mb-4">資料庫與部署狀態</h3>
+
+            <div className="space-y-4">
+              <div className="rounded-md border border-green-200 bg-green-50 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-medium text-green-800">目前運行模式：{databaseModeLabel}</div>
+                    <div className="mt-1 text-sm text-green-700">
+                      {databaseModeDescription}
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-green-800 border border-green-200">
+                    Production Baseline
+                  </span>
+                </div>
+              </div>
+
+              {isSuperAdmin ? (
+                <div className="rounded-md border border-gray-200 p-4">
+                  <div className="mb-2 text-sm font-medium text-gray-700">資料庫連線狀態</div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center text-sm">
+                      {connectionStatus === 'connected' && (
+                        <>
+                          <span className="material-icons text-success text-sm mr-1">check_circle</span>
+                          <span className="text-success">{databaseModeLabel} 連線正常</span>
+                        </>
+                      )}
+                      {connectionStatus === 'disconnected' && (
+                        <>
+                          <span className="material-icons text-error text-sm mr-1">error</span>
+                          <span className="text-error">{databaseModeLabel} 連線異常</span>
+                        </>
+                      )}
+                      {connectionStatus === 'testing' && (
+                        <>
+                          <span className="material-icons text-warning text-sm mr-1 animate-spin">sync</span>
+                          <span className="text-warning">檢查中...</span>
+                        </>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => {
+                        void refreshDatabaseStatus(true);
+                      }}
+                      disabled={connectionStatus === 'testing'}
+                      className="bg-primary hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+                    >
+                      重新檢查
+                    </Button>
+                  </div>
+                  <div className="mt-3 text-xs text-gray-500">
+                    {databaseConnectionHint}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  系統診斷與部署檢查只開放給 super admin，避免一般管理員誤觸敏感維運功能。
+                </div>
+              )}
+            </div>
+          </div>
           
           {renderAdminSection()}
         </TabsContent>

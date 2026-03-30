@@ -19,6 +19,9 @@ interface SettingsFormProps {
   connectionStatus: 'connected' | 'disconnected' | 'testing';
   isAdmin?: boolean;
   canManageSystem?: boolean;
+  databaseModeLabel?: string;
+  databaseModeDescription?: string;
+  databaseConnectionHint?: string;
   section?: 'salary' | 'holiday' | 'system';
   
   onBaseHourlyRateChange: (value: number) => void;
@@ -56,6 +59,9 @@ export default function SettingsForm({
   connectionStatus,
   isAdmin = false,
   canManageSystem = false,
+  databaseModeLabel = '外部 PostgreSQL',
+  databaseModeDescription = '資料庫連線由伺服器端 DATABASE_URL 管理，與應用容器生命週期分離。',
+  databaseConnectionHint = '實際連線目標由伺服器端 DATABASE_URL 管理，前端不提供資料源切換。',
   section,
   onBaseHourlyRateChange,
   onBaseMonthSalaryChange,
