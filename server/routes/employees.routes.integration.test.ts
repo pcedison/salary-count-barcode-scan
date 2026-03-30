@@ -175,14 +175,11 @@ describe('employee routes integration', () => {
           name: '測試員工',
           department: '生產部',
           position: null,
-          active: true,
-          specialLeaveUsedDates: [],
-          idNumber: '',
-          email: '',
-          phone: '',
-          isEncrypted: false
+          active: true
         })
       ]);
+      expect(result.body[0]).not.toHaveProperty('specialLeaveUsedDates');
+      expect(result.body[0]).not.toHaveProperty('idNumber');
     } finally {
       await server.close();
     }

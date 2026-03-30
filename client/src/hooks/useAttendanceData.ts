@@ -123,7 +123,7 @@ export function useAttendanceData() {
   }, [attendanceData, isLoading, error]);
   
   // 從useEmployees中獲取員工資料，用於關聯考勤記錄
-  const { employees } = useEmployees();
+  const { employees } = useEmployees({ requireAdminDetails: isAdmin });
   
   // 取得員工特別假資訊（過濾指定月份的使用日期）
   const getSpecialLeaveInfoForMonth = (employeeId: number, year: number, month: number) => {

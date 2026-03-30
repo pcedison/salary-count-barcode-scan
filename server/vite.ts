@@ -17,11 +17,22 @@ export function log(message: string, source = "express") {
   appLogger.info(`[${source}] ${message}`);
 }
 
+function getAllowedViteHosts() {
+  const configuredHosts = process.env.VITE_ALLOWED_HOSTS?.split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
+
+  return configuredHosts && configuredHosts.length > 0
+    ? configuredHosts
+    : ['localhost', '127.0.0.1', '::1'];
+}
+
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },
-    allowedHosts: true as const,
+    cors: false,
+    allowedHosts: getAllowedViteHosts(),
   };
 
   const vite = await createViteServer({

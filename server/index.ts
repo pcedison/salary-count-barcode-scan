@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import {
   setupAutomaticBackups,
   startMonitoring,
@@ -13,6 +12,7 @@ import { loadCalculationRulesFromDb } from './services/calculationRulesLoader';
 import { validateEnv } from './config/envValidator';
 import { setupSecurity, setupTrustProxy } from './middleware/security';
 import { setupAdminSession } from './session';
+import { serveStatic } from './static';
 import { buildApiRequestLog, getApiRequestLogLevel } from './utils/httpLogging';
 import { createLogger } from './utils/logger';
 
@@ -61,6 +61,10 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ message: 'Not Found', code: 'NOT_FOUND' });
+  });
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -83,6 +87,7 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    const { setupVite } = await import('./vite');
     await setupVite(app, server);
   } else {
     serveStatic(app);
@@ -94,7 +99,7 @@ app.use((req, res, next) => {
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`serving on port ${port}`);
+    appLog.info(`[server] serving on port ${port}`);
 
     void loadCalculationRulesFromDb();
     const monitoringHandle = startMonitoring(60000); // 每分鐘檢查一次

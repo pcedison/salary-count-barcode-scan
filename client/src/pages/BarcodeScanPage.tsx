@@ -1,11 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import AdminLoginDialog from '@/components/AdminLoginDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, UserCheck, Clock, CalendarDays, Loader2, Lock, ShieldAlert } from 'lucide-react';
 import { debugLog } from '@/lib/debug';
-import { apiRequest, getQueryFn } from '@/lib/queryClient';
+import { getQueryFn } from '@/lib/queryClient';
 import { getTodayDate, getCurrentTime } from '@/lib/utils';
 import { eventBus, EventNames } from '@/lib/eventBus';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -37,6 +38,13 @@ interface ScanResult {
 }
 
 // 創建一個統一的處理錯誤函數
+interface ScanSessionStatus {
+  required: boolean;
+  unlocked: boolean;
+  expiresAt: string | null;
+  authMode: 'none' | 'scan_session' | 'admin_session';
+}
+
 function createErrorScanResult(message: string): ScanResult {
   return {
     timestamp: new Date().toISOString(),
@@ -192,6 +200,98 @@ export default function BarcodeScanPage() {
   const [pendingEmployee, setPendingEmployee] = useState<string>('');
   const [lastScan, setLastScan] = useState<ScanResult | null>(null); // 始終初始化為 null
   const [currentTime, setCurrentTime] = useState<string>(getCurrentTime());
+  const [scanSession, setScanSession] = useState<ScanSessionStatus | null>(null);
+  const [isScanSessionLoading, setIsScanSessionLoading] = useState<boolean>(true);
+  const [isUnlockDialogOpen, setIsUnlockDialogOpen] = useState<boolean>(false);
+
+  const refreshScanSession = useCallback(async () => {
+    setIsScanSessionLoading(true);
+
+    try {
+      const response = await fetch('/api/scan/session', {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to load scan session: ${response.status}`);
+      }
+
+      const result: ScanSessionStatus = await response.json();
+      setScanSession(result);
+      return result;
+    } catch (error) {
+      console.error('Failed to load scan session:', error);
+      setScanSession(null);
+      return null;
+    } finally {
+      setIsScanSessionLoading(false);
+    }
+  }, []);
+
+  const unlockScanSession = useCallback(async (pin: string) => {
+    try {
+      const response = await fetch('/api/scan/session/unlock', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pin })
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        toast({
+          title: '掃描站解鎖失敗',
+          description: payload?.message || '無法解鎖條碼掃描站，請稍後再試。',
+          variant: 'destructive'
+        });
+        return false;
+      }
+
+      setScanSession(payload);
+      toast({
+        title: '掃描站已解鎖',
+        description: '目前瀏覽器工作階段已可進行條碼打卡。'
+      });
+      return true;
+    } catch (error) {
+      console.error('Failed to unlock scan session:', error);
+      toast({
+        title: '掃描站解鎖失敗',
+        description: '無法解鎖條碼掃描站，請稍後再試。',
+        variant: 'destructive'
+      });
+      return false;
+    }
+  }, [toast]);
+
+  const lockScanSession = useCallback(async () => {
+    try {
+      const response = await fetch('/api/scan/session/lock', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to lock scan session: ${response.status}`);
+      }
+
+      const payload: ScanSessionStatus & { success?: boolean } = await response.json();
+      setScanSession(payload);
+      toast({
+        title: '掃描站已重新鎖定',
+        description: '條碼掃描需要重新輸入管理 PIN 才能使用。'
+      });
+    } catch (error) {
+      console.error('Failed to lock scan session:', error);
+      toast({
+        title: '重新鎖定失敗',
+        description: '無法重新鎖定掃描站，請稍後再試。',
+        variant: 'destructive'
+      });
+    }
+  }, [toast]);
   
   // 取得考勤記錄，資料來源只從 API 獲取，不使用 localStorage
   const incompleteRecords = useTodayIncompleteRecords();
@@ -248,6 +348,10 @@ export default function BarcodeScanPage() {
     
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    void refreshScanSession();
+  }, [refreshScanSession]);
   
   // 監聽打卡成功事件
   useEffect(() => {
@@ -337,6 +441,11 @@ export default function BarcodeScanPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!idNumber.trim() || isSubmitting) return;
+
+    if (scanSession?.required && !scanSession.unlocked) {
+      setIsUnlockDialogOpen(true);
+      return;
+    }
     
     setIsSubmitting(true);
     setIdNumber(''); // 立即清空輸入框，避免重複提交
@@ -346,11 +455,30 @@ export default function BarcodeScanPage() {
       setLastScan(createProcessingScanResult());
       
       // 調用 API 進行打卡
-      const response = await apiRequest('POST', '/api/barcode-scan', {
-        idNumber: idNumber.trim()
+      const response = await fetch('/api/barcode-scan', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          idNumber: idNumber.trim()
+        })
       });
       
       // 處理結果
+      if (response.status === 401 && response.headers.get('x-scan-session-required') === 'true') {
+        await refreshScanSession();
+        setLastScan(createErrorScanResult('掃描站尚未解鎖'));
+        setIsUnlockDialogOpen(true);
+        toast({
+          title: '需要先解鎖掃描站',
+          description: '請輸入管理 PIN 後再進行條碼打卡。',
+          variant: 'destructive'
+        });
+        return;
+      }
+
       if (response.ok) {
         // 直接使用 API 返回的結果，無需額外請求
         const scanResult = await response.json();
@@ -547,6 +675,42 @@ export default function BarcodeScanPage() {
             </CardHeader>
             
             <CardContent className="pb-2 space-y-6">
+              {isScanSessionLoading ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  正在確認掃描站權限...
+                </div>
+              ) : scanSession?.required && !scanSession.unlocked ? (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <ShieldAlert className="mt-0.5 h-5 w-5 text-amber-700" />
+                    <div className="flex-1">
+                      <p className="font-medium text-amber-900">掃描站目前已鎖定</p>
+                      <p className="mt-1 text-sm text-amber-800">
+                        為了避免外部偽造打卡，正式環境需要先由主管輸入管理 PIN 解鎖。
+                      </p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => setIsUnlockDialogOpen(true)}>
+                      <Lock className="mr-2 h-4 w-4" />
+                      解鎖
+                    </Button>
+                  </div>
+                </div>
+              ) : scanSession?.required ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      掃描站已解鎖
+                      {scanSession.expiresAt ? `，有效至 ${new Date(scanSession.expiresAt).toLocaleString()}` : ''}
+                    </div>
+                    {scanSession.authMode === 'scan_session' && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => void lockScanSession()}>
+                        重新鎖定
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex gap-2">
                   <div className="flex-1">
@@ -557,11 +721,15 @@ export default function BarcodeScanPage() {
                       className="text-lg h-12"
                       value={idNumber}
                       onChange={(e) => setIdNumber(e.target.value)}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || Boolean(scanSession?.required && !scanSession.unlocked)}
                       autoComplete="off"
                     />
                   </div>
-                  <Button type="submit" disabled={isSubmitting || !idNumber.trim()} className="h-12">
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || !idNumber.trim() || Boolean(scanSession?.required && !scanSession.unlocked)}
+                    className="h-12"
+                  >
                     {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
                     打卡
                   </Button>
@@ -678,6 +846,17 @@ export default function BarcodeScanPage() {
           </Card>
         </div>
       </div>
+      <AdminLoginDialog
+        isOpen={isUnlockDialogOpen}
+        onClose={() => setIsUnlockDialogOpen(false)}
+        onVerifyPin={unlockScanSession}
+        title="解鎖掃描站"
+        description="正式環境的條碼打卡需要先由主管輸入管理 PIN，才能啟用這個瀏覽器工作階段。"
+        pinLabel="管理 PIN"
+        placeholder="請輸入 6 位數管理 PIN"
+        submitLabel="解鎖"
+        verifyingLabel="解鎖中"
+      />
     </div>
   );
 }

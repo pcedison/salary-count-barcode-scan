@@ -94,6 +94,7 @@ function buildMemoryCheck(): MemoryCheckResult {
 
 async function runDatabaseCheck(): Promise<ProbeResult> {
   const start = Date.now();
+  const isProduction = process.env.NODE_ENV === "production";
 
   try {
     await db.execute("SELECT 1");
@@ -106,7 +107,11 @@ async function runDatabaseCheck(): Promise<ProbeResult> {
     return {
       status: "fail",
       responseTimeMs: Date.now() - start,
-      message: error instanceof Error ? error.message : "Unknown database error",
+      message: isProduction
+        ? "Database connection failed"
+        : error instanceof Error
+          ? error.message
+          : "Unknown database error",
     };
   }
 }

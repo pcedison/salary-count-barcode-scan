@@ -1,20 +1,22 @@
 export interface Employee {
   id: number;
   name: string;
-  idNumber: string;
-  department: string;
-  position: string;
-  isEncrypted: boolean;
+  idNumber?: string;
+  department?: string | null;
+  position?: string | null;
+  isEncrypted?: boolean;
   active: boolean;
-  hourlyRate: number;
+  hourlyRate?: number;
   note?: string;
   joinDate?: string;
   leaveDate?: string | null;
-  phone?: string;
+  phone?: string | null;
+  email?: string | null;
+  createdAt?: string;
   specialLeaveDays?: number;
-  specialLeaveWorkDateRange?: string;
+  specialLeaveWorkDateRange?: string | null;
   specialLeaveUsedDates?: string[];
   specialLeaveCashDays?: number;
-  specialLeaveCashMonth?: string;
-  specialLeaveNotes?: string;
+  specialLeaveCashMonth?: string | null;
+  specialLeaveNotes?: string | null;
 }

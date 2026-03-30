@@ -4,6 +4,7 @@ import { PermissionLevel } from '../admin-auth';
 import { setupAdminSession } from '../session';
 
 export const TEST_ADMIN_HEADER = 'x-test-admin';
+export const TEST_SCAN_UNLOCK_HEADER = 'x-test-scan-unlocked';
 
 export function setupTestAdminSession(app: Express): void {
   setupAdminSession(app);
@@ -15,6 +16,13 @@ export function setupTestAdminSession(app: Express): void {
         permissionLevel: PermissionLevel.SUPER,
         authenticatedAt: Date.now(),
         lastVerifiedAt: Date.now()
+      };
+    }
+
+    if (req.headers[TEST_SCAN_UNLOCK_HEADER] === 'true') {
+      req.session.scanAccess = {
+        unlockedAt: Date.now(),
+        expiresAt: Date.now() + 12 * 60 * 60 * 1000
       };
     }
 

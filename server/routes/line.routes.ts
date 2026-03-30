@@ -1,36 +1,142 @@
 import crypto from 'crypto';
-import type { Express } from 'express';
+import type { Express, Request, Response } from 'express';
 
-import { storage } from '../storage';
-import { requireAdmin } from '../middleware/requireAdmin';
-import { createLogger } from '../utils/logger';
-import {
-  isLineConfigured,
-  getLineLoginUrl,
-  exchangeCodeForToken,
-  getLineProfile,
-  verifyWebhookSignature,
-  sendClockInNotification
-} from '../services/line.service';
-import { handleRouteError } from './route-helpers';
-import { getTaiwanDateTimeParts } from './scan-helpers';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
+
+import { strictLimiter, lineBindLimiter, lineClockInLimiter, lineSessionLimiter } from '../middleware/rateLimiter';
+import { requireAdmin } from '../middleware/requireAdmin';
+import { storage } from '../storage';
+import { createLogger } from '../utils/logger';
+
+import {
+  exchangeCodeForToken,
+  getLineLoginUrl,
+  getLineProfile,
+  isLineConfigured,
+  pushMessage,
+  sendClockInNotification,
+  verifyWebhookSignature
+} from '../services/line.service';
+import { handleRouteError, parseNumericId } from './route-helpers';
+import { getTaiwanDateTimeParts } from './scan-helpers';
 
 const log = createLogger('line-routes');
 
-const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 分鐘
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+type AuthorizedLineSession = {
+  lineUserId: string;
+  lineDisplayName: string;
+  linePictureUrl?: string;
+};
+
+function setNoStore(res: Response) {
+  res.setHeader('Cache-Control', 'no-store');
+}
+
+function maskLineUserId(lineUserId: string): string {
+  const normalized = lineUserId.trim();
+  if (normalized.length <= 8) {
+    return '***';
+  }
+
+  return `${normalized.slice(0, 4)}***${normalized.slice(-4)}`;
+}
+
+function getAuthorizedLineSession(req: Request): AuthorizedLineSession | null {
+  const lineAuth = req.session?.lineAuth;
+  if (lineAuth) {
+    return {
+      lineUserId: lineAuth.lineUserId,
+      lineDisplayName: lineAuth.lineDisplayName,
+      linePictureUrl: lineAuth.linePictureUrl
+    };
+  }
+
+  const lineTemp = req.session?.lineTemp;
+  if (!lineTemp) {
+    return null;
+  }
+
+  return {
+    lineUserId: lineTemp.lineUserId,
+    lineDisplayName: lineTemp.lineDisplayName,
+    linePictureUrl: lineTemp.linePictureUrl
+  };
+}
+
+function requireLineSession(req: Request, res: Response): AuthorizedLineSession | null {
+  const lineSession = getAuthorizedLineSession(req);
+  if (lineSession) {
+    return lineSession;
+  }
+
+  res.setHeader('X-Line-Session-Required', 'true');
+  res.status(401).json({
+    success: false,
+    code: 'LINE_SESSION_REQUIRED',
+    error: 'LINE login session required.'
+  });
+  return null;
+}
+
+function ensureConfigured(res: Response): boolean {
+  if (isLineConfigured()) {
+    return true;
+  }
+
+  res.status(503).json({
+    success: false,
+    code: 'LINE_NOT_CONFIGURED',
+    error: 'LINE integration is not configured.'
+  });
+  return false;
+}
+
+function assertAuthorizedLineUser(
+  req: Request,
+  res: Response,
+  lineSession: AuthorizedLineSession,
+  candidate: unknown
+): boolean {
+  if (candidate === undefined || candidate === null || candidate === '') {
+    return true;
+  }
+
+  if (typeof candidate === 'string' && candidate === lineSession.lineUserId) {
+    return true;
+  }
+
+  res.status(403).json({
+    success: false,
+    code: 'LINE_SESSION_MISMATCH',
+    error: 'The LINE session does not match the requested user.'
+  });
+  return false;
+}
+
+function saveSession(req: Request): Promise<void> {
+  return new Promise((resolve, reject) => {
+    req.session.save((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
 
 export function registerLineRoutes(app: Express): void {
-
-  // GET /api/line/config — 回傳 LINE 是否設定好（供前端判斷是否顯示 LINE 功能）
   app.get('/api/line/config', (_req, res) => {
+    setNoStore(res);
     res.json({ configured: isLineConfigured() });
   });
 
-  // GET /api/line/login — 重導至 LINE OAuth 授權頁
-  app.get('/api/line/login', async (req, res) => {
-    if (!isLineConfigured()) {
-      return res.status(503).json({ error: 'LINE 打卡功能尚未設定' });
+  app.get('/api/line/login', lineSessionLimiter, async (_req, res) => {
+    if (!ensureConfigured(res)) {
+      return;
     }
 
     try {
@@ -38,21 +144,21 @@ export function registerLineRoutes(app: Express): void {
       const expiresAt = new Date(Date.now() + OAUTH_STATE_TTL_MS);
 
       await storage.createOAuthState({ state, expiresAt });
-
-      const loginUrl = getLineLoginUrl(state);
-      return res.redirect(loginUrl);
+      return res.redirect(getLineLoginUrl(state));
     } catch (err) {
-      log.error('LINE login redirect 失敗:', err);
+      log.error('Failed to start LINE login flow', err);
       return handleRouteError(err, res);
     }
   });
 
-  // GET /api/line/callback — LINE OAuth callback
   app.get('/api/line/callback', async (req, res) => {
-    const { code, state, error, error_description } = req.query as Record<string, string>;
+    if (!isLineConfigured()) {
+      return res.redirect('/clock-in?error=line_not_configured');
+    }
+
+    const { code, state, error } = req.query as Record<string, string>;
 
     if (error) {
-      log.warn(`LINE OAuth 錯誤: ${error} - ${error_description}`);
       return res.redirect('/clock-in?error=line_auth_failed');
     }
 
@@ -61,109 +167,150 @@ export function registerLineRoutes(app: Express): void {
     }
 
     try {
-      // 驗證 state
       const storedState = await storage.getOAuthState(state);
       if (!storedState) {
         return res.redirect('/clock-in?error=invalid_state');
       }
+
       if (new Date() > storedState.expiresAt) {
         await storage.deleteOAuthState(state);
         return res.redirect('/clock-in?error=state_expired');
       }
+
       await storage.deleteOAuthState(state);
 
-      // 換取 access token 並取得 LINE profile
       const tokenData = await exchangeCodeForToken(code);
       const profile = await getLineProfile(tokenData.access_token);
 
-      // 將 LINE 資料存入 session（one-time，ClockInPage 取出後清除）
+      req.session.lineAuth = {
+        lineUserId: profile.userId,
+        lineDisplayName: profile.displayName,
+        linePictureUrl: profile.pictureUrl,
+        authenticatedAt: Date.now()
+      };
       req.session.lineTemp = {
         lineUserId: profile.userId,
         lineDisplayName: profile.displayName,
         linePictureUrl: profile.pictureUrl
       };
-
-      await new Promise<void>((resolve, reject) => {
-        req.session.save(err => (err ? reject(err) : resolve()));
-      });
+      await saveSession(req);
 
       return res.redirect('/clock-in');
     } catch (err) {
-      log.error('LINE callback 處理失敗:', err);
+      log.error('LINE callback failed', err);
       return res.redirect('/clock-in?error=callback_failed');
     }
   });
 
-  // GET /api/line/temp-data — 一次性取出 session 中的 LINE 暫存資料
-  app.get('/api/line/temp-data', (req, res) => {
-    const lineTemp = req.session.lineTemp;
-    if (!lineTemp) {
-      return res.status(404).json({ error: '無 LINE 暫存資料' });
+  app.get('/api/line/temp-data', lineSessionLimiter, (req, res) => {
+    setNoStore(res);
+
+    const lineSession = requireLineSession(req, res);
+    if (!lineSession) {
+      return;
     }
-    req.session.lineTemp = undefined;
-    return res.json(lineTemp);
+
+    res.json(lineSession);
   });
 
-  // POST /api/line/bind — 員工提交綁定申請（需提供完整身分證字號）
-  app.post('/api/line/bind', async (req, res) => {
-    const { lineUserId, lineDisplayName, linePictureUrl, idNumber } = req.body ?? {};
-
-    if (!lineUserId || typeof lineUserId !== 'string') {
-      return res.status(400).json({ error: '缺少 lineUserId' });
+  app.post('/api/line/bind', lineBindLimiter, async (req, res) => {
+    if (!ensureConfigured(res)) {
+      return;
     }
-    if (!idNumber || typeof idNumber !== 'string' || idNumber.trim().length === 0) {
-      return res.status(400).json({ error: '請輸入身分證字號或居留證號碼' });
+
+    const lineSession = requireLineSession(req, res);
+    if (!lineSession) {
+      return;
+    }
+
+    if (!assertAuthorizedLineUser(req, res, lineSession, req.body?.lineUserId)) {
+      return;
+    }
+
+    const idNumber = typeof req.body?.idNumber === 'string' ? req.body.idNumber.trim() : '';
+    if (!idNumber) {
+      return res.status(400).json({
+        success: false,
+        code: 'ID_NUMBER_REQUIRED',
+        error: 'Employee identifier is required.'
+      });
     }
 
     try {
-      // 檢查是否已綁定
-      const alreadyBound = await storage.getEmployeeByLineUserId(lineUserId);
+      const alreadyBound = await storage.getEmployeeByLineUserId(lineSession.lineUserId);
       if (alreadyBound) {
-        return res.status(409).json({ error: '此 LINE 帳號已綁定員工', alreadyBound: true });
+        return res.status(409).json({
+          success: false,
+          code: 'LINE_ALREADY_BOUND',
+          error: 'This LINE account is already bound to an employee.',
+          alreadyBound: true
+        });
       }
 
-      // 查找員工（AES 加密感知的查找）
-      const employee = await storage.getEmployeeByIdNumber(idNumber.trim());
+      const employee = await storage.getEmployeeByIdNumber(idNumber);
       if (!employee) {
-        return res.status(404).json({ error: '找不到對應的員工，請確認身分證字號是否正確' });
+        return res.status(404).json({
+          success: false,
+          code: 'EMPLOYEE_NOT_FOUND',
+          error: 'Employee not found.'
+        });
       }
+
       if (!employee.active) {
-        return res.status(403).json({ error: '此員工帳號已停用' });
+        return res.status(403).json({
+          success: false,
+          code: 'EMPLOYEE_INACTIVE',
+          error: 'Inactive employees cannot bind LINE login.'
+        });
       }
 
-      // 檢查是否已有待審核申請
-      const existing = await storage.getPendingBindingByLineUserId(lineUserId);
+      const existing = await storage.getPendingBindingByLineUserId(lineSession.lineUserId);
       if (existing && existing.status === 'pending') {
-        return res.json({ success: true, status: 'pending', message: '申請已送出，等待管理員審核' });
+        return res.json({
+          success: true,
+          status: 'pending',
+          message: 'Binding request is already pending review.'
+        });
       }
 
-      // 建立待審核綁定
       await storage.createPendingBinding({
         employeeId: employee.id,
-        lineUserId,
-        lineDisplayName: lineDisplayName ?? null,
-        linePictureUrl: linePictureUrl ?? null,
+        lineUserId: lineSession.lineUserId,
+        lineDisplayName: lineSession.lineDisplayName,
+        linePictureUrl: lineSession.linePictureUrl ?? null,
         status: 'pending',
         requestedAt: new Date()
       });
 
-      log.info(`LINE 綁定申請：員工 ${employee.name} (id=${employee.id})`);
-      return res.json({ success: true, status: 'pending', employeeName: employee.name });
+      log.info(
+        `Created LINE binding request for employee ${employee.id} using ${maskLineUserId(lineSession.lineUserId)}`
+      );
+
+      return res.json({
+        success: true,
+        status: 'pending',
+        employeeName: employee.name
+      });
     } catch (err) {
-      log.error('LINE 綁定申請失敗:', err);
+      log.error('Failed to create LINE binding request', err);
       return handleRouteError(err, res);
     }
   });
 
-  // GET /api/line/binding-status/:lineUserId — 查詢綁定狀態
-  app.get('/api/line/binding-status/:lineUserId', async (req, res) => {
-    const { lineUserId } = req.params;
-    if (!lineUserId) {
-      return res.status(400).json({ error: '缺少 lineUserId' });
+  app.get('/api/line/binding-status/:lineUserId', lineSessionLimiter, async (req, res) => {
+    setNoStore(res);
+
+    const lineSession = requireLineSession(req, res);
+    if (!lineSession) {
+      return;
+    }
+
+    if (!assertAuthorizedLineUser(req, res, lineSession, req.params.lineUserId)) {
+      return;
     }
 
     try {
-      const employee = await storage.getEmployeeByLineUserId(lineUserId);
+      const employee = await storage.getEmployeeByLineUserId(lineSession.lineUserId);
       if (employee) {
         return res.json({
           status: 'bound',
@@ -173,7 +320,7 @@ export function registerLineRoutes(app: Express): void {
         });
       }
 
-      const pending = await storage.getPendingBindingByLineUserId(lineUserId);
+      const pending = await storage.getPendingBindingByLineUserId(lineSession.lineUserId);
       if (pending) {
         return res.json({ status: pending.status });
       }
@@ -184,31 +331,46 @@ export function registerLineRoutes(app: Express): void {
     }
   });
 
-  // POST /api/line/clock-in — LINE 打卡
-  app.post('/api/line/clock-in', async (req, res) => {
-    const { lineUserId } = req.body ?? {};
-    if (!lineUserId || typeof lineUserId !== 'string') {
-      return res.status(400).json({ error: '缺少 lineUserId' });
+  app.post('/api/line/clock-in', lineClockInLimiter, async (req, res) => {
+    if (!ensureConfigured(res)) {
+      return;
+    }
+
+    const lineSession = requireLineSession(req, res);
+    if (!lineSession) {
+      return;
+    }
+
+    if (!assertAuthorizedLineUser(req, res, lineSession, req.body?.lineUserId)) {
+      return;
     }
 
     try {
-      const employee = await storage.getEmployeeByLineUserId(lineUserId);
+      const employee = await storage.getEmployeeByLineUserId(lineSession.lineUserId);
       if (!employee) {
-        return res.status(404).json({ error: '此 LINE 帳號尚未綁定員工，請先申請綁定' });
+        return res.status(404).json({
+          success: false,
+          code: 'LINE_EMPLOYEE_NOT_BOUND',
+          error: 'This LINE account is not bound to an employee.'
+        });
+      }
+
+      if (!employee.active) {
+        return res.status(403).json({
+          success: false,
+          code: 'EMPLOYEE_INACTIVE',
+          error: 'Inactive employees cannot clock in with LINE.'
+        });
       }
 
       const { dateKey, time, timestamp } = getTaiwanDateTimeParts();
-
-      // 查詢今日考勤記錄
       const todayRecords = await storage.getTemporaryAttendanceByEmployeeAndDate(employee.id, dateKey);
       const normalizedDateKey = normalizeDateToSlash(dateKey);
       const todayFiltered = todayRecords.filter(
-        r => normalizeDateToSlash(r.date) === normalizedDateKey
+        (record) => normalizeDateToSlash(record.date) === normalizedDateKey
       );
-
-      // 找最後一筆未完成的（有上班沒下班）
       const incomplete = todayFiltered
-        .filter(r => r.clockIn && !r.clockOut)
+        .filter((record) => record.clockIn && !record.clockOut)
         .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))[0];
 
       let attendance;
@@ -229,17 +391,13 @@ export function registerLineRoutes(app: Express): void {
         isClockIn = true;
       }
 
-      // 非阻塞送出 LINE 推播通知
-      sendClockInNotification(lineUserId, employee.name, time, isClockIn).catch(err =>
-        log.warn('LINE 打卡通知發送失敗:', err)
+      sendClockInNotification(lineSession.lineUserId, employee.name, time, isClockIn).catch((err) =>
+        log.warn('Failed to send LINE clock-in notification', err)
       );
-
-      const action = isClockIn ? 'clock-in' : 'clock-out';
-      log.info(`LINE 打卡：${employee.name} ${action} ${time}`);
 
       return res.json({
         success: true,
-        action,
+        action: isClockIn ? 'clock-in' : 'clock-out',
         employeeName: employee.name,
         department: employee.department,
         clockTime: time,
@@ -247,127 +405,131 @@ export function registerLineRoutes(app: Express): void {
         attendance
       });
     } catch (err) {
-      log.error('LINE 打卡失敗:', err);
+      log.error('LINE clock-in request failed', err);
       return handleRouteError(err, res);
     }
   });
 
-  // ── Admin endpoints ──────────────────────────────────────────────────────
-
-  // GET /api/line/pending-bindings — 取得全部待審核綁定
   app.get('/api/line/pending-bindings', requireAdmin(), async (_req, res) => {
     try {
+      setNoStore(res);
       const bindings = await storage.getPendingBindings();
-      // 附帶員工姓名
       const enriched = await Promise.all(
-        bindings.map(async b => {
-          const emp = await storage.getEmployeeById(b.employeeId);
-          return { ...b, employeeName: emp?.name ?? '(已刪除)' };
+        bindings.map(async (binding) => {
+          const employee = await storage.getEmployeeById(binding.employeeId);
+          return {
+            ...binding,
+            employeeName: employee?.name ?? '(deleted employee)'
+          };
         })
       );
+
       return res.json(enriched);
     } catch (err) {
       return handleRouteError(err, res);
     }
   });
 
-  // POST /api/line/pending-bindings/:id/approve — 核准綁定
-  app.post('/api/line/pending-bindings/:id/approve', requireAdmin(), async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: '無效的 ID' });
+  app.post('/api/line/pending-bindings/:id/approve', strictLimiter, requireAdmin(), async (req, res) => {
+    const id = parseNumericId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: 'Invalid binding id' });
+    }
 
     try {
       const binding = await storage.approvePendingBinding(id, 'admin');
-      if (!binding) return res.status(404).json({ error: '找不到此綁定申請' });
+      if (!binding) {
+        return res.status(404).json({ error: 'Pending binding not found' });
+      }
 
-      // 通知員工
-      sendClockInNotification(
+      await pushMessage(
         binding.lineUserId,
-        binding.lineDisplayName ?? '',
-        '',
-        true
-      ).catch(() => {});
+        'Your LINE account has been approved. You can now use LINE to clock in and clock out.'
+      );
 
-      // 改發送核准通知
-      (async () => {
-        const { pushMessage: push } = await import('../services/line.service');
-        await push(
-          binding.lineUserId,
-          `✅ 綁定已核准！\n\n您的 LINE 帳號已成功綁定員工帳號。\n現在可以使用 LINE 打卡囉！`
-        ).catch(() => {});
-      })();
-
-      log.info(`LINE 綁定核准：binding id=${id}`);
+      log.info(`Approved LINE binding ${id} for ${maskLineUserId(binding.lineUserId)}`);
       return res.json({ success: true, binding });
     } catch (err) {
       return handleRouteError(err, res);
     }
   });
 
-  // POST /api/line/pending-bindings/:id/reject — 拒絕綁定
-  app.post('/api/line/pending-bindings/:id/reject', requireAdmin(), async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: '無效的 ID' });
+  app.post('/api/line/pending-bindings/:id/reject', strictLimiter, requireAdmin(), async (req, res) => {
+    const id = parseNumericId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: 'Invalid binding id' });
+    }
 
-    const reason = typeof req.body?.reason === 'string' ? req.body.reason : '申請未通過審核';
+    const reason =
+      typeof req.body?.reason === 'string' && req.body.reason.trim()
+        ? req.body.reason.trim()
+        : 'Binding request was rejected by an administrator.';
 
     try {
       const binding = await storage.rejectPendingBinding(id, 'admin', reason);
-      if (!binding) return res.status(404).json({ error: '找不到此綁定申請' });
+      if (!binding) {
+        return res.status(404).json({ error: 'Pending binding not found' });
+      }
 
-      // 通知員工被拒絕
-      (async () => {
-        const { pushMessage: push } = await import('../services/line.service');
-        await push(
-          binding.lineUserId,
-          `❌ 綁定申請未通過\n\n原因：${reason}\n\n如有疑問請聯絡管理員。`
-        ).catch(() => {});
-      })();
+      await pushMessage(
+        binding.lineUserId,
+        `Your LINE binding request was rejected.\n\nReason: ${reason}`
+      );
 
-      log.info(`LINE 綁定拒絕：binding id=${id}, reason=${reason}`);
+      log.info(`Rejected LINE binding ${id} for ${maskLineUserId(binding.lineUserId)}`);
       return res.json({ success: true, binding });
     } catch (err) {
       return handleRouteError(err, res);
     }
   });
 
-  // DELETE /api/line/pending-bindings/:id — 刪除綁定申請
-  app.delete('/api/line/pending-bindings/:id', requireAdmin(), async (req, res) => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: '無效的 ID' });
+  app.delete('/api/line/pending-bindings/:id', strictLimiter, requireAdmin(), async (req, res) => {
+    const id = parseNumericId(req.params.id);
+    if (id === null) {
+      return res.status(400).json({ error: 'Invalid binding id' });
+    }
 
     try {
       const deleted = await storage.deletePendingBinding(id);
-      if (!deleted) return res.status(404).json({ error: '找不到此綁定申請' });
+      if (!deleted) {
+        return res.status(404).json({ error: 'Pending binding not found' });
+      }
+
       return res.json({ success: true });
     } catch (err) {
       return handleRouteError(err, res);
     }
   });
 
-  // POST /api/line/webhook — LINE Webhook（需 raw body，由 index.ts 前置 express.raw）
   app.post('/api/line/webhook', (req, res) => {
+    if (!isLineConfigured()) {
+      return res.status(503).json({
+        success: false,
+        code: 'LINE_NOT_CONFIGURED',
+        error: 'LINE integration is not configured.'
+      });
+    }
+
     const signature = req.headers['x-line-signature'];
     if (!signature || typeof signature !== 'string') {
-      return res.status(400).json({ error: '缺少 LINE webhook 簽章' });
+      return res.status(400).json({ error: 'Missing LINE webhook signature' });
     }
 
     const body = req.body as Buffer;
     if (!Buffer.isBuffer(body)) {
-      return res.status(400).json({ error: 'Webhook body 格式錯誤' });
+      return res.status(400).json({ error: 'Webhook body must be a raw Buffer' });
     }
 
     if (!verifyWebhookSignature(body, signature)) {
-      log.warn('LINE webhook 簽章驗證失敗');
-      return res.status(401).json({ error: '簽章驗證失敗' });
+      log.warn('Rejected LINE webhook with invalid signature');
+      return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
-    // 目前僅記錄事件，未來可擴展 bot 互動功能
     try {
       const events = JSON.parse(body.toString()).events ?? [];
-      log.info(`LINE webhook 收到 ${events.length} 個事件`);
+      log.info(`Received ${events.length} LINE webhook event(s)`);
     } catch {
-      // 解析失敗不影響回應
+      // Ignore parse errors after signature verification; acknowledge the webhook anyway.
     }
 
     return res.sendStatus(200);

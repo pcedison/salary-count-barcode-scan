@@ -155,24 +155,13 @@ async function syncEmployeeSpecialLeaveDates(
   }
 }
 
-function toEmployeeOperationalProfile(employee: Employee) {
+function toPublicEmployeeProfile(employee: Employee) {
   return {
     id: employee.id,
     name: employee.name,
-    idNumber: '',
-    isEncrypted: false,
     position: employee.position,
     department: employee.department,
-    email: '',
-    phone: '',
-    active: employee.active,
-    specialLeaveDays: employee.specialLeaveDays,
-    specialLeaveWorkDateRange: employee.specialLeaveWorkDateRange,
-    specialLeaveUsedDates: employee.specialLeaveUsedDates,
-    specialLeaveCashDays: employee.specialLeaveCashDays,
-    specialLeaveCashMonth: employee.specialLeaveCashMonth,
-    specialLeaveNotes: employee.specialLeaveNotes,
-    createdAt: employee.createdAt
+    active: employee.active
   };
 }
 
@@ -188,7 +177,7 @@ export function registerEmployeeRoutes(app: Express): void {
   app.get('/api/employees', async (_req, res) => {
     try {
       const employees = await storage.getAllEmployees();
-      return res.json(employees.map(toEmployeeOperationalProfile));
+      return res.json(employees.map(toPublicEmployeeProfile));
     } catch (err) {
       return handleRouteError(err, res);
     }

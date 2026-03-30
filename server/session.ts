@@ -23,9 +23,23 @@ export interface AdminSessionState {
   lastVerifiedAt: number;
 }
 
+export interface ScanAccessSessionState {
+  unlockedAt: number;
+  expiresAt: number;
+}
+
+export interface LineAuthSessionState {
+  lineUserId: string;
+  lineDisplayName: string;
+  linePictureUrl?: string;
+  authenticatedAt: number;
+}
+
 declare module 'express-session' {
   interface SessionData {
     adminAuth?: AdminSessionState;
+    scanAccess?: ScanAccessSessionState;
+    lineAuth?: LineAuthSessionState;
     // LINE OAuth 暫存資料（callback 後存入，ClockInPage 一次性取出即清除）
     lineTemp?: {
       lineUserId: string;
@@ -110,6 +124,10 @@ function getBaseCookieOptions() {
   };
 }
 
+function getScanAccessTimeoutMs(): number {
+  return 12 * 60 * 60 * 1000;
+}
+
 export function setupAdminSession(app: Express): void {
   const sessionPolicy = getAdminSessionPolicy();
 
@@ -139,6 +157,25 @@ export function hasAdminSession(
     adminAuth?.isAdmin &&
       adminAuth.permissionLevel >= requiredLevel
   );
+}
+
+export function getScanAccessSession(
+  req: { session?: Request['session'] }
+): ScanAccessSessionState | null {
+  const scanAccess = req.session?.scanAccess;
+  if (!scanAccess) {
+    return null;
+  }
+
+  if (scanAccess.expiresAt <= Date.now()) {
+    return null;
+  }
+
+  return scanAccess;
+}
+
+export function hasActiveScanAccessSession(req: { session?: Request['session'] }): boolean {
+  return getScanAccessSession(req) !== null;
 }
 
 export function touchAdminSession(req: { session?: Request['session'] }): void {
@@ -203,6 +240,31 @@ export async function createAdminSession(
     authenticatedAt: Date.now(),
     lastVerifiedAt: Date.now()
   };
+  await saveSession(req);
+}
+
+export async function createScanAccessSession(req: Request): Promise<ScanAccessSessionState> {
+  if (!req.session) {
+    throw new Error('Scan session middleware is not initialized');
+  }
+
+  const now = Date.now();
+  const scanAccess: ScanAccessSessionState = {
+    unlockedAt: now,
+    expiresAt: now + getScanAccessTimeoutMs()
+  };
+
+  req.session.scanAccess = scanAccess;
+  await saveSession(req);
+  return scanAccess;
+}
+
+export async function clearScanAccessSession(req: Request): Promise<void> {
+  if (!req.session?.scanAccess) {
+    return;
+  }
+
+  delete req.session.scanAccess;
   await saveSession(req);
 }
 

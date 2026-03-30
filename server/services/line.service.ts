@@ -7,6 +7,15 @@ const LINE_TOKEN_ENDPOINT = 'https://api.line.me/oauth2/v2.1/token';
 const LINE_PROFILE_ENDPOINT = 'https://api.line.me/v2/profile';
 const LINE_AUTHORIZE_ENDPOINT = 'https://access.line.me/oauth2/v2.1/authorize';
 
+function maskLineUserId(lineUserId: string): string {
+  const normalized = lineUserId.trim();
+  if (normalized.length <= 8) {
+    return '***';
+  }
+
+  return `${normalized.slice(0, 4)}***${normalized.slice(-4)}`;
+}
+
 export interface LineProfile {
   userId: string;
   displayName: string;
@@ -97,7 +106,7 @@ export async function pushMessage(lineUserId: string, message: string): Promise<
       messages: [{ type: 'text', text: message }]
     });
   } catch (err) {
-    log.warn(`LINE push message failed for ${lineUserId}:`, err);
+    log.warn(`LINE push message failed for ${maskLineUserId(lineUserId)}:`, err);
   }
 }
 

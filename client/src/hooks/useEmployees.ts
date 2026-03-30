@@ -5,20 +5,27 @@ import type { Employee } from '../types/employee';
 
 export type { Employee };
 
-const EMPLOYEES_QUERY_KEY = ['/api/employees'] as const;
+type UseEmployeesOptions = {
+  requireAdminDetails?: boolean;
+  enabled?: boolean;
+};
 
-export function useEmployees() {
+export function useEmployees(options: UseEmployeesOptions = {}) {
+  const { requireAdminDetails = false, enabled = true } = options;
+  const queryPath = requireAdminDetails ? '/api/employees/admin' : '/api/employees';
+
   const {
     data: employees = [],
     isLoading,
     error,
     refetch
   } = useQuery<Employee[]>({
-    queryKey: EMPLOYEES_QUERY_KEY,
+    queryKey: [queryPath],
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: false,
-    retry: 1
+    retry: 1,
+    enabled
   });
 
   const activeEmployees = useMemo(

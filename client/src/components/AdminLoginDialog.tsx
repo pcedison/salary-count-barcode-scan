@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,20 +16,37 @@ interface AdminLoginDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  onVerifyPin?: (pin: string) => Promise<boolean>;
   title?: string;
   description?: string;
+  pinLabel?: string;
+  placeholder?: string;
+  submitLabel?: string;
+  verifyingLabel?: string;
 }
 
 export default function AdminLoginDialog({
   isOpen,
   onClose,
   onSuccess,
+  onVerifyPin,
   title = "管理員驗證",
-  description = "請輸入六位數管理員密碼以繼續操作",
+  description = "請輸入 6 位數管理 PIN 以繼續。",
+  pinLabel = "管理 PIN",
+  placeholder = "請輸入 6 位數 PIN",
+  submitLabel = "確認",
+  verifyingLabel = "驗證中",
 }: AdminLoginDialogProps) {
   const [pin, setPin] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const { verifyPin } = useAdmin();
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPin("");
+      setIsVerifying(false);
+    }
+  }, [isOpen]);
 
   const handleVerify = async () => {
     if (pin.length !== 6) {
@@ -37,7 +54,8 @@ export default function AdminLoginDialog({
     }
 
     setIsVerifying(true);
-    const success = await verifyPin(pin);
+    const verifyHandler = onVerifyPin ?? verifyPin;
+    const success = await verifyHandler(pin);
     setIsVerifying(false);
 
     if (success) {
@@ -48,7 +66,7 @@ export default function AdminLoginDialog({
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
-      handleVerify();
+      void handleVerify();
     }
   };
 
@@ -62,7 +80,7 @@ export default function AdminLoginDialog({
         <div className="flex flex-col gap-4 py-4">
           <div className="flex flex-col space-y-2">
             <label htmlFor="adminPin" className="font-medium">
-              管理員密碼
+              {pinLabel}
             </label>
             <Input
               id="adminPin"
@@ -70,16 +88,15 @@ export default function AdminLoginDialog({
               maxLength={6}
               pattern="[0-9]*"
               inputMode="numeric"
-              placeholder="請輸入六位數密碼"
+              placeholder={placeholder}
               value={pin}
               onChange={(e) => {
-                // Only allow numbers
                 const value = e.target.value.replace(/[^0-9]/g, "");
                 if (value.length <= 6) {
                   setPin(value);
                 }
               }}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               className="w-full"
               autoFocus
             />
@@ -89,17 +106,14 @@ export default function AdminLoginDialog({
           <Button variant="outline" onClick={onClose} disabled={isVerifying}>
             取消
           </Button>
-          <Button 
-            onClick={handleVerify} 
-            disabled={pin.length !== 6 || isVerifying}
-          >
+          <Button onClick={handleVerify} disabled={pin.length !== 6 || isVerifying}>
             {isVerifying ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                驗證中
+                {verifyingLabel}
               </>
             ) : (
-              "確認"
+              submitLabel
             )}
           </Button>
         </DialogFooter>

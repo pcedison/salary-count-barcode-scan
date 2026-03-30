@@ -364,9 +364,10 @@ describe('real database — AES compatibility', () => {
 
     expect(publicEmployee).toMatchObject({
       id: aesEmployee.id,
-      idNumber: '',
-      isEncrypted: false
+      name: `${TEST_PREFIX}_AES?∪極`
     });
+    expect(publicEmployee).not.toHaveProperty('idNumber');
+    expect(publicEmployee).not.toHaveProperty('specialLeaveUsedDates');
   });
 
   it('supports plaintext and scan-token clock flows for AES-encrypted employees', async () => {

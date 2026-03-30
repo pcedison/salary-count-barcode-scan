@@ -5,6 +5,7 @@ import { encrypt as encryptAes } from '@shared/utils/encryption';
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 import { buildEmployeeIdentityLookupCandidates, matchesEmployeeIdentity } from '../utils/employeeIdentity';
 
+import { setupTestAdminSession, TEST_SCAN_UNLOCK_HEADER } from '../test-utils/admin-test-session';
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
 
 const scanState = vi.hoisted(() => ({
@@ -91,9 +92,12 @@ beforeAll(async () => {
 afterEach(() => {
   delete process.env.ENCRYPTION_KEY;
   delete process.env.USE_AES_ENCRYPTION;
+  delete process.env.SCAN_DEVICE_TOKEN;
+  delete process.env.SESSION_SECRET;
 });
 
 beforeEach(() => {
+  process.env.NODE_ENV = 'test';
   scanState.currentDateKey = '2026/03/12';
   scanState.currentTime = '08:30';
   scanState.currentTimestamp = '2026-03-12T00:30:00.000Z';
@@ -198,6 +202,49 @@ describe('scan routes integration', () => {
     }
   });
 
+  it('requires a kiosk unlock session for browser barcode scans in production', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SESSION_SECRET = 'test-session-secret-1234567890123456';
+
+    const server = await createJsonTestServer(registerScanRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
+
+    try {
+      const locked = await jsonRequest<{ code: string }>(server.baseUrl, '/api/barcode-scan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          idNumber: 'A123456789'
+        })
+      });
+
+      expect(locked.response.status).toBe(401);
+      expect(locked.response.headers.get('x-scan-session-required')).toBe('true');
+      expect(locked.body?.code).toBe('SCAN_SESSION_REQUIRED');
+
+      const unlocked = await jsonRequest<{ success: boolean }>(server.baseUrl, '/api/barcode-scan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          [TEST_SCAN_UNLOCK_HEADER]: 'true'
+        },
+        body: JSON.stringify({
+          idNumber: 'A123456789'
+        })
+      });
+
+      expect(unlocked.response.status).toBe(200);
+      expect(unlocked.body?.success).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
   it('rebuilds the last scan result from persisted attendance after in-memory cache is lost', async () => {
     scanState.attendanceRecords = [
       {
@@ -265,6 +312,47 @@ describe('scan routes integration', () => {
         name: '測試員工',
         time: '08:30'
       });
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('requires a device token for Raspberry Pi scans in production', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.SCAN_DEVICE_TOKEN = 'scan-device-token-12345678901234567890';
+
+    const server = await createJsonTestServer(registerScanRoutes);
+
+    try {
+      const unauthorized = await jsonRequest<{ code: string }>(server.baseUrl, '/api/raspberry-scan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          idNumber: 'A123456789',
+          deviceId: 'raspi-01'
+        })
+      });
+
+      expect(unauthorized.response.status).toBe(401);
+      expect(unauthorized.response.headers.get('x-scan-device-token-required')).toBe('true');
+      expect(unauthorized.body?.code).toBe('SCAN_DEVICE_TOKEN_REQUIRED');
+
+      const authorized = await jsonRequest<{ success: boolean }>(server.baseUrl, '/api/raspberry-scan', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-scan-device-token': process.env.SCAN_DEVICE_TOKEN
+        },
+        body: JSON.stringify({
+          idNumber: 'A123456789',
+          deviceId: 'raspi-01'
+        })
+      });
+
+      expect(authorized.response.status).toBe(200);
+      expect(authorized.body?.success).toBe(true);
     } finally {
       await server.close();
     }

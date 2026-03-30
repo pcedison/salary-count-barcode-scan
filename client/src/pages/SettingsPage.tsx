@@ -45,7 +45,15 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const { isAdmin, isSuperAdmin, updatePin, logout } = useAdmin();
   const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings({ requireAdminSettings: isAdmin });
-  const { employees } = useEmployees();
+  const { employees } = useEmployees({ requireAdminDetails: isAdmin });
+  const normalizedEmployees = employees.map((employee) => ({
+    ...employee,
+    department: employee.department ?? '',
+    position: employee.position ?? undefined,
+    specialLeaveWorkDateRange: employee.specialLeaveWorkDateRange ?? undefined,
+    specialLeaveCashMonth: employee.specialLeaveCashMonth ?? undefined,
+    specialLeaveNotes: employee.specialLeaveNotes ?? undefined,
+  }));
   
   const [baseHourlyRate, setBaseHourlyRate] = useState<number>(DEFAULT_CONFIG.BASE_HOURLY_RATE);
   const [baseMonthSalary, setBaseMonthSalary] = useState<number>(DEFAULT_CONFIG.BASE_MONTH_SALARY);
@@ -503,7 +511,7 @@ export default function SettingsPage() {
     deductions,
     allowances,
     holidays: Array.isArray(holidays) ? holidays : [],
-    employees: employees || [],
+    employees: normalizedEmployees,
     newHolidayDate,
     newHolidayDescription,
     selectedEmployeeId,
@@ -607,7 +615,7 @@ export default function SettingsPage() {
           
           <div className="mt-6">
             <SpecialLeaveCounter 
-              employees={employees || []}
+              employees={normalizedEmployees}
               isAdmin={isAdmin}
               baseSalary={baseMonthSalary}
             />

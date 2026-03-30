@@ -8,16 +8,17 @@ import { registerEmployeeRoutes } from './routes/employees.routes';
 import { registerHealthRoutes } from './routes/health.routes';
 import { registerHolidayRoutes } from './routes/holidays.routes';
 import { registerImportRoutes } from './routes/import.routes';
+import { registerLineRoutes } from './routes/line.routes';
 import { registerSalaryRoutes } from './routes/salary.routes';
 import { registerScanRoutes } from './routes/scan.routes';
 import { registerSettingsRoutes } from './routes/settings.routes';
-import { registerLineRoutes } from './routes/line.routes';
+import { isLineConfigured } from './services/line.service';
 import { createLogger } from './utils/logger';
 
 const log = createLogger('routes');
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  log.info('初始化 PostgreSQL 存儲實現');
+  log.info('Registering application routes');
 
   registerDashboardRoutes(app);
   registerAdminRoutes(app);
@@ -29,13 +30,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerSalaryRoutes(app);
   registerScanRoutes(app);
   registerSettingsRoutes(app);
+  registerLineRoutes(app);
 
-  // LINE 打卡功能：僅在 LINE 環境變數設定時啟用
-  if (process.env.LINE_LOGIN_CHANNEL_ID) {
-    registerLineRoutes(app);
-    log.info('LINE 打卡功能已啟用');
+  if (isLineConfigured()) {
+    log.info('LINE routes enabled');
   } else {
-    log.warn('LINE 打卡功能未啟用（LINE 環境變數未設定）');
+    log.warn('LINE routes registered in disabled mode because LINE env vars are missing');
   }
 
   const httpServer = createServer(app);

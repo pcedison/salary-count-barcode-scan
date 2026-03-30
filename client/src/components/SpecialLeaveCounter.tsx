@@ -33,8 +33,9 @@ export default function SpecialLeaveCounter({ employees: employeesProp, isAdmin,
   const queryClient = useQueryClient();
 
   const { data: employeesFromQuery } = useQuery<Employee[]>({
-    queryKey: ['/api/employees'],
+    queryKey: ['/api/employees/admin'],
     staleTime: 0,
+    enabled: isAdmin
   });
 
   const employees = employeesFromQuery || employeesProp;

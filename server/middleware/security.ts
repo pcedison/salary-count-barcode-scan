@@ -18,42 +18,57 @@ export function setupSecurity(app: Express): void {
 
   if (isProduction && allowedOrigins.length === 0) {
     log.warn(
-      'ALLOWED_ORIGINS is not set in production — cross-origin requests will be blocked. ' +
+      'ALLOWED_ORIGINS is not set in production; cross-origin requests will be blocked. ' +
       'Set ALLOWED_ORIGINS to a comma-separated list of allowed origins.'
     );
   }
 
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: isProduction
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+              connectSrc: ["'self'"],
+              objectSrc: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+              frameAncestors: ["'self'"],
+              manifestSrc: ["'self'"],
+              mediaSrc: ["'self'", 'data:'],
+              workerSrc: ["'self'", 'blob:'],
+              upgradeInsecureRequests: []
+            }
+          }
+        : false,
       crossOriginEmbedderPolicy: false
     })
   );
 
-  // CORS only applies to API routes — static assets are same-origin and do not need CORS
   app.use(
     '/api',
     cors({
       origin: (origin, callback) => {
-        // Same-origin / server-to-server requests don't send an Origin header
         if (!origin) {
           callback(null, true);
           return;
         }
 
-        // In development with no allowlist configured, allow all origins
         if (!isProduction && allowedOrigins.length === 0) {
           callback(null, true);
           return;
         }
 
-        // Check against explicit allowlist
         if (allowedOrigins.includes(origin)) {
           callback(null, true);
           return;
         }
 
-        callback(new Error('不允許的來源'));
+        callback(new Error('Origin is not allowed'));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -61,7 +76,8 @@ export function setupSecurity(app: Express): void {
         'Content-Type',
         'Authorization',
         'X-Requested-With',
-        'X-Force-Update'
+        'X-Force-Update',
+        'X-Scan-Device-Token'
       ]
     })
   );

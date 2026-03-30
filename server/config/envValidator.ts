@@ -35,6 +35,7 @@ const envSchema = z.object({
   SESSION_SECURE: z.enum(['true', 'false']).optional(),
   SESSION_SAME_SITE: z.enum(['lax', 'strict', 'none']).optional(),
   SESSION_SECRET: optionalSecret('SESSION_SECRET'),
+  SCAN_DEVICE_TOKEN: optionalSecret('SCAN_DEVICE_TOKEN'),
   ENCRYPTION_KEY: optionalSecret('ENCRYPTION_KEY'),
   ENCRYPTION_SALT: z.string().optional(),
   // LINE 打卡功能（全部選用，但若任一有值則五個必須全部設定）
@@ -67,6 +68,10 @@ export function validateEnv(): ValidatedEnv {
 
   if (!validated.SESSION_SECRET) {
     log.warn('SESSION_SECRET 未設定，目前僅使用管理員 PIN 驗證流程');
+  }
+
+  if (validated.NODE_ENV === 'production' && !validated.SCAN_DEVICE_TOKEN) {
+    log.warn('SCAN_DEVICE_TOKEN is not set; /api/raspberry-scan will be disabled in production');
   }
 
   if (!validated.ENCRYPTION_KEY) {

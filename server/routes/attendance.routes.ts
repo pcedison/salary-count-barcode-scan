@@ -11,16 +11,33 @@ import { handleRouteError, parseNumericId } from './route-helpers';
 
 const log = createLogger('attendance');
 
+function toPublicTodayAttendanceRecord(
+  record: Awaited<ReturnType<typeof storage.getTemporaryAttendance>>[number],
+  employeeDirectory: Map<number, { name: string; department: string | null }>
+) {
+  const employeeId = record.employeeId ?? null;
+  const employee = employeeId === null ? undefined : employeeDirectory.get(employeeId);
+
+  return {
+    id: record.id,
+    employeeId,
+    employeeName: employee?.name ?? 'Unknown employee',
+    department: employee?.department ?? null,
+    date: record.date,
+    clockIn: record.clockIn,
+    clockOut: record.clockOut,
+    isBarcodeScanned: Boolean(record.isBarcodeScanned)
+  };
+}
+
 export function registerAttendanceRoutes(app: Express): void {
   app.get('/api/attendance', requireAdmin(), async (_req, res) => {
     try {
-      log.debug('獲取所有考勤記錄');
+      log.debug('Loading all attendance records');
       const attendanceRecords = await storage.getTemporaryAttendance();
-
-      log.debug(`成功從儲存層獲取考勤記錄，數量: ${attendanceRecords.length}`);
       return res.json(attendanceRecords);
     } catch (err) {
-      log.error('獲取考勤記錄失敗:', err);
+      log.error('Failed to load attendance records', err);
       return handleRouteError(err, res);
     }
   });
@@ -29,20 +46,29 @@ export function registerAttendanceRoutes(app: Express): void {
     try {
       const startTime = Date.now();
       const todayDateKey = getTodayDateKey();
-
-      log.debug('獲取今日考勤記錄');
-
       const allAttendanceRecords = await storage.getTemporaryAttendance();
-      const todayRecords = filterAttendanceRecordsByDate(allAttendanceRecords, todayDateKey);
-
-      const endTime = Date.now();
-      log.debug(
-        `今日考勤API響應時間: ${endTime - startTime}ms，找到 ${todayRecords.length} 筆記錄`
+      const todayRecords = filterAttendanceRecordsByDate(allAttendanceRecords, todayDateKey)
+        .filter((record) => record.isBarcodeScanned === true);
+      const employees = await storage.getAllEmployees();
+      const employeeDirectory = new Map(
+        employees.map((employee) => [
+          employee.id,
+          {
+            name: employee.name,
+            department: employee.department ?? null
+          }
+        ])
       );
 
-      return res.json(todayRecords);
+      log.debug(
+        `Loaded public today attendance payload in ${Date.now() - startTime}ms (${todayRecords.length} records)`
+      );
+
+      return res.json(
+        todayRecords.map((record) => toPublicTodayAttendanceRecord(record, employeeDirectory))
+      );
     } catch (err) {
-      log.error('獲取今日考勤記錄失敗:', err);
+      log.error('Failed to load today attendance records', err);
       return handleRouteError(err, res);
     }
   });

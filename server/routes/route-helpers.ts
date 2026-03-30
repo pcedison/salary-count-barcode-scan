@@ -17,9 +17,16 @@ export function handleRouteError(err: unknown, res: Response) {
     });
   }
 
-  const message = err instanceof Error ? err.message : 'Internal server error';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const message = isProduction
+    ? 'Internal Server Error'
+    : err instanceof Error
+      ? err.message
+      : 'Internal server error';
+
   return res.status(500).json({
-    message
+    message,
+    code: 'INTERNAL_ERROR'
   });
 }
 
