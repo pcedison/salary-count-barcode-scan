@@ -98,13 +98,9 @@ export default function ClockInPage() {
                 };
                 setLineData(temp);
 
-                const statusRes = await fetch(
-                  `/api/line/binding-status/${encodeURIComponent(temp.lineUserId)}`
-                );
-                const status = await statusRes.json();
-
-                if (status.status === 'bound') {
-                  setEmployeeName(status.employeeName);
+                // liff-auth 已包含 bindingStatus，不需要再發第 2 個請求
+                if (authData.bindingStatus === 'bound') {
+                  setEmployeeName(authData.employeeName ?? '');
                   if (liff.isInClient()) {
                     // 在 LINE app 內掃碼開啟 → 直接自動打卡
                     await performClockIn(temp.lineUserId);
@@ -112,7 +108,7 @@ export default function ClockInPage() {
                     // 在外部瀏覽器開啟 LIFF → 顯示打卡按鈕（測試用）
                     setState('ready');
                   }
-                } else if (status.status === 'pending') {
+                } else if (authData.bindingStatus === 'pending') {
                   setState('pending');
                 } else {
                   setState('bind');

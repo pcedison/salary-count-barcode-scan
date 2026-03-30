@@ -3,7 +3,7 @@ import type { Express, Request, Response } from 'express';
 
 import { normalizeDateToSlash } from '@shared/utils/specialLeaveSync';
 
-import { strictLimiter, lineBindLimiter, lineClockInLimiter, lineSessionLimiter } from '../middleware/rateLimiter';
+import { strictLimiter, lineBindLimiter, lineClockInLimiter, lineSessionLimiter, liffClockInLimiter } from '../middleware/rateLimiter';
 import { requireAdmin } from '../middleware/requireAdmin';
 import { storage } from '../storage';
 import { createLogger } from '../utils/logger';
@@ -214,7 +214,7 @@ export function registerLineRoutes(app: Express): void {
     res.json(lineSession);
   });
 
-  app.post('/api/line/liff-auth', lineSessionLimiter, async (req, res) => {
+  app.post('/api/line/liff-auth', liffClockInLimiter, async (req, res) => {
     if (!ensureConfigured(res)) return;
 
     const { accessToken } = req.body as { accessToken?: string };
@@ -249,12 +249,29 @@ export function registerLineRoutes(app: Express): void {
       };
       await saveSession(req);
 
-      log.info(`LIFF auth successful for ${maskLineUserId(profile.userId)}`);
+      // 同時回傳綁定狀態，讓前端省掉第 2 個 binding-status 請求
+      const boundEmployee = await storage.getEmployeeByLineUserId(profile.userId);
+      let bindingStatus: 'bound' | 'pending' | 'unbound' = 'unbound';
+      let employeeName: string | undefined;
+
+      if (boundEmployee) {
+        bindingStatus = 'bound';
+        employeeName = boundEmployee.name;
+      } else {
+        const pending = await storage.getPendingBindingByLineUserId(profile.userId);
+        if (pending && pending.status === 'pending') {
+          bindingStatus = 'pending';
+        }
+      }
+
+      log.info(`LIFF auth successful for ${maskLineUserId(profile.userId)}, binding: ${bindingStatus}`);
       return res.json({
         success: true,
         lineUserId: profile.userId,
         lineDisplayName: profile.displayName,
-        linePictureUrl: profile.pictureUrl
+        linePictureUrl: profile.pictureUrl,
+        bindingStatus,
+        employeeName
       });
     } catch (err) {
       log.error('LIFF auth failed', err);

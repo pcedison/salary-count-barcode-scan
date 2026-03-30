@@ -99,3 +99,16 @@ export const lineClockInLimiter = rateLimit({
     message: 'Too many LINE clock-in attempts. Please wait before retrying.'
   }
 });
+
+// LIFF QR 打卡專用：比一般 session limiter 寬鬆，與硬體掃描器同等級
+export const liffClockInLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isDevelopment() ? 500 : 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    code: 'LIFF_CLOCK_IN_RATE_LIMITED',
+    message: 'Too many LIFF clock-in requests. Please wait before retrying.'
+  }
+});
