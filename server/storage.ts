@@ -4,10 +4,13 @@ import { createLogger } from "./utils/logger";
 import {
   buildEmployeeIdentityLookupCandidates,
   encryptEmployeeIdentityForStorage,
+  getEmployeeDisplayId,
   maskEmployeeIdentityForLog,
   matchesEmployeeIdentity,
+  normalizeEmployeeIdentity,
   prepareUpdatedEmployeeIdentityForStorage
 } from "./utils/employeeIdentity";
+import { isAESEncrypted } from "@shared/utils/encryption";
 
 import {
   users, type User, type InsertUser,
@@ -86,6 +89,9 @@ export interface IStorage {
   getOAuthState(stateValue: string): Promise<OAuthState | undefined>;
   deleteOAuthState(stateValue: string): Promise<boolean>;
   cleanupExpiredOAuthStates(): Promise<void>;
+
+  // Encryption migration
+  encryptAllPlaintextEmployees(): Promise<{ migrated: number; skipped: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -631,6 +637,44 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(oauthStates)
       .where(drizzleSql`${oauthStates.expiresAt} < now()`);
+  }
+
+  async encryptAllPlaintextEmployees(): Promise<{ migrated: number; skipped: number }> {
+    const allEmployees = await this.getAllEmployees();
+    let migrated = 0;
+    let skipped = 0;
+
+    await db.transaction(async (tx) => {
+      for (const employee of allEmployees) {
+        if (!employee.idNumber || isAESEncrypted(employee.idNumber)) {
+          skipped++;
+          continue;
+        }
+
+        const displayId = getEmployeeDisplayId(employee);
+        if (!displayId) {
+          skipped++;
+          continue;
+        }
+
+        const encryptedId = encryptEmployeeIdentityForStorage(displayId, true);
+
+        const decryptedId = getEmployeeDisplayId({ idNumber: encryptedId, isEncrypted: true });
+        if (normalizeEmployeeIdentity(decryptedId) !== normalizeEmployeeIdentity(displayId)) {
+          throw new Error(`員工 ${employee.name} (ID: ${employee.id}) 加密驗證失敗`);
+        }
+
+        await tx
+          .update(employees)
+          .set({ idNumber: encryptedId, isEncrypted: true })
+          .where(eq(employees.id, employee.id));
+
+        log.info(`員工 ${employee.name} (ID: ${employee.id}) 身分證已加密為 AES-256-GCM`);
+        migrated++;
+      }
+    });
+
+    return { migrated, skipped };
   }
 }
 

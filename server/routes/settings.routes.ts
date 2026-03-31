@@ -90,10 +90,26 @@ export function registerSettingsRoutes(app: Express): void {
     try {
       setNoStore(res);
       const validatedData = insertSettingsSchema.parse(req.body);
+
+      const currentSettings = await storage.getSettings();
+      const isDisablingBarcode =
+        currentSettings?.barcodeEnabled !== false &&
+        validatedData.barcodeEnabled === false;
+
       const settings = await storage.createOrUpdateSettings(
         normalizeAdminPinForStorage(validatedData),
       );
-      return res.json(toAdminSettingsPayload(settings));
+
+      let migrationResult: { migrated: number; skipped: number } | undefined;
+      if (isDisablingBarcode) {
+        migrationResult = await storage.encryptAllPlaintextEmployees();
+        log.info(
+          `掃碼槍停用，AES 遷移完成: 加密 ${migrationResult.migrated} 筆，跳過 ${migrationResult.skipped} 筆`
+        );
+      }
+
+      const payload = toAdminSettingsPayload(settings);
+      return res.json(migrationResult ? { ...payload, migrationResult } : payload);
     } catch (err) {
       return handleRouteError(err, res);
     }

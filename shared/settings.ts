@@ -16,6 +16,7 @@ export interface PublicSettingsPayload {
   ot2Multiplier: number;
   baseMonthSalary: number;
   welfareAllowance: number;
+  barcodeEnabled: boolean;
 }
 
 export interface AdminSettingsPayload extends PublicSettingsPayload {
@@ -23,9 +24,10 @@ export interface AdminSettingsPayload extends PublicSettingsPayload {
   allowances: AllowanceItem[];
 }
 
-type SettingsLike = Partial<Omit<AdminSettingsPayload, "deductions" | "allowances">> & {
+type SettingsLike = Partial<Omit<AdminSettingsPayload, "deductions" | "allowances" | "barcodeEnabled">> & {
   deductions?: DeductionItem[] | null;
   allowances?: AllowanceItem[] | null;
+  barcodeEnabled?: boolean | null;
 };
 
 export const DEFAULT_PUBLIC_SETTINGS: PublicSettingsPayload = {
@@ -34,6 +36,7 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettingsPayload = {
   ot2Multiplier: 1.67,
   baseMonthSalary: 28590,
   welfareAllowance: 0,
+  barcodeEnabled: true,
 };
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettingsPayload = {
@@ -52,6 +55,7 @@ export function toPublicSettingsPayload(
     ot2Multiplier: settings?.ot2Multiplier ?? DEFAULT_PUBLIC_SETTINGS.ot2Multiplier,
     baseMonthSalary: settings?.baseMonthSalary ?? DEFAULT_PUBLIC_SETTINGS.baseMonthSalary,
     welfareAllowance: settings?.welfareAllowance ?? DEFAULT_PUBLIC_SETTINGS.welfareAllowance,
+    barcodeEnabled: settings?.barcodeEnabled ?? DEFAULT_PUBLIC_SETTINGS.barcodeEnabled,
   };
 }
 

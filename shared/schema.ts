@@ -81,6 +81,7 @@ export const settings = pgTable("settings", {
   deductions: json("deductions").$type<{ name: string; amount: number; description: string }[]>().default([]),
   allowances: json("allowances").$type<{ name: string; amount: number; description: string }[]>().default([]),
   adminPin: text("admin_pin").notNull(),
+  barcodeEnabled: boolean("barcode_enabled").default(true),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

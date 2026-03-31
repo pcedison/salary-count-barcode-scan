@@ -165,12 +165,15 @@ function toPublicEmployeeProfile(employee: Employee) {
   };
 }
 
-function toAdminEmployeeProfile(employee: Employee) {
-  return {
+function toAdminEmployeeProfile(employee: Employee, includeScanId = true) {
+  const base = {
     ...employee,
     idNumber: getEmployeeDisplayId(employee),
-    scanIdNumber: getEmployeeScanId(employee)
   };
+  if (includeScanId) {
+    return { ...base, scanIdNumber: getEmployeeScanId(employee) };
+  }
+  return base;
 }
 
 export function registerEmployeeRoutes(app: Express): void {
@@ -185,8 +188,12 @@ export function registerEmployeeRoutes(app: Express): void {
 
   app.get('/api/employees/admin', requireAdmin(), async (_req, res) => {
     try {
-      const employees = await storage.getAllEmployees();
-      return res.json(employees.map(toAdminEmployeeProfile));
+      const [employeeList, settings] = await Promise.all([
+        storage.getAllEmployees(),
+        storage.getSettings(),
+      ]);
+      const includeScanId = settings?.barcodeEnabled !== false;
+      return res.json(employeeList.map(e => toAdminEmployeeProfile(e, includeScanId)));
     } catch (err) {
       return handleRouteError(err, res);
     }
@@ -199,12 +206,16 @@ export function registerEmployeeRoutes(app: Express): void {
         return res.status(400).json({ message: '無效的ID' });
       }
 
-      const employee = await storage.getEmployeeById(id);
+      const [employee, settings] = await Promise.all([
+        storage.getEmployeeById(id),
+        storage.getSettings(),
+      ]);
       if (!employee) {
         return res.status(404).json({ message: '找不到員工' });
       }
 
-      return res.json(toAdminEmployeeProfile(employee));
+      const includeScanId = settings?.barcodeEnabled !== false;
+      return res.json(toAdminEmployeeProfile(employee, includeScanId));
     } catch (err) {
       return handleRouteError(err, res);
     }

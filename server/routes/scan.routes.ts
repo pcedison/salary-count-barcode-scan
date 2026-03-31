@@ -135,6 +135,20 @@ function respondDeviceTokenRequired(res: Response, statusCode: 401 | 503 = 401) 
 }
 
 export function registerScanRoutes(app: Express): void {
+  // Guard: return 503 for all scan endpoints when barcodeEnabled is false
+  const SCAN_PATHS = ['/api/scan', '/api/barcode-scan', '/api/raspberry-scan', '/api/last-scan-result'];
+  app.use(SCAN_PATHS, async (_req, res, next) => {
+    const settings = await storage.getSettings();
+    if (settings?.barcodeEnabled === false) {
+      return res.status(503).json({
+        success: false,
+        code: 'BARCODE_DISABLED',
+        message: '掃碼槍功能已停用'
+      });
+    }
+    return next();
+  });
+
   const employeeCache = new Map<string, CacheEntry<Employee>>();
   let holidayCache: HolidayCache | null = null;
   let lastScanResult: ScanSuccessResult | null = null;

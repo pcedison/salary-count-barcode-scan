@@ -204,6 +204,7 @@ export function useSettings(options: UseSettingsOptions = {}) {
     adminSettings: adminSettings
       ? toAdminSettingsPayload(adminSettings)
       : null,
+    barcodeEnabled: mergedPublicSettings.barcodeEnabled,
     isLoading:
       isPublicSettingsLoading || (needsAdminSettings && isAdminSettingsLoading),
     updateSettings,

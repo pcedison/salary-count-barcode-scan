@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from '@/hooks/useSettings';
 import { useAdmin } from '@/hooks/useAdmin';
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { constants } from '@/lib/constants';
-import { Lock, Shield, Loader2, Save, AlertCircle, DollarSign, CalendarDays, Settings } from 'lucide-react';
+import { Lock, Shield, Loader2, Save, AlertCircle, DollarSign, CalendarDays, Settings, ScanLine } from 'lucide-react';
 import AdminLoginDialog from '@/components/AdminLoginDialog';
 
 const DEFAULT_CONFIG = {
@@ -43,6 +44,7 @@ interface AllowanceItem {
 
 export default function SettingsPage() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { isAdmin, isSuperAdmin, updatePin, logout } = useAdmin();
   const { settings, isLoading, updateSettings, holidays, isHolidaysLoading, addHoliday, deleteHoliday } = useSettings({ requireAdminSettings: isAdmin });
   const { employees } = useEmployees({ requireAdminDetails: isAdmin });
@@ -81,6 +83,10 @@ export default function SettingsPage() {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [isChangingPin, setIsChangingPin] = useState(false);
+
+  const [barcodeEnabled, setBarcodeEnabled] = useState(true);
+  const [confirmDisableBarcode, setConfirmDisableBarcode] = useState(false);
+  const [isBarcodeToggling, setIsBarcodeToggling] = useState(false);
   
   useEffect(() => {
     if (!isLoading && settings) {
@@ -89,11 +95,12 @@ export default function SettingsPage() {
       setOt1Multiplier(settings.ot1Multiplier || DEFAULT_CONFIG.OT1_MULTIPLIER);
       setOt2Multiplier(settings.ot2Multiplier || DEFAULT_CONFIG.OT2_MULTIPLIER);
       setDeductions(settings.deductions || DEFAULT_CONFIG.DEDUCTIONS);
-      const loadedAllowances = settings.allowances && settings.allowances.length > 0 
-        ? settings.allowances 
+      const loadedAllowances = settings.allowances && settings.allowances.length > 0
+        ? settings.allowances
         : [{ name: '福利金', amount: settings.welfareAllowance || DEFAULT_CONFIG.WELFARE_ALLOWANCE, description: '員工福利津貼' }];
       setAllowances(loadedAllowances);
-      
+      setBarcodeEnabled(settings.barcodeEnabled !== false);
+
       setHasUnsavedChanges(false);
     }
   }, [isLoading, settings]);
@@ -202,7 +209,8 @@ export default function SettingsPage() {
         ot1Multiplier,
         ot2Multiplier,
         deductions,
-        allowances
+        allowances,
+        barcodeEnabled,
       });
       
       setHasUnsavedChanges(false);
@@ -382,6 +390,66 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDisableBarcode = async () => {
+    setIsBarcodeToggling(true);
+    try {
+      const totalAllowances = allowances.reduce((sum, item) => sum + item.amount, 0);
+      const response = await apiRequest('POST', '/api/settings', {
+        baseHourlyRate,
+        baseMonthSalary,
+        welfareAllowance: totalAllowances,
+        ot1Multiplier,
+        ot2Multiplier,
+        deductions,
+        allowances,
+        barcodeEnabled: false,
+      });
+      const data = await response.json();
+      setBarcodeEnabled(false);
+      setConfirmDisableBarcode(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/admin'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
+      const migrated = (data as any).migrationResult?.migrated ?? 0;
+      toast({
+        title: '掃碼槍功能已停用',
+        description: `${migrated} 位員工身分證已加密為 AES-256-GCM`,
+      });
+    } catch (error) {
+      console.error('Failed to disable barcode:', error);
+      toast({ title: '操作失敗', description: '停用掃碼槍時發生錯誤，請稍後再試', variant: 'destructive' });
+    } finally {
+      setIsBarcodeToggling(false);
+    }
+  };
+
+  const handleEnableBarcode = async () => {
+    setIsBarcodeToggling(true);
+    try {
+      const totalAllowances = allowances.reduce((sum, item) => sum + item.amount, 0);
+      await apiRequest('POST', '/api/settings', {
+        baseHourlyRate,
+        baseMonthSalary,
+        welfareAllowance: totalAllowances,
+        ot1Multiplier,
+        ot2Multiplier,
+        deductions,
+        allowances,
+        barcodeEnabled: true,
+      });
+      setBarcodeEnabled(true);
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/admin'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
+      toast({ title: '掃碼槍功能已重新啟用' });
+    } catch (error) {
+      console.error('Failed to enable barcode:', error);
+      toast({ title: '操作失敗', description: '啟用掃碼槍時發生錯誤，請稍後再試', variant: 'destructive' });
+    } finally {
+      setIsBarcodeToggling(false);
+    }
+  };
+
   const renderAdminSection = () => {
     if (!isAdmin) {
       return (
@@ -428,6 +496,76 @@ export default function SettingsPage() {
               登出管理員
             </Button>
           </div>
+        </div>
+
+        {/* Barcode scanner toggle */}
+        <div className="mt-4 p-4 border border-gray-200 rounded-lg bg-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ScanLine className="w-4 h-4 text-gray-600" />
+              <div>
+                <h4 className="font-medium text-sm">掃碼槍功能</h4>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {barcodeEnabled
+                    ? '目前已啟用，硬體掃碼槍與瀏覽器掃碼均可使用'
+                    : '目前已停用，僅保留 LINE QR Code 打卡'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${barcodeEnabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                {barcodeEnabled ? '已啟用' : '已停用'}
+              </span>
+              {barcodeEnabled ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isBarcodeToggling}
+                  onClick={() => setConfirmDisableBarcode(true)}
+                >
+                  停用掃碼槍
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isBarcodeToggling}
+                  onClick={() => void handleEnableBarcode()}
+                >
+                  {isBarcodeToggling && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                  重新啟用
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {confirmDisableBarcode && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
+              <p className="text-sm text-amber-800 mb-1 font-medium">確認停用掃碼槍？</p>
+              <p className="text-xs text-amber-700 mb-3">
+                停用後系統將自動以 AES-256-GCM 加密所有明文儲存的員工身分證，此操作不可逆。掃碼槍 API 端點將立即停止回應。
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={isBarcodeToggling}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={() => void handleDisableBarcode()}
+                >
+                  {isBarcodeToggling && <Loader2 className="w-3 h-3 animate-spin mr-1" />}
+                  確認停用並加密
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isBarcodeToggling}
+                  onClick={() => setConfirmDisableBarcode(false)}
+                >
+                  取消
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {showChangePin && (
