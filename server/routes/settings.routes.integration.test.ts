@@ -96,6 +96,7 @@ describe("settings routes integration", () => {
         ot2Multiplier: 1.67,
         baseMonthSalary: 28590,
         welfareAllowance: 0,
+        barcodeEnabled: true,
       });
       expect(settingsState.savedSettings).toMatchObject({
         baseHourlyRate: 119,

@@ -89,7 +89,8 @@ const storageMock = vi.hoisted(() => ({
     employeeState.deletedHolidayIds.push(holidayId);
     employeeState.holidays = employeeState.holidays.filter((holiday) => holiday.id !== holidayId);
     return true;
-  })
+  }),
+  getSettings: vi.fn(async () => null)
 }));
 
 vi.mock('../storage', () => ({

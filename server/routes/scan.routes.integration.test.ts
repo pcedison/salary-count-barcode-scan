@@ -64,7 +64,8 @@ const storageMock = vi.hoisted(() => ({
   getTemporaryAttendance: vi.fn(async () => scanState.attendanceRecords),
   getEmployeeById: vi.fn(async (id: number) =>
     scanState.employees.find((employee) => employee.id === id)
-  )
+  ),
+  getSettings: vi.fn(async () => null)
 }));
 
 vi.mock('../storage', () => ({
