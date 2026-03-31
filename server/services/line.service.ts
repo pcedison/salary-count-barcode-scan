@@ -134,7 +134,10 @@ export async function sendClockInNotification(
   isClockIn: boolean
 ): Promise<void> {
   const emoji = isClockIn ? '🌅' : '🌙';
-  const action = isClockIn ? '上班打卡' : '下班打卡';
-  const message = `${emoji} 打卡成功！\n\n👤 員工：${employeeName}\n📋 類型：${action}\n🕐 時間：${clockTime}\n\n祝您工作順利！`;
+  const actionZh = isClockIn ? '上班打卡' : '下班打卡';
+  const actionVi = isClockIn ? 'Chấm công vào' : 'Chấm công ra';
+  const closingZh = isClockIn ? '祝您工作順利！' : '辛苦了，好好休息！';
+  const closingVi = isClockIn ? 'Chúc bạn làm việc suôn sẻ!' : 'Bạn đã vất vả rồi, hãy nghỉ ngơi nhé!';
+  const message = `${emoji} 打卡成功！/ Chấm công thành công!\n\n👤 員工 / Nhân viên：${employeeName}\n📋 類型 / Loại：${actionZh} / ${actionVi}\n🕐 時間 / Thời gian：${clockTime}\n\n${closingZh}\n${closingVi}`;
   await pushMessage(lineUserId, message);
 }
