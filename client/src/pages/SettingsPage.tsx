@@ -543,7 +543,7 @@ export default function SettingsPage() {
             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-md">
               <p className="text-sm text-amber-800 mb-1 font-medium">確認停用掃碼槍？</p>
               <p className="text-xs text-amber-700 mb-3">
-                停用後系統將自動以 AES-256-GCM 加密所有明文儲存的員工身分證，此操作不可逆。掃碼槍 API 端點將立即停止回應。
+                停用後系統將自動以 AES-256-GCM 加密所有明文儲存的員工身分證（加密後無法自動還原明文）。掃碼槍 API 端點將立即停止回應。開關本身可隨時重新啟用。
               </p>
               <div className="flex gap-2">
                 <Button
