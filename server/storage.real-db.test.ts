@@ -361,7 +361,7 @@ describe('real database — AES compatibility', () => {
 
     expect(publicEmployee).toMatchObject({
       id: aesEmployee.id,
-      name: `${TEST_PREFIX}_AES?∪極`
+      name: `${TEST_PREFIX}_AES員工`
     });
     expect(publicEmployee).not.toHaveProperty('idNumber');
     expect(publicEmployee).not.toHaveProperty('specialLeaveUsedDates');

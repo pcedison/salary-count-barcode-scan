@@ -267,6 +267,14 @@ export function registerEmployeeRoutes(app: Express): void {
 
       const filteredData = employeePatchSchema.parse(req.body);
 
+      if (Object.keys(filteredData).length === 0) {
+        const currentEmployee = await storage.getEmployeeById(id);
+        if (!currentEmployee) return res.status(404).json({ message: '找不到員工' });
+        const settings = await storage.getSettings();
+        const includeScanId = settings?.barcodeEnabled !== false;
+        return res.json(toAdminEmployeeProfile(currentEmployee, includeScanId));
+      }
+
       if (filteredData.specialLeaveUsedDates !== undefined) {
         const existingEmployee = await storage.getEmployeeById(id);
         if (existingEmployee) {
@@ -290,12 +298,16 @@ export function registerEmployeeRoutes(app: Express): void {
         }
       }
 
-      const updatedEmployee = await storage.updateEmployee(id, filteredData);
+      const [updatedEmployee, settings] = await Promise.all([
+        storage.updateEmployee(id, filteredData),
+        storage.getSettings()
+      ]);
       if (!updatedEmployee) {
         return res.status(404).json({ message: '找不到員工' });
       }
 
-      return res.json(updatedEmployee);
+      const includeScanId = settings?.barcodeEnabled !== false;
+      return res.json(toAdminEmployeeProfile(updatedEmployee, includeScanId));
     } catch (err) {
       return handleRouteError(err, res);
     }
