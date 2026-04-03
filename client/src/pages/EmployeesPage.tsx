@@ -18,9 +18,10 @@ import { debugLog } from '@/lib/debug';
 interface Employee {
   id: number;
   name: string;
-  idNumber: string; // 身分證字號或居留證號碼
+  idNumber: string; // 身分證字號或護照號碼
   scanIdNumber?: string;
-  isEncrypted?: boolean; // 標記是否已加密
+  isEncrypted?: boolean; // 標記是否已 AES 加密
+  employeeType?: 'local' | 'foreign'; // 'local'=本地員工, 'foreign'=外籍員工
   position: string;
   department: string;
   email: string;
@@ -32,18 +33,20 @@ interface Employee {
 interface EmployeeFormData {
   name: string;
   idNumber: string;
+  employeeType: 'local' | 'foreign';
   position: string;
   department: string;
   email: string;
   phone: string;
   active: boolean;
-  useEncryption?: boolean; // 是否使用加密
+  useEncryption?: boolean; // 是否使用 AES 加密
   isEncrypted?: boolean;   // 標記ID是否已加密，用於數據庫儲存
 }
 
 const initialFormData: EmployeeFormData = {
   name: '',
   idNumber: '',
+  employeeType: 'local',
   position: '',
   department: '',
   email: '',
@@ -109,7 +112,12 @@ export default function EmployeesPage() {
       debugLog('更新結果:', JSON.stringify(result));
       return result;
     },
-    onSuccess: () => {
+    onSuccess: (updatedEmployee) => {
+      // 立即更新快取，不等待非同步重取，避免畫面短暫顯示舊資料
+      queryClient.setQueryData(['/api/employees/admin'], (oldData: Employee[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(emp => emp.id === updatedEmployee.id ? updatedEmployee : emp);
+      });
       queryClient.invalidateQueries({ queryKey: ['/api/employees'] });
       queryClient.invalidateQueries({ queryKey: ['/api/employees/admin'] });
       setIsDialogOpen(false);
@@ -189,13 +197,13 @@ export default function EmployeesPage() {
   // 編輯員工
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee);
-    
-    // 使用資料庫中的加密標記
+
     const isIdNumberEncrypted = employee.isEncrypted || false;
-      
+
     setFormData({
       name: employee.name,
       idNumber: employee.idNumber,
+      employeeType: employee.employeeType || 'local',
       position: employee.position || '',
       department: employee.department || '',
       email: employee.email || '',
@@ -306,7 +314,7 @@ export default function EmployeesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>姓名</TableHead>
-                  <TableHead>身分證號碼/居留證</TableHead>
+                  <TableHead>證件號碼</TableHead>
                   <TableHead>部門</TableHead>
                   <TableHead>職位</TableHead>
                   <TableHead>狀態</TableHead>
@@ -316,19 +324,34 @@ export default function EmployeesPage() {
               <TableBody>
                 {employees.map((employee: Employee) => (
                   <TableRow key={employee.id}>
-                    <TableCell className="font-medium">{employee.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {employee.name}
+                        {employee.employeeType === 'foreign' && (
+                          <span
+                            title="外籍員工（護照號碼）"
+                            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700"
+                          >
+                            外
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-mono">
                       <div className="flex items-center">
-                        <span 
-                          title={employee.isEncrypted ? "系統以加密形式儲存，畫面顯示原始證號" : "身分證號碼"} 
+                        <span
+                          title={employee.isEncrypted ? "系統以 AES 加密形式儲存" : ""}
                           className="truncate mr-1 max-w-[120px]"
                         >
                           {employee.idNumber}
                         </span>
-                        
+                        <span className="text-xs text-muted-foreground mr-1">
+                          {employee.employeeType === 'foreign' ? '(護照)' : '(身分證)'}
+                        </span>
+
                         {employee.isEncrypted && (
-                          <span 
-                            title="資料庫內為加密儲存" 
+                          <span
+                            title="資料庫內為 AES 加密儲存"
                             className="text-amber-600 bg-amber-50 rounded-full p-1"
                           >
                             <Lock className="h-3 w-3" />
@@ -417,13 +440,43 @@ export default function EmployeesPage() {
               />
             </div>
             
+            <div className="flex gap-4 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="employeeType"
+                  value="local"
+                  checked={formData.employeeType === 'local'}
+                  onChange={() => handleInputChange('employeeType', 'local')}
+                  className="accent-primary"
+                />
+                <span className="text-sm">本地員工（身分證）</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="employeeType"
+                  value="foreign"
+                  checked={formData.employeeType === 'foreign'}
+                  onChange={() => handleInputChange('employeeType', 'foreign')}
+                  className="accent-primary"
+                />
+                <span className="text-sm flex items-center gap-1">
+                  外籍員工（護照號碼）
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700">外</span>
+                </span>
+              </label>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="idNumber">身分證號碼/居留證 *</Label>
-              <Input 
+              <Label htmlFor="idNumber">
+                {formData.employeeType === 'foreign' ? '護照號碼' : '身分證號碼'} *
+              </Label>
+              <Input
                 id="idNumber"
                 value={formData.idNumber}
                 onChange={(e) => handleInputChange('idNumber', e.target.value)}
-                placeholder="例如：A123456789"
+                placeholder={formData.employeeType === 'foreign' ? '例如：E01839502' : '例如：A123456789'}
                 required
               />
             </div>

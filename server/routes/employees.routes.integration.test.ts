@@ -1,6 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { encrypt as encryptAes } from '@shared/utils/encryption';
 import { createJsonTestServer, jsonRequest } from '../test-utils/http-test-server';
 import { TEST_ADMIN_HEADER, setupTestAdminSession } from '../test-utils/admin-test-session';
@@ -215,7 +214,8 @@ describe('employee routes integration', () => {
         expect.objectContaining({
           id: 5,
           idNumber: 'A123456789',
-          scanIdNumber: caesarEncrypt('A123456789'),
+          // scanIdNumber now equals displayId (no Caesar encoding)
+          scanIdNumber: 'A123456789',
           department: '生產部'
         })
       ]);
@@ -254,7 +254,7 @@ describe('employee routes integration', () => {
         expect.objectContaining({
           id: 5,
           idNumber: 'A123456789',
-          scanIdNumber: caesarEncrypt('A123456789'),
+          scanIdNumber: 'A123456789',
           isEncrypted: true
         })
       ]);
@@ -274,7 +274,7 @@ describe('employee routes integration', () => {
         expect.objectContaining({
           id: 5,
           idNumber: 'A123456789',
-          scanIdNumber: caesarEncrypt('A123456789'),
+          scanIdNumber: 'A123456789',
           isEncrypted: true
         })
       );
@@ -284,12 +284,6 @@ describe('employee routes integration', () => {
   });
 
   it('rejects unauthenticated single-employee reads and returns full profile for admin sessions', async () => {
-    employeeState.employee = {
-      ...employeeState.employee,
-      idNumber: caesarEncrypt('A123456789'),
-      isEncrypted: true
-    };
-
     const server = await createJsonTestServer(registerEmployeeRoutes, {
       setupApp: async (app) => {
         setupTestAdminSession(app);
@@ -319,8 +313,8 @@ describe('employee routes integration', () => {
         expect.objectContaining({
           id: 5,
           idNumber: 'A123456789',
-          scanIdNumber: caesarEncrypt('A123456789'),
-          isEncrypted: true
+          scanIdNumber: 'A123456789',
+          isEncrypted: false
         })
       );
     } finally {

@@ -45,8 +45,6 @@ export interface Constants {
   // 員工相關常量
   DEFAULT_EMPLOYEE_ID: number;        // 默認員工ID（用於遷移期）
   
-  // 加密相關常量
-  DEFAULT_CIPHER_SHIFT: number;       // 默認加密偏移量
 }
 
 export const constants: Constants;

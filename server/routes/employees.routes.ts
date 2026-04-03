@@ -243,12 +243,16 @@ export function registerEmployeeRoutes(app: Express): void {
       const validatedData = insertEmployeeSchema.partial().parse(req.body);
       applyUpdateEmployeeEncryptionFlag(req.body, validatedData);
 
-      const updatedEmployee = await storage.updateEmployee(id, validatedData);
+      const [updatedEmployee, settings] = await Promise.all([
+        storage.updateEmployee(id, validatedData),
+        storage.getSettings(),
+      ]);
       if (!updatedEmployee) {
         return res.status(404).json({ message: '找不到員工' });
       }
 
-      return res.json(updatedEmployee);
+      const includeScanId = settings?.barcodeEnabled !== false;
+      return res.json(toAdminEmployeeProfile(updatedEmployee, includeScanId));
     } catch (err) {
       return handleRouteError(err, res);
     }

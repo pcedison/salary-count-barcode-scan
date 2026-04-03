@@ -20,7 +20,6 @@ import express from 'express';
 import type { Server } from 'http';
 
 import type { Employee, TemporaryAttendance } from '@shared/schema';
-import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { decrypt as decryptAes, isAESEncrypted } from '@shared/utils/encryption';
 
 import { storage } from './storage';
@@ -300,14 +299,12 @@ describe('real database — AES compatibility', () => {
     expect(decryptAes(stored!.idNumber)).toBe(plaintextId);
   });
 
-  it('retrieves AES employees by plaintext, scan token, and stored ciphertext', async () => {
+  it('retrieves AES employees by plaintext and stored ciphertext', async () => {
     const stored = await storage.getEmployeeById(aesEmployee.id);
     const byPlaintext = await storage.getEmployeeByIdNumber(plaintextId);
-    const byScanToken = await storage.getEmployeeByIdNumber(caesarEncrypt(plaintextId));
     const byStoredCiphertext = await storage.getEmployeeByIdNumber(stored!.idNumber);
 
     expect(byPlaintext?.id).toBe(aesEmployee.id);
-    expect(byScanToken?.id).toBe(aesEmployee.id);
     expect(byStoredCiphertext?.id).toBe(aesEmployee.id);
   });
 
@@ -338,7 +335,7 @@ describe('real database — AES compatibility', () => {
     expect(adminListEmployee).toMatchObject({
       id: aesEmployee.id,
       idNumber: plaintextId,
-      scanIdNumber: caesarEncrypt(plaintextId),
+      scanIdNumber: plaintextId,
       isEncrypted: true
     });
 
@@ -354,7 +351,7 @@ describe('real database — AES compatibility', () => {
     expect(singleEmployee).toMatchObject({
       id: aesEmployee.id,
       idNumber: plaintextId,
-      scanIdNumber: caesarEncrypt(plaintextId),
+      scanIdNumber: plaintextId,
       isEncrypted: true
     });
 
@@ -370,7 +367,7 @@ describe('real database — AES compatibility', () => {
     expect(publicEmployee).not.toHaveProperty('specialLeaveUsedDates');
   });
 
-  it('supports plaintext and scan-token clock flows for AES-encrypted employees', async () => {
+  it('supports plaintext clock flows for AES-encrypted employees', async () => {
     const firstScanResponse = await fetch(`${server.baseUrl}/api/barcode-scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -391,7 +388,7 @@ describe('real database — AES compatibility', () => {
     const secondScanResponse = await fetch(`${server.baseUrl}/api/barcode-scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ idNumber: caesarEncrypt(plaintextId) })
+      body: JSON.stringify({ idNumber: plaintextId })
     });
 
     expect(secondScanResponse.status).toBe(200);

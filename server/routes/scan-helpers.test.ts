@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { caesarEncrypt } from '@shared/utils/caesarCipher';
 import { encrypt as encryptAes } from '@shared/utils/encryption';
 
 import {
@@ -37,21 +36,11 @@ describe('scan route helpers', () => {
     delete process.env.ENCRYPTION_KEY;
   });
 
-  it('matches a plain scanned id against encrypted employee data', () => {
-    const encryptedEmployee = {
-      ...employee,
-      idNumber: caesarEncrypt(employee.idNumber),
-      isEncrypted: true
-    };
-
-    expect(matchEmployeeByScanId([encryptedEmployee], employee.idNumber)).toEqual(encryptedEmployee);
+  it('matches a plain scanned id against a plain employee', () => {
+    expect(matchEmployeeByScanId([employee], employee.idNumber)).toEqual(employee);
   });
 
-  it('matches an encrypted scanned id against plain employee data', () => {
-    expect(matchEmployeeByScanId([employee], caesarEncrypt(employee.idNumber))).toEqual(employee);
-  });
-
-  it('matches plaintext and Caesar scan tokens against AES-encrypted employee data', () => {
+  it('matches plaintext scan tokens against AES-encrypted employee data', () => {
     process.env.ENCRYPTION_KEY = TEST_ENCRYPTION_KEY;
     const aesEmployee = {
       ...employee,
@@ -60,7 +49,6 @@ describe('scan route helpers', () => {
     };
 
     expect(matchEmployeeByScanId([aesEmployee], employee.idNumber)).toEqual(aesEmployee);
-    expect(matchEmployeeByScanId([aesEmployee], caesarEncrypt(employee.idNumber))).toEqual(aesEmployee);
   });
 
   it('filters mixed date formats and returns the latest event by clock-out time', () => {

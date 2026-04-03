@@ -1,6 +1,6 @@
-import { constants } from '../../shared/constants.js';
-
-const CAESAR_SHIFT = constants.DEFAULT_CIPHER_SHIFT;
+// Legacy Caesar shift used before AES migration (hardcoded here since the constant
+// was removed from shared/constants.js after migration was completed).
+const CAESAR_SHIFT = 9;
 const AES_IV_HEX_LENGTH = 32;
 const AES_TAG_HEX_LENGTH = 32;
 const VALID_FIRST_LETTERS = new Set('ABCDEFGHIJKLMNOPQRSTUV'.split(''));
