@@ -48,6 +48,18 @@ describe('security middleware', () => {
       }
     });
 
+    it('allows same-origin requests even when the origin is not listed explicitly', async () => {
+      const server = await buildSecurityTestServer('production', 'https://allowed.example.com');
+      try {
+        const result = await jsonRequest<{ ok: boolean }>(server.baseUrl, '/api/test', {
+          headers: { Origin: server.baseUrl }
+        });
+        expect(result.response.status).toBe(200);
+      } finally {
+        await server.close();
+      }
+    });
+
     it('blocks cross-origin requests from non-whitelisted origins in production', async () => {
       const server = await buildSecurityTestServer('production', 'https://allowed.example.com');
       try {

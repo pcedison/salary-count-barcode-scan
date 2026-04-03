@@ -29,7 +29,7 @@ export const employees = pgTable("employees", {
   email: text("email"),
   phone: text("phone"),
   active: boolean("active").default(true), // 員工是否在職
-  employeeType: text("employee_type").default('local'), // 'local'=本地員工, 'foreign'=外籍員工
+  employeeType: text("employee_type", { enum: ["local", "foreign"] }).default('local'), // 'local'=本地員工, 'foreign'=外籍員工
   // LINE 打卡綁定欄位
   lineUserId: text("line_user_id"),
   lineDisplayName: text("line_display_name"),

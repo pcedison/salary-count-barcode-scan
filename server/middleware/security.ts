@@ -1,20 +1,51 @@
 import cors from 'cors';
-import type { Express } from 'express';
+import type { Express, Request } from 'express';
 import helmet from 'helmet';
 
 import { createLogger } from '../utils/logger';
 
 const log = createLogger('security');
 
+function normalizeOrigin(origin: string): string {
+  const trimmedOrigin = origin.trim();
+
+  try {
+    return new URL(trimmedOrigin).origin;
+  } catch {
+    return trimmedOrigin.replace(/\/+$/, '');
+  }
+}
+
 function getAllowedOrigins(): string[] {
   return process.env.ALLOWED_ORIGINS?.split(',')
-    .map(origin => origin.trim())
+    .map(origin => normalizeOrigin(origin))
     .filter(Boolean) || [];
+}
+
+function isSameOriginRequest(req: Request, origin: string): boolean {
+  const host = req.get('host');
+
+  if (!host) {
+    return false;
+  }
+
+  return normalizeOrigin(origin) === normalizeOrigin(`${req.protocol}://${host}`);
 }
 
 export function setupSecurity(app: Express): void {
   const allowedOrigins = getAllowedOrigins();
   const isProduction = process.env.NODE_ENV === 'production';
+  const corsOptions = {
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-Force-Update',
+      'X-Scan-Device-Token'
+    ]
+  };
 
   if (isProduction && allowedOrigins.length === 0) {
     log.warn(
@@ -51,34 +82,38 @@ export function setupSecurity(app: Express): void {
 
   app.use(
     '/api',
+    (req, _res, next) => {
+      const origin = req.get('origin');
+
+      if (!origin) {
+        next();
+        return;
+      }
+
+      if (isSameOriginRequest(req, origin)) {
+        next();
+        return;
+      }
+
+      if (!isProduction && allowedOrigins.length === 0) {
+        next();
+        return;
+      }
+
+      if (allowedOrigins.includes(normalizeOrigin(origin))) {
+        next();
+        return;
+      }
+
+      next(new Error('Origin is not allowed'));
+    }
+  );
+
+  app.use(
+    '/api',
     cors({
-      origin: (origin, callback) => {
-        if (!origin) {
-          callback(null, true);
-          return;
-        }
-
-        if (!isProduction && allowedOrigins.length === 0) {
-          callback(null, true);
-          return;
-        }
-
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-          return;
-        }
-
-        callback(new Error('Origin is not allowed'));
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: [
-        'Content-Type',
-        'Authorization',
-        'X-Requested-With',
-        'X-Force-Update',
-        'X-Scan-Device-Token'
-      ]
+      ...corsOptions,
+      origin: true
     })
   );
 
