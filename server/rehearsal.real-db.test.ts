@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const TEST_PREFIX = `__rehearsal_${Date.now()}`;
 const TEST_AES_KEY = '12345678901234567890123456789012';
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const spawnShell = process.platform === 'win32';
 const trackedEmployeeIds: number[] = [];
 
 async function cleanup() {
@@ -136,44 +137,49 @@ describe('real database — rollback / restore rehearsals', () => {
 
       await execFileAsync(npmCommand, ['run', 'aes:report'], {
         cwd: process.cwd(),
+        shell: spawnShell,
         env: {
-        ...process.env,
-        ENCRYPTION_KEY: TEST_AES_KEY
-      },
-      maxBuffer: 2 * 1024 * 1024
-    });
-    await execFileAsync(npmCommand, ['run', 'aes:snapshot'], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        ENCRYPTION_KEY: TEST_AES_KEY
-      },
-      maxBuffer: 2 * 1024 * 1024
-    });
-    await execFileAsync(npmCommand, ['run', 'aes:rehearse'], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        ENCRYPTION_KEY: TEST_AES_KEY
-      },
-      maxBuffer: 2 * 1024 * 1024
-    });
-    await execFileAsync(npmCommand, ['run', 'restore:rehearse'], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env
-      },
-      maxBuffer: 2 * 1024 * 1024
-    });
+          ...process.env,
+          ENCRYPTION_KEY: TEST_AES_KEY
+        },
+        maxBuffer: 2 * 1024 * 1024
+      });
+      await execFileAsync(npmCommand, ['run', 'aes:snapshot'], {
+        cwd: process.cwd(),
+        shell: spawnShell,
+        env: {
+          ...process.env,
+          ENCRYPTION_KEY: TEST_AES_KEY
+        },
+        maxBuffer: 2 * 1024 * 1024
+      });
+      await execFileAsync(npmCommand, ['run', 'aes:rehearse'], {
+        cwd: process.cwd(),
+        shell: spawnShell,
+        env: {
+          ...process.env,
+          ENCRYPTION_KEY: TEST_AES_KEY
+        },
+        maxBuffer: 2 * 1024 * 1024
+      });
+      await execFileAsync(npmCommand, ['run', 'restore:rehearse'], {
+        cwd: process.cwd(),
+        shell: spawnShell,
+        env: {
+          ...process.env
+        },
+        maxBuffer: 2 * 1024 * 1024
+      });
 
-    const { stdout } = await execFileAsync(npmCommand, ['run', 'aes:ready'], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        ENCRYPTION_KEY: TEST_AES_KEY
-      },
-      maxBuffer: 2 * 1024 * 1024
-    });
+      const { stdout } = await execFileAsync(npmCommand, ['run', 'aes:ready'], {
+        cwd: process.cwd(),
+        shell: spawnShell,
+        env: {
+          ...process.env,
+          ENCRYPTION_KEY: TEST_AES_KEY
+        },
+        maxBuffer: 2 * 1024 * 1024
+      });
 
       expect(stdout).toContain('Ready for execute: YES');
       expect(stdout).toContain('Status report saved: ');

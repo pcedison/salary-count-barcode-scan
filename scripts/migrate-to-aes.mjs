@@ -407,16 +407,30 @@ async function main() {
     logReportSummary(report, skipped);
 
     if (migrationCandidates.length === 0) {
+      // Even with 0 candidates, write mode-appropriate metadata so the readiness
+      // checker can confirm the pipeline ran and found nothing to do.
+      const extra = isSnapshot
+        ? { snapshot: { snapshotPath: null, snapshotRecords: 0 } }
+        : isRehearsal
+          ? {
+              rehearsal: {
+                candidateCount: 0,
+                migratedCount: 0,
+                rolledBackCount: 0,
+                migrationVerified: true,
+                rollbackVerified: true,
+                rehearsalRolledBack: true
+              }
+            }
+          : {};
+
       const reportPath = writeMigrationReport({
         mode: reportMode,
         employeesCount: employees.length,
         report,
         selectedEmployeeIds,
-        context: {
-          operator,
-          allowRemote,
-          databaseTarget
-        }
+        context: { operator, allowRemote, databaseTarget },
+        extra
       });
       console.log(`Report saved: ${reportPath}`);
       console.log('\nNothing to migrate.');

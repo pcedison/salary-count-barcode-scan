@@ -266,13 +266,19 @@ export function buildAesMigrationReadiness(options) {
     const snapshotPath = snapshot.snapshot?.snapshotPath ?? null;
     const snapshotRecords = snapshot.snapshot?.snapshotRecords ?? null;
 
+    const snapshotFileOk =
+      snapshotRecords === 0
+        ? true // no candidates → no backup file needed
+        : Boolean(snapshotPath) && fs.existsSync(snapshotPath);
     checks.push(
       createCheck(
         'snapshot.backup_file',
-        Boolean(snapshotPath) && fs.existsSync(snapshotPath),
-        snapshotPath
-          ? `snapshot backup exists: ${snapshotPath}`
-          : 'snapshot report does not contain snapshotPath'
+        snapshotFileOk,
+        snapshotRecords === 0
+          ? 'no migration candidates — snapshot backup not required'
+          : snapshotPath
+            ? `snapshot backup exists: ${snapshotPath}`
+            : 'snapshot report does not contain snapshotPath'
       )
     );
     checks.push(

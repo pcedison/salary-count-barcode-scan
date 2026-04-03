@@ -303,7 +303,8 @@ function normalizeBackupPayload(payload: unknown): NormalizedBackupPayload {
     metadata: normalizeOptionalObject<NonNullable<BackupPayload['metadata']>>(parsed.metadata, 'metadata'),
     employees: normalizeRecordArray<typeof schema.employees.$inferSelect>(parsed.employees, 'employees').map((employee) => ({
       ...employee,
-      createdAt: normalizeTimestampValue(employee.createdAt)
+      createdAt: normalizeTimestampValue(employee.createdAt),
+      lineBindingDate: normalizeTimestampValue(employee.lineBindingDate)
     })),
     settings: (() => {
       const normalizedSettings = normalizeOptionalObject<typeof schema.settings.$inferSelect>(parsed.settings, 'settings');
