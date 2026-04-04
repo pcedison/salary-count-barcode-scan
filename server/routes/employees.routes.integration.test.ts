@@ -10,6 +10,7 @@ const employeeState = vi.hoisted(() => ({
     name: '測試員工',
     idNumber: 'A123456789',
     isEncrypted: false,
+    employeeType: 'local' as const,
     position: null,
     department: '生產部',
     email: null,
@@ -129,6 +130,7 @@ beforeEach(() => {
     name: '測試員工',
     idNumber: 'A123456789',
     isEncrypted: false,
+    employeeType: 'local',
     position: null,
     department: '生產部',
     email: null,
@@ -317,6 +319,121 @@ describe('employee routes integration', () => {
           isEncrypted: false
         })
       );
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('updates employeeType through PUT for admin employee edits', async () => {
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
+
+    try {
+      const result = await jsonRequest<Record<string, unknown>>(
+        server.baseUrl,
+        '/api/employees/5',
+        {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            [TEST_ADMIN_HEADER]: 'true'
+          },
+          body: JSON.stringify({
+            name: employeeState.employee.name,
+            idNumber: employeeState.employee.idNumber,
+            employeeType: 'foreign',
+            department: employeeState.employee.department,
+            active: employeeState.employee.active
+          })
+        }
+      );
+
+      expect(result.response.status).toBe(200);
+      expect(result.body).toEqual(
+        expect.objectContaining({
+          id: 5,
+          employeeType: 'foreign',
+          idNumber: 'A123456789'
+        })
+      );
+      expect(employeeState.employee.employeeType).toBe('foreign');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('updates identity fields through PATCH without silently dropping employeeType', async () => {
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
+
+    try {
+      const result = await jsonRequest<Record<string, unknown>>(
+        server.baseUrl,
+        '/api/employees/5',
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+            [TEST_ADMIN_HEADER]: 'true'
+          },
+          body: JSON.stringify({
+            idNumber: 'E01839502',
+            employeeType: 'foreign'
+          })
+        }
+      );
+
+      expect(result.response.status).toBe(200);
+      expect(result.body).toEqual(
+        expect.objectContaining({
+          id: 5,
+          idNumber: 'E01839502',
+          employeeType: 'foreign'
+        })
+      );
+      expect(employeeState.employee.idNumber).toBe('E01839502');
+      expect(employeeState.employee.employeeType).toBe('foreign');
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('rejects invalid employeeType values instead of accepting arbitrary text', async () => {
+    const server = await createJsonTestServer(registerEmployeeRoutes, {
+      setupApp: async (app) => {
+        setupTestAdminSession(app);
+      }
+    });
+
+    try {
+      const result = await jsonRequest<Record<string, unknown>>(
+        server.baseUrl,
+        '/api/employees/5',
+        {
+          method: 'PUT',
+          headers: {
+            'content-type': 'application/json',
+            [TEST_ADMIN_HEADER]: 'true'
+          },
+          body: JSON.stringify({
+            name: employeeState.employee.name,
+            idNumber: employeeState.employee.idNumber,
+            employeeType: 'foo',
+            department: employeeState.employee.department,
+            active: employeeState.employee.active
+          })
+        }
+      );
+
+      expect(result.response.status).toBe(400);
+      expect(storageMock.updateEmployee).not.toHaveBeenCalled();
+      expect(employeeState.employee.employeeType).toBe('local');
     } finally {
       await server.close();
     }

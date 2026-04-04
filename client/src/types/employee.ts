@@ -2,6 +2,8 @@ export interface Employee {
   id: number;
   name: string;
   idNumber?: string;
+  scanIdNumber?: string;
+  employeeType?: 'local' | 'foreign';
   department?: string | null;
   position?: string | null;
   isEncrypted?: boolean;

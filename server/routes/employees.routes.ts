@@ -29,6 +29,8 @@ const employeePatchSchema = insertEmployeeSchema
     specialLeaveCashMonth: true,
     specialLeaveNotes: true,
     name: true,
+    idNumber: true,
+    employeeType: true,
     position: true,
     department: true,
     email: true,
@@ -266,6 +268,7 @@ export function registerEmployeeRoutes(app: Express): void {
       }
 
       const filteredData = employeePatchSchema.parse(req.body);
+      applyUpdateEmployeeEncryptionFlag(req.body, filteredData);
 
       if (Object.keys(filteredData).length === 0) {
         const currentEmployee = await storage.getEmployeeById(id);
